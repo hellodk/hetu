@@ -1,0 +1,13 @@
+---
+# PersistentVolumeClaim for historical data
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: cluster-intel-data
+  namespace: utilities
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi

@@ -1,0 +1,238 @@
+# ServiceAccount for the collector
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cluster-intel-collector
+  namespace: utilities
+  labels:
+    app.kubernetes.io/name: collector
+    app.kubernetes.io/component: collector
+    app.kubernetes.io/part-of: k8s-ai-cluster-intelligence
+---
+# ServiceAccount for the analyzer
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cluster-intel-analyzer
+  namespace: utilities
+  labels:
+    app.kubernetes.io/name: analyzer
+    app.kubernetes.io/component: analyzer
+    app.kubernetes.io/part-of: k8s-ai-cluster-intelligence
+---
+# ClusterRole for read-only cluster observation
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cluster-intel-reader
+  labels:
+    app.kubernetes.io/name: cluster-intel-reader
+    app.kubernetes.io/part-of: k8s-ai-cluster-intelligence
+rules:
+  # Core resources - read only
+  - apiGroups: [""]
+    resources:
+      - pods
+      - pods/status
+      - pods/log
+      - services
+      - endpoints
+      - nodes
+      - nodes/status
+      - events
+      - namespaces
+      - configmaps
+      - persistentvolumeclaims
+      - persistentvolumes
+      - resourcequotas
+      - limitranges
+      - replicationcontrollers
+    verbs: ["get", "list", "watch"]
+  
+  # Secrets - only metadata, not data (for security analysis)
+  - apiGroups: [""]
+    resources:
+      - secrets
+    verbs: ["list"]
+  
+  # Workload resources
+  - apiGroups: ["apps"]
+    resources:
+      - deployments
+      - deployments/status
+      - replicasets
+      - replicasets/status
+      - statefulsets
+      - statefulsets/status
+      - daemonsets
+      - daemonsets/status
+    verbs: ["get", "list", "watch"]
+  
+  # Batch resources
+  - apiGroups: ["batch"]
+    resources:
+      - jobs
+      - jobs/status
+      - cronjobs
+      - cronjobs/status
+    verbs: ["get", "list", "watch"]
+  
+  # Autoscaling resources
+  - apiGroups: ["autoscaling"]
+    resources:
+      - horizontalpodautoscalers
+      - horizontalpodautoscalers/status
+    verbs: ["get", "list", "watch"]
+  
+  # Autoscaling v1 (VPA)
+  - apiGroups: ["autoscaling.k8s.io"]
+    resources:
+      - verticalpodautoscalers
+      - verticalpodautoscalers/status
+    verbs: ["get", "list", "watch"]
+  
+  # Networking resources
+  - apiGroups: ["networking.k8s.io"]
+    resources:
+      - networkpolicies
+      - ingresses
+      - ingresses/status
+      - ingressclasses
+    verbs: ["get", "list", "watch"]
+  
+  # RBAC resources (for security analysis)
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources:
+      - roles
+      - rolebindings
+      - clusterroles
+      - clusterrolebindings
+    verbs: ["get", "list", "watch"]
+  
+  # Policy resources
+  - apiGroups: ["policy"]
+    resources:
+      - poddisruptionbudgets
+      - poddisruptionbudgets/status
+      - podsecuritypolicies
+    verbs: ["get", "list", "watch"]
+  
+  # Storage resources
+  - apiGroups: ["storage.k8s.io"]
+    resources:
+      - storageclasses
+      - volumeattachments
+      - csidrivers
+      - csinodes
+    verbs: ["get", "list", "watch"]
+  
+  # Metrics resources
+  - apiGroups: ["metrics.k8s.io"]
+    resources:
+      - pods
+      - nodes
+    verbs: ["get", "list"]
+  
+  # Custom metrics (if available)
+  - apiGroups: ["custom.metrics.k8s.io"]
+    resources: ["*"]
+    verbs: ["get", "list"]
+  
+  # External metrics (if available)
+  - apiGroups: ["external.metrics.k8s.io"]
+    resources: ["*"]
+    verbs: ["get", "list"]
+  
+  # Admission controllers
+  - apiGroups: ["admissionregistration.k8s.io"]
+    resources:
+      - validatingwebhookconfigurations
+      - mutatingwebhookconfigurations
+    verbs: ["get", "list", "watch"]
+  
+  # Certificates
+  - apiGroups: ["certificates.k8s.io"]
+    resources:
+      - certificatesigningrequests
+    verbs: ["get", "list", "watch"]
+  
+  # Discovery
+  - apiGroups: ["discovery.k8s.io"]
+    resources:
+      - endpointslices
+    verbs: ["get", "list", "watch"]
+  
+  # Coordination
+  - apiGroups: ["coordination.k8s.io"]
+    resources:
+      - leases
+    verbs: ["get", "list", "watch"]
+  
+  # Node resources
+  - apiGroups: ["node.k8s.io"]
+    resources:
+      - runtimeclasses
+    verbs: ["get", "list", "watch"]
+  
+  # Scheduling
+  - apiGroups: ["scheduling.k8s.io"]
+    resources:
+      - priorityclasses
+    verbs: ["get", "list", "watch"]
+---
+# ClusterRoleBinding for collector
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: cluster-intel-collector
+  labels:
+    app.kubernetes.io/name: collector
+    app.kubernetes.io/part-of: k8s-ai-cluster-intelligence
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-intel-reader
+subjects:
+  - kind: ServiceAccount
+    name: cluster-intel-collector
+    namespace: utilities
+---
+# Role for analyzer (namespace-scoped operations)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: cluster-intel-analyzer
+  namespace: utilities
+  labels:
+    app.kubernetes.io/name: analyzer
+    app.kubernetes.io/part-of: k8s-ai-cluster-intelligence
+rules:
+  # ConfigMaps for storing analysis state
+  - apiGroups: [""]
+    resources:
+      - configmaps
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+  
+  # Secrets for LLM credentials (read only)
+  - apiGroups: [""]
+    resources:
+      - secrets
+    verbs: ["get"]
+---
+# RoleBinding for analyzer
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: cluster-intel-analyzer
+  namespace: utilities
+  labels:
+    app.kubernetes.io/name: analyzer
+    app.kubernetes.io/part-of: k8s-ai-cluster-intelligence
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: cluster-intel-analyzer
+subjects:
+  - kind: ServiceAccount
+    name: cluster-intel-analyzer
+    namespace: utilities

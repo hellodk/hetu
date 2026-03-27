@@ -1,0 +1,230 @@
+# Default deny all ingress and egress
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: utilities
+  labels:
+    app.kubernetes.io/part-of: k8s-ai-cluster-intelligence
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+---
+# Allow collector to access Kubernetes API
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: collector-egress
+  namespace: utilities
+  labels:
+    app.kubernetes.io/name: collector
+    app.kubernetes.io/part-of: k8s-ai-cluster-intelligence
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: collector
+  policyTypes:
+    - Egress
+  egress:
+    # Allow access to Kubernetes API server
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 6443
+    # Allow DNS
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+---
+# Allow collector to receive traffic from analyzer and prometheus
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: collector-ingress
+  namespace: utilities
+  labels:
+    app.kubernetes.io/name: collector
+    app.kubernetes.io/part-of: k8s-ai-cluster-intelligence
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: collector
+  policyTypes:
+    - Ingress
+  ingress:
+    # Allow from analyzer
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: analyzer
+      ports:
+        - protocol: TCP
+          port: 8080
+    # Allow Prometheus scraping from monitoring namespace
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - protocol: TCP
+          port: 9090
+---
+# Allow analyzer egress to collector and LLM endpoint
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: analyzer-egress
+  namespace: utilities
+  labels:
+    app.kubernetes.io/name: analyzer
+    app.kubernetes.io/part-of: k8s-ai-cluster-intelligence
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: analyzer
+  policyTypes:
+    - Egress
+  egress:
+    # Allow access to collector
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: collector
+      ports:
+        - protocol: TCP
+          port: 8080
+    # Allow access to LLM endpoint (external)
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
+        - protocol: TCP
+          port: 443
+    # Allow DNS
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+---
+# Allow analyzer to receive traffic from dashboard and ingress
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: analyzer-ingress
+  namespace: utilities
+  labels:
+    app.kubernetes.io/name: analyzer
+    app.kubernetes.io/part-of: k8s-ai-cluster-intelligence
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: analyzer
+  policyTypes:
+    - Ingress
+  ingress:
+    # Allow from dashboard
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: dashboard
+      ports:
+        - protocol: TCP
+          port: 8081
+    # Allow from ingress controller
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 8081
+    # Allow Prometheus scraping
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - protocol: TCP
+          port: 9091
+---
+# Allow dashboard egress
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: dashboard-egress
+  namespace: utilities
+  labels:
+    app.kubernetes.io/name: dashboard
+    app.kubernetes.io/part-of: k8s-ai-cluster-intelligence
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: dashboard
+  policyTypes:
+    - Egress
+  egress:
+    # Allow access to analyzer
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: analyzer
+      ports:
+        - protocol: TCP
+          port: 8081
+    # Allow DNS
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+---
+# Allow dashboard ingress from ingress controller
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: dashboard-ingress
+  namespace: utilities
+  labels:
+    app.kubernetes.io/name: dashboard
+    app.kubernetes.io/part-of: k8s-ai-cluster-intelligence
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: dashboard
+  policyTypes:
+    - Ingress
+  ingress:
+    # Allow from ingress controller
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 3000

@@ -1,0 +1,55 @@
+# Grafana Datasource ConfigMap for Tempo
+# This configures Tempo as a datasource in Grafana for trace visualization
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasource-tempo
+  namespace: monitoring
+  labels:
+    grafana_datasource: "1"
+    app: tempo
+  annotations:
+    grafana_folder: "llm"
+data:
+  tempo-datasource.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Tempo
+        type: tempo
+        uid: tempo
+        access: proxy
+        url: http://tempo.monitoring.svc:3200
+        jsonData:
+          httpMethod: GET
+          tracesToLogs:
+            datasourceUid: loki
+            filterBySpanID: true
+            filterByTraceID: true
+            mapTagNamesEnabled: false
+            tags:
+              - service.name
+          tracesToMetrics:
+            datasourceUid: prometheus
+            spanStartTimeShift: '-1h'
+            spanEndTimeShift: '1h'
+            tags:
+              - key: service.name
+                value: service
+              - key: http.method
+                value: method
+            queries:
+              - name: 'Request rate'
+                query: 'sum(rate(llm_request_total{$$__tags}[5m]))'
+              - name: 'Error rate'
+                query: 'sum(rate(llm_request_total{$$__tags,status="error"}[5m])) / sum(rate(llm_request_total{$$__tags}[5m]))'
+          serviceMap:
+            datasourceUid: prometheus
+          search:
+            hide: false
+          nodeGraph:
+            enabled: true
+          lokiSearch:
+            datasourceUid: loki
+        isDefault: false
+        editable: true

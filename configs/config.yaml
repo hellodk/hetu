@@ -1,0 +1,280 @@
+
+;
+# K8s AI Cluster Intelligence Engine Configuration
+# This is the main configuration file for the system
+
+# Cluster identification
+cluster:
+  id: "${CLUSTER_ID:default}"
+  name: "${CLUSTER_NAME:My Cluster}"
+  environment: "${ENVIRONMENT:production}"  # production, staging, development
+  region: "${REGION:us-east-1}"
+
+# Collector configuration
+collector:
+  # Kubernetes API settings
+  kubernetes:
+    # Rate limiting to avoid API server overload
+    qps: 50
+    burst: 100
+    # Informer resync period
+    resyncPeriod: 5m
+    # Watch timeout
+    watchTimeout: 10m
+  
+  # Metrics collection
+  metrics:
+    # Scrape interval for pod/node metrics
+    scrapeInterval: 30s
+    # Enable metrics API collection
+    metricsAPI:
+      enabled: true
+    # Prometheus integration
+    prometheus:
+      enabled: true
+      endpoint: "${PROMETHEUS_URL:http://prometheus:9090}"
+      timeout: 10s
+  
+  # Event collection
+  events:
+    # Buffer size for events
+    bufferSize: 10000
+    # Event retention in buffer
+    retentionMinutes: 30
+    # Event types to collect
+    types:
+      - Warning
+      - Normal
+    # Critical reasons to always capture
+    criticalReasons:
+      - BackOff
+      - Unhealthy
+      - FailedScheduling
+      - OOMKilling
+      - Evicted
+      - FailedMount
+      - FailedAttachVolume
+  
+  # Resource types to watch
+  resources:
+    core:
+      - pods
+      - services
+      - endpoints
+      - nodes
+      - events
+      - namespaces
+      - persistentvolumeclaims
+      - configmaps
+    apps:
+      - deployments
+      - replicasets
+      - statefulsets
+      - daemonsets
+    autoscaling:
+      - horizontalpodautoscalers
+    networking:
+      - networkpolicies
+      - ingresses
+    rbac:
+      - roles
+      - rolebindings
+      - clusterroles
+      - clusterrolebindings
+    policy:
+      - poddisruptionbudgets
+
+# Analyzer configuration
+analyzer:
+  # Analysis scheduling
+  schedule:
+    # Full analysis interval
+    fullAnalysis: 5m
+    # Deep security scan interval
+    securityScan: 6h
+    # Cost analysis interval
+    costAnalysis: 1h
+  
+  # Analysis thresholds
+  thresholds:
+    # Pod restart threshold for alerts
+    podRestartThreshold: 5
+    # Memory pressure threshold (percentage)
+    memoryPressureThreshold: 85
+    # CPU throttle ratio threshold
+    cpuThrottleThreshold: 0.1
+    # PVC utilization alert threshold
+    pvcUtilizationThreshold: 90
+  
+  # Scoring weights
+  scoring:
+    weights:
+      reliability: 0.35
+      security: 0.30
+      cost: 0.20
+      architecture: 0.15
+
+# LLM configuration
+llm:
+  # Backend selection (openai, azure, anthropic, ollama, vllm, custom)
+  backend: "${LLM_BACKEND:openai}"
+  
+  # OpenAI settings
+  openai:
+    endpoint: "https://api.openai.com/v1"
+    model: "gpt-4-turbo"
+    apiKeySecret: "llm-credentials"
+    apiKeyField: "api-key"
+  
+  # Azure OpenAI settings
+  azure:
+    endpoint: "${AZURE_OPENAI_ENDPOINT:}"
+    deployment: "${AZURE_OPENAI_DEPLOYMENT:gpt-4}"
+    apiVersion: "2024-02-15-preview"
+    apiKeySecret: "llm-credentials"
+    apiKeyField: "azure-api-key"
+  
+  # Ollama settings (for air-gapped deployments)
+  ollama:
+    endpoint: "http://100.89.50.27:11434"
+    model: "llama3:70b"
+  
+  # Request settings
+  settings:
+    maxTokens: 4096
+    temperature: 0.3
+    timeout: 60s
+    maxRetries: 3
+    retryBackoff: [1s, 2s, 4s]
+  
+  # Rate limiting
+  rateLimits:
+    requestsPerMinute: 60
+    tokensPerMinute: 150000
+    maxConcurrent: 10
+
+# API server configuration
+api:
+  port: 8081
+  metricsPort: 9091
+  
+  # CORS settings
+  cors:
+    allowedOrigins:
+      - "*"
+    allowedMethods:
+      - GET
+      - POST
+      - OPTIONS
+    allowedHeaders:
+      - Content-Type
+      - Authorization
+  
+  # Authentication (optional)
+  auth:
+    enabled: false
+    type: "bearer"  # bearer, basic, oidc
+    oidc:
+      issuer: "${OIDC_ISSUER:}"
+      audience: "${OIDC_AUDIENCE:}"
+
+# Dashboard configuration
+dashboard:
+  port: 3000
+  
+  # Refresh intervals (milliseconds)
+  refreshIntervals:
+    health: 30000
+    events: 10000
+    recommendations: 60000
+  
+  # Feature flags
+  features:
+    realTimeUpdates: true
+    aiInsights: true
+    costAnalysis: true
+    securityScanning: true
+
+# Storage configuration (optional)
+storage:
+  # Time-series database for metrics history
+  timeseries:
+    enabled: false
+    type: "timescaledb"  # timescaledb, prometheus
+    endpoint: "${TIMESCALEDB_URL:}"
+  
+  # Relational database for recommendations
+  database:
+    enabled: false
+    type: "postgresql"
+    endpoint: "${DATABASE_URL:}"
+  
+  # Cache
+  cache:
+    enabled: true
+    type: "memory"  # memory, redis
+    redis:
+      endpoint: "${REDIS_URL:}"
+    ttl:
+      health: 30s
+      recommendations: 5m
+      events: 1m
+
+# Alerting configuration
+alerting:
+  enabled: true
+  
+  # Alert destinations
+  destinations:
+    # Webhook
+    webhook:
+      enabled: false
+      url: "${ALERT_WEBHOOK_URL:}"
+    
+    # Slack
+    slack:
+      enabled: false
+      webhookUrl: "${SLACK_WEBHOOK_URL:}"
+      channel: "#k8s-alerts"
+    
+    # PagerDuty
+    pagerduty:
+      enabled: false
+      serviceKey: "${PAGERDUTY_SERVICE_KEY:}"
+  
+  # Alert rules
+  rules:
+    - name: critical-pod-failure
+      condition: "issue.severity == 'critical' && issue.category == 'reliability'"
+      destinations: ["slack", "pagerduty"]
+    
+    - name: security-vulnerability
+      condition: "finding.severity == 'critical' && finding.category == 'security'"
+      destinations: ["slack", "pagerduty"]
+    
+    - name: cost-anomaly
+      condition: "recommendation.category == 'cost' && recommendation.impact.costSavings.monthly > 1000"
+      destinations: ["slack"]
+
+# Logging configuration
+logging:
+  level: "${LOG_LEVEL:info}"  # debug, info, warn, error
+  format: "${LOG_FORMAT:json}"  # json, text
+  
+  # Structured logging fields
+  fields:
+    cluster: "${CLUSTER_ID:default}"
+    environment: "${ENVIRONMENT:production}"
+
+# Telemetry configuration
+telemetry:
+  # Prometheus metrics
+  metrics:
+    enabled: true
+    port: 9090
+  
+  # OpenTelemetry tracing
+  tracing:
+    enabled: false
+    endpoint: "${OTEL_EXPORTER_OTLP_ENDPOINT:}"
+    samplingRate: 0.1

@@ -1,0 +1,28 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+metadata:
+  name: cluster-intelligence
+
+namespace: utilities
+
+resources:
+  - rbac.yaml
+  - collector.yaml
+  - analyzer.yaml
+  - dashboard.yaml
+  - network-policies.yaml
+
+commonLabels:
+  app.kubernetes.io/part-of: k8s-ai-cluster-intelligence
+  app.kubernetes.io/version: "1.0.0"
+  app.kubernetes.io/managed-by: kustomize
+
+# Image configurations - override in overlays
+images:
+  - name: ghcr.io/your-org/cluster-intel-collector
+    newTag: latest
+  - name: ghcr.io/your-org/cluster-intel-analyzer
+    newTag: latest
+  - name: ghcr.io/your-org/cluster-intel-dashboard
+    newTag: latest

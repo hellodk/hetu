@@ -1,0 +1,33 @@
+---
+# ConfigMap - Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-intel-config
+  namespace: utilities
+data:
+  config.yaml: |
+    cluster_id: "default"
+    analysis_interval: 60
+    history_retention_days: 30
+    theme: "light"
+    
+    prometheus:
+      enabled: true
+      url: ""  # Auto-discover or set manually
+      
+    alerts:
+      enabled: false
+      threshold: 50
+      webhooks: []
+      # - type: slack
+      #   url: "https://hooks.slack.com/..."
+      # - type: discord
+      #   url: "https://discord.com/api/webhooks/..."
+    
+    scoring:
+      weights:
+        reliability: 0.25
+        security: 0.40
+        cost: 0.15
+        architecture: 0.20

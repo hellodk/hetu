@@ -1,0 +1,71 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: clickhouse-ui-config
+  namespace: utilities
+data:
+  config.json: |
+    {
+      "CH_HOST": "http://avika-clickhouse.avika.svc.cluster.local:8123",
+      "CH_USER": "default",
+      "CH_PASSWORD": "EIY2wBkzQPIJ9O17vmpcBj0tFiJ1VZnh",
+      "CH_DATABASE": "nginx_analytics"
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: clickhouse-ui
+  namespace: utilities
+  labels:
+    app: clickhouse-ui
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: clickhouse-ui
+  template:
+    metadata:
+      labels:
+        app: clickhouse-ui
+    spec:
+      containers:
+        - name: tabix
+          image: spoonest/clickhouse-tabix-web-client:stable
+          ports:
+            - containerPort: 80
+              name: http
+          env:
+            - name: CH_HOST
+              value: "avika-clickhouse.avika.svc.cluster.local"
+            - name: CH_PORT
+              value: "8123"
+            - name: CH_USER
+              value: "default"
+            - name: CH_PASSWORD
+              value: "EIY2wBkzQPIJ9O17vmpcBj0tFiJ1VZnh"
+            - name: CH_NAME
+              value: "nginx_analytics"
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "200m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: clickhouse-ui
+  namespace: utilities
+  labels:
+    app: clickhouse-ui
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 80
+      name: http
+  selector:
+    app: clickhouse-ui

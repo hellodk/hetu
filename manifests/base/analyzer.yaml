@@ -1,0 +1,192 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: analyzer
+  namespace: utilities
+  labels:
+    app.kubernetes.io/name: analyzer
+    app.kubernetes.io/component: analyzer
+    app.kubernetes.io/part-of: k8s-ai-cluster-intelligence
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: analyzer
+      app.kubernetes.io/component: analyzer
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: analyzer
+        app.kubernetes.io/component: analyzer
+        app.kubernetes.io/part-of: k8s-ai-cluster-intelligence
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9091"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: cluster-intel-analyzer
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: analyzer
+          image: ghcr.io/your-org/cluster-intel-analyzer:latest
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          ports:
+            - name: metrics
+              containerPort: 9091
+              protocol: TCP
+            - name: api
+              containerPort: 8081
+              protocol: TCP
+          env:
+            - name: CLUSTER_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: COLLECTOR_URL
+              value: "http://collector:8080"
+            - name: LLM_BACKEND
+              valueFrom:
+                configMapKeyRef:
+                  name: analyzer-config
+                  key: llm-backend
+            - name: LLM_ENDPOINT
+              valueFrom:
+                configMapKeyRef:
+                  name: analyzer-config
+                  key: llm-endpoint
+            - name: LLM_MODEL
+              valueFrom:
+                configMapKeyRef:
+                  name: analyzer-config
+                  key: llm-model
+            - name: LLM_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: llm-credentials
+                  key: api-key
+                  optional: true
+            - name: ANALYSIS_INTERVAL
+              value: "5m"
+            - name: METRICS_PORT
+              value: "9091"
+            - name: API_PORT
+              value: "8081"
+            - name: LLM_MAX_TOKENS
+              value: "4096"
+            - name: LLM_TEMPERATURE
+              value: "0.3"
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: api
+            initialDelaySeconds: 15
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: api
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: analyzer
+                topologyKey: kubernetes.io/hostname
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: analyzer
+  namespace: utilities
+  labels:
+    app.kubernetes.io/name: analyzer
+    app.kubernetes.io/component: analyzer
+    app.kubernetes.io/part-of: k8s-ai-cluster-intelligence
+spec:
+  type: ClusterIP
+  ports:
+    - name: api
+      port: 8081
+      targetPort: api
+      protocol: TCP
+    - name: metrics
+      port: 9091
+      targetPort: metrics
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: analyzer
+    app.kubernetes.io/component: analyzer
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: analyzer-config
+  namespace: utilities
+  labels:
+    app.kubernetes.io/name: analyzer
+    app.kubernetes.io/part-of: k8s-ai-cluster-intelligence
+data:
+  llm-backend: "openai"
+  llm-endpoint: "https://api.openai.com/v1"
+  llm-model: "gpt-4-turbo"
+---
+# Secret placeholder - should be created externally or via sealed secrets
+apiVersion: v1
+kind: Secret
+metadata:
+  name: llm-credentials
+  namespace: utilities
+  labels:
+    app.kubernetes.io/name: analyzer
+    app.kubernetes.io/part-of: k8s-ai-cluster-intelligence
+type: Opaque
+stringData:
+  api-key: ""  # Set via external secret management
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: analyzer
+  namespace: utilities
+  labels:
+    app.kubernetes.io/name: analyzer
+    app.kubernetes.io/part-of: k8s-ai-cluster-intelligence
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: analyzer
+      app.kubernetes.io/component: analyzer

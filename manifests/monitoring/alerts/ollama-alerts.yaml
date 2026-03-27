@@ -1,0 +1,187 @@
+# PrometheusRule for Ollama and LLM Alerts
+# These rules trigger alerts for Ollama performance issues
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: ollama-alerts
+  namespace: monitoring
+  labels:
+    app: ollama
+    release: monitoring
+    prometheus: kube-prometheus
+spec:
+  groups:
+    - name: ollama.rules
+      rules:
+        # Ollama availability
+        - alert: OllamaDown
+          expr: up{job="ollama"} == 0
+          for: 2m
+          labels:
+            severity: critical
+            team: platform
+          annotations:
+            summary: "Ollama service is down"
+            description: "Ollama at {{ $labels.instance }} has been down for more than 2 minutes."
+            runbook_url: "https://wiki.internal/runbooks/ollama-down"
+        
+        # High request latency
+        - alert: OllamaHighLatency
+          expr: histogram_quantile(0.95, rate(ollama_request_duration_seconds_bucket[5m])) > 30
+          for: 5m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "Ollama request latency is high"
+            description: "Ollama P95 latency is {{ $value | humanizeDuration }} (threshold: 30s)"
+            runbook_url: "https://wiki.internal/runbooks/ollama-high-latency"
+        
+        # Critical latency
+        - alert: OllamaCriticalLatency
+          expr: histogram_quantile(0.95, rate(ollama_request_duration_seconds_bucket[5m])) > 60
+          for: 5m
+          labels:
+            severity: critical
+            team: platform
+          annotations:
+            summary: "Ollama request latency is critically high"
+            description: "Ollama P95 latency is {{ $value | humanizeDuration }} (threshold: 60s). Users are experiencing severe delays."
+            runbook_url: "https://wiki.internal/runbooks/ollama-critical-latency"
+        
+        # Request queue backlog
+        - alert: OllamaQueueBacklog
+          expr: ollama_queued_requests > 10
+          for: 5m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "Ollama request queue is backing up"
+            description: "Ollama has {{ $value }} queued requests. Consider scaling up or reducing request rate."
+            runbook_url: "https://wiki.internal/runbooks/ollama-queue-backlog"
+        
+        # VRAM exhaustion warning
+        - alert: OllamaVRAMWarning
+          expr: (ollama_gpu_memory_used_bytes / ollama_gpu_memory_total_bytes) * 100 > 80
+          for: 5m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "Ollama VRAM usage is high"
+            description: "Ollama GPU memory usage is {{ $value | printf \"%.1f\" }}%. Consider unloading unused models."
+            runbook_url: "https://wiki.internal/runbooks/ollama-vram-warning"
+        
+        # VRAM exhaustion critical
+        - alert: OllamaVRAMCritical
+          expr: (ollama_gpu_memory_used_bytes / ollama_gpu_memory_total_bytes) * 100 > 95
+          for: 2m
+          labels:
+            severity: critical
+            team: platform
+          annotations:
+            summary: "Ollama VRAM is nearly exhausted"
+            description: "Ollama GPU memory usage is {{ $value | printf \"%.1f\" }}%. OOM errors imminent."
+            runbook_url: "https://wiki.internal/runbooks/ollama-vram-critical"
+        
+        # No models loaded
+        - alert: OllamaNoModelsLoaded
+          expr: ollama_models_loaded == 0
+          for: 5m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "No Ollama models are loaded"
+            description: "Ollama has no models loaded. First request will have high latency due to model loading."
+            runbook_url: "https://wiki.internal/runbooks/ollama-no-models"
+        
+        # High error rate
+        - alert: OllamaHighErrorRate
+          expr: |
+            (
+              sum(rate(ollama_requests_total{status="error"}[5m]))
+              /
+              sum(rate(ollama_requests_total[5m]))
+            ) > 0.05
+          for: 5m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "Ollama error rate is high"
+            description: "Ollama error rate is {{ $value | humanizePercentage }}. Check logs for details."
+            runbook_url: "https://wiki.internal/runbooks/ollama-high-error-rate"
+        
+        # Critical error rate
+        - alert: OllamaErrorRateCritical
+          expr: |
+            (
+              sum(rate(ollama_requests_total{status="error"}[5m]))
+              /
+              sum(rate(ollama_requests_total[5m]))
+            ) > 0.20
+          for: 3m
+          labels:
+            severity: critical
+            team: platform
+          annotations:
+            summary: "Ollama error rate is critically high"
+            description: "Ollama error rate is {{ $value | humanizePercentage }}. Service is degraded."
+            runbook_url: "https://wiki.internal/runbooks/ollama-critical-error-rate"
+
+    - name: llm-application.rules
+      rules:
+        # Application LLM request failures
+        - alert: LLMRequestFailureRate
+          expr: |
+            (
+              sum(rate(llm_request_total{status="error"}[5m]))
+              /
+              sum(rate(llm_request_total[5m]))
+            ) > 0.10
+          for: 5m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "LLM request failure rate is high"
+            description: "Application LLM failure rate is {{ $value | humanizePercentage }}."
+        
+        # Slow LLM responses affecting analysis
+        - alert: LLMSlowResponses
+          expr: histogram_quantile(0.95, rate(llm_request_duration_seconds_bucket[5m])) > 45
+          for: 10m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "LLM responses are slow"
+            description: "LLM P95 response time is {{ $value | humanizeDuration }}. Analysis may be delayed."
+        
+        # Token usage spike
+        - alert: LLMTokenUsageSpike
+          expr: |
+            (
+              sum(rate(llm_tokens_input_total[5m])) + sum(rate(llm_tokens_output_total[5m]))
+            ) > 10000
+          for: 10m
+          labels:
+            severity: info
+            team: platform
+          annotations:
+            summary: "High LLM token usage detected"
+            description: "Token usage rate is {{ $value | printf \"%.0f\" }} tokens/5min. Review for unexpected usage."
+        
+        # No LLM requests (health check)
+        - alert: LLMNoRequests
+          expr: sum(rate(llm_request_total[15m])) == 0
+          for: 30m
+          labels:
+            severity: warning
+            team: platform
+          annotations:
+            summary: "No LLM requests in the last 30 minutes"
+            description: "The cluster intelligence system hasn't made any LLM requests. Analysis may not be running."
