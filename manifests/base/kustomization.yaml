@@ -21,8 +21,11 @@ commonLabels:
 # Image configurations - override in overlays
 images:
   - name: ghcr.io/your-org/cluster-intel-collector
-    newTag: latest
+    newName: hellodk/cluster-intel-collector
+    newTag: "6.0.0"
   - name: ghcr.io/your-org/cluster-intel-analyzer
-    newTag: latest
+    newName: hellodk/cluster-intel-analyzer
+    newTag: "6.0.0"
   - name: ghcr.io/your-org/cluster-intel-dashboard
-    newTag: latest
+    newName: hellodk/cluster-intel-dashboard
+    newTag: "6.0.0"
