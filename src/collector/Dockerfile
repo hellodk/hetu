@@ -6,40 +6,28 @@ WORKDIR /app
 # Install dependencies
 RUN apk add --no-cache git ca-certificates
 
-# Copy go mod files
-COPY go.mod go.sum* ./
-RUN go mod download 2>/dev/null || true
+# Copy shared packages first (for layer caching)
+COPY pkg/ ./pkg/
 
-# Copy source code
-COPY . .
+# Copy collector module
+COPY src/collector/ ./src/collector/
 
-# Initialize module if needed
-RUN [ -f go.mod ] || go mod init github.com/your-org/cluster-intel-collector
-
-# Download dependencies
-RUN go mod tidy
-
-# Build the binary
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
-    -ldflags="-w -s -X main.version=1.0.0" \
+# Build the binary (GOWORK=off to use replace directives in go.mod)
+WORKDIR /app/src/collector
+RUN GOWORK=off CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+    -ldflags="-w -s -X main.version=6.0.0" \
     -o /collector .
 
 # Runtime stage
 FROM scratch
 
-# Copy CA certificates for HTTPS
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
-
-# Copy the binary
 COPY --from=builder /collector /collector
 
-# Non-root user
 USER 65534:65534
 
-# Expose ports
 EXPOSE 8080 9090
 
-# Health check
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD ["/collector", "-healthcheck"]
 
