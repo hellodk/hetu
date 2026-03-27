@@ -19,6 +19,8 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
+
+	types "github.com/your-org/cluster-intel/pkg/types"
 )
 
 // LLMMetrics holds all LLM-related Prometheus metrics
@@ -66,10 +68,10 @@ type LLMClientConfig struct {
 
 // OllamaRequest represents a request to Ollama's native API
 type OllamaRequest struct {
-	Model    string       `json:"model"`
-	Messages []LLMMessage `json:"messages"`
-	Stream   bool         `json:"stream"`
-	Options  *OllamaOptions `json:"options,omitempty"`
+	Model    string             `json:"model"`
+	Messages []types.LLMMessage `json:"messages"`
+	Stream   bool               `json:"stream"`
+	Options  *OllamaOptions     `json:"options,omitempty"`
 }
 
 // OllamaOptions represents Ollama-specific options
@@ -197,7 +199,7 @@ func NewLLMClient(config LLMClientConfig, metrics *LLMMetrics) *LLMClient {
 }
 
 // Complete sends a completion request to the LLM with full instrumentation
-func (c *LLMClient) Complete(ctx context.Context, task string, messages []LLMMessage) (*LLMCompletionResult, error) {
+func (c *LLMClient) Complete(ctx context.Context, task string, messages []types.LLMMessage) (*LLMCompletionResult, error) {
 	// Start tracing span
 	ctx, span := c.tracer.Start(ctx, "llm.complete",
 		trace.WithAttributes(
@@ -276,7 +278,7 @@ type LLMCompletionResult struct {
 }
 
 // completeOllama sends a request to Ollama's native API
-func (c *LLMClient) completeOllama(ctx context.Context, task string, messages []LLMMessage) (*LLMCompletionResult, error) {
+func (c *LLMClient) completeOllama(ctx context.Context, task string, messages []types.LLMMessage) (*LLMCompletionResult, error) {
 	reqBody := OllamaRequest{
 		Model:    c.config.Model,
 		Messages: messages,
@@ -337,8 +339,8 @@ func (c *LLMClient) completeOllama(ctx context.Context, task string, messages []
 }
 
 // completeOpenAI sends a request to OpenAI-compatible API
-func (c *LLMClient) completeOpenAI(ctx context.Context, task string, messages []LLMMessage) (*LLMCompletionResult, error) {
-	reqBody := LLMRequest{
+func (c *LLMClient) completeOpenAI(ctx context.Context, task string, messages []types.LLMMessage) (*LLMCompletionResult, error) {
+	reqBody := types.LLMRequest{
 		Model:       c.config.Model,
 		Messages:    messages,
 		MaxTokens:   c.config.MaxTokens,
@@ -372,7 +374,7 @@ func (c *LLMClient) completeOpenAI(ctx context.Context, task string, messages []
 		return nil, fmt.Errorf("openai returned status %d: %s", resp.StatusCode, string(body))
 	}
 	
-	var openaiResp LLMResponse
+	var openaiResp types.LLMResponse
 	if err := json.NewDecoder(resp.Body).Decode(&openaiResp); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}

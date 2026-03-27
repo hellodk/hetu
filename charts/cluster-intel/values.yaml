@@ -35,7 +35,7 @@ podSecurityContext:
   fsGroup: 1000
 
 securityContext:
-  runAsNonRoot: false
+  runAsNonRoot: true
 
 service:
   type: ClusterIP
@@ -92,7 +92,7 @@ config:
     webhooks: []
   scoring:
     weights:
-      reliability: 0.25
-      security: 0.40
-      cost: 0.15
-      architecture: 0.20
+      reliability: 0.35
+      security: 0.30
+      cost: 0.20
+      architecture: 0.15

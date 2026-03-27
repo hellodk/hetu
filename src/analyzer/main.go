@@ -11,6 +11,8 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sort"
+	"strings"
 	"sync"
 	"syscall"
 	"text/template"
@@ -20,6 +22,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+
+	mw "github.com/your-org/cluster-intel/pkg/middleware"
+	types "github.com/your-org/cluster-intel/pkg/types"
 )
 
 // Config holds analyzer configuration
@@ -37,248 +42,33 @@ type Config struct {
 	Temperature      float64       `json:"temperature"`
 }
 
-// TelemetryEvent represents a normalized cluster event
-type TelemetryEvent struct {
-	ID             string                 `json:"id"`
-	Timestamp      time.Time              `json:"timestamp"`
-	Cluster        string                 `json:"cluster"`
-	Source         string                 `json:"source"`
-	Type           string                 `json:"type"`
-	Reason         string                 `json:"reason"`
-	InvolvedObject InvolvedObject         `json:"involvedObject"`
-	Message        string                 `json:"message"`
-	Count          int32                  `json:"count"`
-	Metadata       map[string]interface{} `json:"metadata"`
-}
-
-// InvolvedObject represents the Kubernetes object involved in an event
-type InvolvedObject struct {
-	Kind      string `json:"kind"`
-	Namespace string `json:"namespace"`
-	Name      string `json:"name"`
-	UID       string `json:"uid"`
-}
-
-// ResourceMetrics holds resource utilization metrics
-type ResourceMetrics struct {
-	Timestamp    time.Time              `json:"timestamp"`
-	Cluster      string                 `json:"cluster"`
-	ResourceType string                 `json:"resourceType"`
-	Resource     ResourceIdentifier     `json:"resource"`
-	Metrics      map[string]interface{} `json:"metrics"`
-}
-
-// ResourceIdentifier identifies a Kubernetes resource
-type ResourceIdentifier struct {
-	Namespace string `json:"namespace,omitempty"`
-	Name      string `json:"name"`
-}
-
-// CorrelatedEvidence aggregates events, metrics and logs
-type CorrelatedEvidence struct {
-	Event       TelemetryEvent         `json:"event"`
-	Metrics     map[string][]DataPoint `json:"metrics"`
-	LogLines    []string               `json:"logLines"`
-	RelatedPods []string               `json:"relatedPods"`
-}
-
-// DataPoint represents a time-series point
-type DataPoint struct {
-	Timestamp time.Time `json:"timestamp"`
-	Value     float64   `json:"value"`
-}
-
-// ClusterHealthReport is the comprehensive health report
-type ClusterHealthReport struct {
-	ClusterID           string              `json:"clusterId"`
-	Timestamp           time.Time           `json:"timestamp"`
-	Scores              HealthScores        `json:"scores"`
-	Summary             ClusterSummary      `json:"summary"`
-	ResourceUtilization ResourceUtilization `json:"resourceUtilization"`
-	TopIssues           []Issue             `json:"topIssues"`
-	Recommendations     []Recommendation    `json:"recommendations"`
-	SecurityFindings    []SecurityFinding   `json:"securityFindings"`
-	EstimatedSavings    float64             `json:"estimatedMonthlySavings"`
-	Trends              HealthTrends        `json:"trends"`
-}
-
-// HealthScores contains all health scores
-type HealthScores struct {
-	Overall      int `json:"overall"`
-	Reliability  int `json:"reliability"`
-	Security     int `json:"security"`
-	Cost         int `json:"cost"`
-	Architecture int `json:"architecture"`
-}
-
-// HealthTrends tracks score changes
-type HealthTrends struct {
-	Overall      int `json:"overall"`
-	Reliability  int `json:"reliability"`
-	Security     int `json:"security"`
-	Cost         int `json:"cost"`
-	Architecture int `json:"architecture"`
-}
-
-// TimelineEvent represents an event for UI rendering
-type TimelineEvent struct {
-	ID          string    `json:"id"`
-	Title       string    `json:"title"`
-	Description string    `json:"description"`
-	Type        string    `json:"type"`
-	Timestamp   time.Time `json:"timestamp"`
-}
-
-// ClusterSummary provides cluster statistics
-type ClusterSummary struct {
-	TotalNodes      int                        `json:"totalNodes"`
-	TotalPods       int                        `json:"totalPods"`
-	TotalNamespaces int                        `json:"totalNamespaces"`
-	HealthyPods     int                        `json:"healthyPods"`
-	UnhealthyPods   int                        `json:"unhealthyPods"`
-	PendingPods     int                        `json:"pendingPods"`
-	WarningEvents   int                        `json:"warningEvents"`
-	CriticalEvents  int                        `json:"criticalEvents"`
-	Namespaces      map[string]*NamespaceStats `json:"namespaces"`
-}
-
-// NamespaceStats holds metrics for a specific namespace
-type NamespaceStats struct {
-	CPUUsed    float64 `json:"cpuUsed"`
-	MemoryUsed float64 `json:"memoryUsed"`
-	PodCount   int     `json:"podCount"`
-	Warnings   int     `json:"warnings"`
-}
-
-// ResourceUtilization tracks resource usage
-type ResourceUtilization struct {
-	CPU     ResourceUsage `json:"cpu"`
-	Memory  ResourceUsage `json:"memory"`
-	Storage ResourceUsage `json:"storage"`
-}
-
-// ResourceUsage represents a single resource's usage
-type ResourceUsage struct {
-	Requested float64 `json:"requested"`
-	Used      float64 `json:"used"`
-	Capacity  float64 `json:"capacity"`
-	Unit      string  `json:"unit"`
-}
-
-// Issue represents a detected issue
-type Issue struct {
-	ID                string               `json:"id"`
-	Severity          string               `json:"severity"`
-	Category          string               `json:"category"`
-	Title             string               `json:"title"`
-	Description       string               `json:"description"`
-	AffectedResources []string             `json:"affectedResources"`
-	Confidence        float64              `json:"confidence"`
-	RootCause         string               `json:"rootCause,omitempty"`
-	BlastRadius       string               `json:"blastRadius,omitempty"`
-	Evidence          []CorrelatedEvidence `json:"evidence,omitempty"`
-	Timestamp         time.Time            `json:"timestamp"`
-}
-
-// Recommendation represents an AI-generated recommendation
-type Recommendation struct {
-	ID                string               `json:"id"`
-	Category          string               `json:"category"`
-	Subcategory       string               `json:"subcategory"`
-	Severity          string               `json:"severity"`
-	Confidence        float64              `json:"confidence"`
-	Title             string               `json:"title"`
-	Description       string               `json:"description"`
-	AffectedResources []string             `json:"affectedResources"`
-	Impact            RecommendationImpact `json:"impact"`
-	Remediation       *Remediation         `json:"remediation,omitempty"`
-	AIReasoning       string               `json:"aiReasoning"`
-	Timestamp         time.Time            `json:"timestamp"`
-}
-
-// RecommendationImpact describes the impact of a recommendation
-type RecommendationImpact struct {
-	CostSavings *CostSavings `json:"costSavings,omitempty"`
-	RiskLevel   string       `json:"riskLevel"`
-	BlastRadius string       `json:"blastRadius"`
-	Effort      string       `json:"effort"`
-}
-
-// CostSavings represents potential cost savings
-type CostSavings struct {
-	Monthly  float64 `json:"monthly"`
-	Currency string  `json:"currency"`
-}
-
-// Remediation provides fix instructions
-type Remediation struct {
-	Type         string                 `json:"type"`
-	Automated    bool                   `json:"automated"`
-	Patch        map[string]interface{} `json:"patch,omitempty"`
-	Instructions string                 `json:"instructions,omitempty"`
-}
-
-// SecurityFinding represents a security issue
-type SecurityFinding struct {
-	ID                string   `json:"id"`
-	Category          string   `json:"category"`
-	Severity          string   `json:"severity"`
-	Title             string   `json:"title"`
-	Description       string   `json:"description"`
-	AffectedResources []string `json:"affectedResources"`
-	CISControl        string   `json:"cisControl,omitempty"`
-	Compliance        []string `json:"compliance,omitempty"`
-	Remediation       string   `json:"remediation"`
-}
-
-// LLMRequest represents a request to the LLM
-type LLMRequest struct {
-	Model       string       `json:"model"`
-	Messages    []LLMMessage `json:"messages"`
-	MaxTokens   int          `json:"max_tokens"`
-	Temperature float64      `json:"temperature"`
-}
-
-// LLMMessage represents a message in the LLM conversation
-type LLMMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
-}
-
-// LLMResponse represents the LLM response
-type LLMResponse struct {
-	Choices []struct {
-		Message struct {
-			Content string `json:"content"`
-		} `json:"message"`
-	} `json:"choices"`
-	Usage struct {
-		TotalTokens int `json:"total_tokens"`
-	} `json:"usage"`
-}
-
 // Analyzer is the main analyzer service
 type Analyzer struct {
 	config          Config
 	httpClient      *http.Client
-	latestReport    *ClusterHealthReport
-	previousReport  *ClusterHealthReport
-	reportHistory   []*ClusterHealthReport
+	latestReport    *types.ClusterHealthReport
+	previousReport  *types.ClusterHealthReport
+	reportHistory   []*types.ClusterHealthReport
 	reportMu        sync.RWMutex
 	stopCh          chan struct{}
 	wg              sync.WaitGroup
 	promptTemplates map[string]*template.Template
 
 	// SSE Support
-	subscribers map[chan *ClusterHealthReport]struct{}
+	subscribers map[chan *types.ClusterHealthReport]struct{}
 	subMu       sync.RWMutex
 
-	// Prometheus metrics
+	// Prometheus metrics (custom registry)
+	registry         *prometheus.Registry
 	analysisRuns     prometheus.Counter
 	analysisErrors   prometheus.Counter
 	analysisDuration prometheus.Histogram
 	llmTokensUsed    prometheus.Counter
 	healthScore      prometheus.Gauge
+
+	// HTTP servers for graceful shutdown
+	metricsServer *http.Server
+	apiServer     *http.Server
 }
 
 // NewAnalyzer creates a new analyzer instance
@@ -290,7 +80,7 @@ func NewAnalyzer(config Config) (*Analyzer, error) {
 		},
 		stopCh:          make(chan struct{}),
 		promptTemplates: make(map[string]*template.Template),
-		subscribers:     make(map[chan *ClusterHealthReport]struct{}),
+		subscribers:     make(map[chan *types.ClusterHealthReport]struct{}),
 	}
 
 	// Initialize prompt templates
@@ -302,8 +92,10 @@ func NewAnalyzer(config Config) (*Analyzer, error) {
 	return analyzer, nil
 }
 
-// initMetrics initializes Prometheus metrics
+// initMetrics initializes Prometheus metrics with a custom registry
 func (a *Analyzer) initMetrics() {
+	a.registry = prometheus.NewRegistry()
+
 	a.analysisRuns = prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "cluster_intel_analysis_runs_total",
 		Help: "Total number of analysis runs",
@@ -330,7 +122,7 @@ func (a *Analyzer) initMetrics() {
 		Help: "Current cluster health score",
 	})
 
-	prometheus.MustRegister(
+	a.registry.MustRegister(
 		a.analysisRuns,
 		a.analysisErrors,
 		a.analysisDuration,
@@ -442,8 +234,8 @@ Only output valid JSON.`
 ## Resource Utilization:
 {{range .Metrics}}
 - {{.Resource.Namespace}}/{{.Resource.Name}}
-  Requested CPU: {{.RequestedCPU}}m, Used CPU: {{index .Metrics "cpu_millicores"}}m
-  Requested Memory: {{.RequestedMemory}}Mi, Used Memory: {{index .Metrics "memory_bytes"}} bytes
+  Requested CPU: {{index .Metrics "cpu_requested_millicores"}}m, Used CPU: {{index .Metrics "cpu_millicores"}}m
+  Requested Memory: {{index .Metrics "memory_requested_bytes"}} bytes, Used Memory: {{index .Metrics "memory_bytes"}} bytes
 {{end}}
 
 ## Cost Context:
@@ -539,7 +331,7 @@ func (a *Analyzer) runAnalysis(ctx context.Context) {
 	}
 
 	// Build analysis context
-	analysisCtx := map[string]interface{}{
+	analysisCtx := map[string]any{
 		"ClusterID":        a.config.ClusterID,
 		"Timestamp":        time.Now().Format(time.RFC3339),
 		"Events":           filterWarningEvents(events),
@@ -563,7 +355,7 @@ func (a *Analyzer) runAnalysis(ctx context.Context) {
 	if a.latestReport != nil {
 		a.previousReport = a.latestReport
 
-		report.Trends = HealthTrends{
+		report.Trends = types.HealthTrends{
 			Overall:      report.Scores.Overall - a.previousReport.Scores.Overall,
 			Reliability:  report.Scores.Reliability - a.previousReport.Scores.Reliability,
 			Security:     report.Scores.Security - a.previousReport.Scores.Security,
@@ -571,7 +363,7 @@ func (a *Analyzer) runAnalysis(ctx context.Context) {
 			Architecture: report.Scores.Architecture - a.previousReport.Scores.Architecture,
 		}
 	} else {
-		report.Trends = HealthTrends{}
+		report.Trends = types.HealthTrends{}
 	}
 
 	a.latestReport = report
@@ -605,8 +397,8 @@ func (a *Analyzer) runAnalysis(ctx context.Context) {
 }
 
 // subscribe creates a new channel for SSE
-func (a *Analyzer) subscribe() chan *ClusterHealthReport {
-	ch := make(chan *ClusterHealthReport, 1)
+func (a *Analyzer) subscribe() chan *types.ClusterHealthReport {
+	ch := make(chan *types.ClusterHealthReport, 1)
 	a.subMu.Lock()
 	a.subscribers[ch] = struct{}{}
 	a.subMu.Unlock()
@@ -614,7 +406,7 @@ func (a *Analyzer) subscribe() chan *ClusterHealthReport {
 }
 
 // unsubscribe removes a channel
-func (a *Analyzer) unsubscribe(ch chan *ClusterHealthReport) {
+func (a *Analyzer) unsubscribe(ch chan *types.ClusterHealthReport) {
 	a.subMu.Lock()
 	delete(a.subscribers, ch)
 	a.subMu.Unlock()
@@ -622,7 +414,7 @@ func (a *Analyzer) unsubscribe(ch chan *ClusterHealthReport) {
 }
 
 // fetchEvents fetches events from the collector
-func (a *Analyzer) fetchEvents(ctx context.Context) ([]TelemetryEvent, error) {
+func (a *Analyzer) fetchEvents(ctx context.Context) ([]types.TelemetryEvent, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", a.config.CollectorURL+"/api/v1/events", nil)
 	if err != nil {
 		return nil, err
@@ -634,7 +426,7 @@ func (a *Analyzer) fetchEvents(ctx context.Context) ([]TelemetryEvent, error) {
 	}
 	defer resp.Body.Close()
 
-	var events []TelemetryEvent
+	var events []types.TelemetryEvent
 	if err := json.NewDecoder(resp.Body).Decode(&events); err != nil {
 		return nil, err
 	}
@@ -643,7 +435,7 @@ func (a *Analyzer) fetchEvents(ctx context.Context) ([]TelemetryEvent, error) {
 }
 
 // fetchCorrelatedEvents fetches correlated events from the collector
-func (a *Analyzer) fetchCorrelatedEvents(ctx context.Context) ([]CorrelatedEvidence, error) {
+func (a *Analyzer) fetchCorrelatedEvents(ctx context.Context) ([]types.CorrelatedEvidence, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", a.config.CollectorURL+"/api/v1/events/correlated", nil)
 	if err != nil {
 		return nil, err
@@ -655,7 +447,7 @@ func (a *Analyzer) fetchCorrelatedEvents(ctx context.Context) ([]CorrelatedEvide
 	}
 	defer resp.Body.Close()
 
-	var events []CorrelatedEvidence
+	var events []types.CorrelatedEvidence
 	if err := json.NewDecoder(resp.Body).Decode(&events); err != nil {
 		return nil, err
 	}
@@ -664,7 +456,7 @@ func (a *Analyzer) fetchCorrelatedEvents(ctx context.Context) ([]CorrelatedEvide
 }
 
 // fetchMetrics fetches metrics from the collector
-func (a *Analyzer) fetchMetrics(ctx context.Context) ([]ResourceMetrics, error) {
+func (a *Analyzer) fetchMetrics(ctx context.Context) ([]types.ResourceMetrics, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", a.config.CollectorURL+"/api/v1/metrics", nil)
 	if err != nil {
 		return nil, err
@@ -676,7 +468,7 @@ func (a *Analyzer) fetchMetrics(ctx context.Context) ([]ResourceMetrics, error) 
 	}
 	defer resp.Body.Close()
 
-	var metrics []ResourceMetrics
+	var metrics []types.ResourceMetrics
 	if err := json.NewDecoder(resp.Body).Decode(&metrics); err != nil {
 		return nil, err
 	}
@@ -685,7 +477,7 @@ func (a *Analyzer) fetchMetrics(ctx context.Context) ([]ResourceMetrics, error) 
 }
 
 // runLLMAnalysis executes LLM analysis with the given template
-func (a *Analyzer) runLLMAnalysis(ctx context.Context, templateName string, data map[string]interface{}) (map[string]interface{}, error) {
+func (a *Analyzer) runLLMAnalysis(ctx context.Context, templateName string, data map[string]any) (map[string]any, error) {
 	tmpl, ok := a.promptTemplates[templateName]
 	if !ok {
 		return nil, fmt.Errorf("template %s not found", templateName)
@@ -701,9 +493,9 @@ func (a *Analyzer) runLLMAnalysis(ctx context.Context, templateName string, data
 	log.Debug().Str("template", templateName).Int("promptLen", len(prompt)).Msg("Generated prompt")
 
 	// Build LLM request
-	llmReq := LLMRequest{
+	llmReq := types.LLMRequest{
 		Model: a.config.LLMModel,
-		Messages: []LLMMessage{
+		Messages: []types.LLMMessage{
 			{
 				Role:    "system",
 				Content: "You are a Kubernetes cluster analysis expert. Always respond with valid JSON only.",
@@ -744,7 +536,7 @@ func (a *Analyzer) runLLMAnalysis(ctx context.Context, templateName string, data
 		return nil, fmt.Errorf("LLM returned status %d: %s", resp.StatusCode, string(body))
 	}
 
-	var llmResp LLMResponse
+	var llmResp types.LLMResponse
 	if err := json.NewDecoder(resp.Body).Decode(&llmResp); err != nil {
 		return nil, fmt.Errorf("failed to decode LLM response: %w", err)
 	}
@@ -760,7 +552,7 @@ func (a *Analyzer) runLLMAnalysis(ctx context.Context, templateName string, data
 	content := llmResp.Choices[0].Message.Content
 
 	// Extract JSON from response
-	var result map[string]interface{}
+	var result map[string]any
 	if err := json.Unmarshal([]byte(content), &result); err != nil {
 		// Try to extract JSON from markdown code block
 		content = extractJSON(content)
@@ -797,12 +589,13 @@ func extractJSON(s string) string {
 	if start != -1 && end != -1 {
 		return s[start:end]
 	}
+
 	return s
 }
 
 // filterWarningEvents filters for warning events only
-func filterWarningEvents(events []TelemetryEvent) []TelemetryEvent {
-	var warnings []TelemetryEvent
+func filterWarningEvents(events []types.TelemetryEvent) []types.TelemetryEvent {
+	var warnings []types.TelemetryEvent
 	for _, e := range events {
 		if e.Type == "Warning" {
 			warnings = append(warnings, e)
@@ -812,20 +605,20 @@ func filterWarningEvents(events []TelemetryEvent) []TelemetryEvent {
 }
 
 // buildHealthReport constructs the health report from analysis results
-func (a *Analyzer) buildHealthReport(events []TelemetryEvent, metrics []ResourceMetrics, llmResponse map[string]interface{}) *ClusterHealthReport {
-	report := &ClusterHealthReport{
+func (a *Analyzer) buildHealthReport(events []types.TelemetryEvent, metrics []types.ResourceMetrics, llmResponse map[string]any) *types.ClusterHealthReport {
+	report := &types.ClusterHealthReport{
 		ClusterID: a.config.ClusterID,
 		Timestamp: time.Now(),
-		Scores: HealthScores{
+		Scores: types.HealthScores{
 			Overall:      85,
 			Reliability:  90,
 			Security:     80,
 			Cost:         75,
 			Architecture: 85,
 		},
-		Summary: ClusterSummary{
+		Summary: types.ClusterSummary{
 			WarningEvents: len(filterWarningEvents(events)),
-			Namespaces:    make(map[string]*NamespaceStats),
+			Namespaces:    make(map[string]*types.NamespaceStats),
 		},
 	}
 
@@ -834,7 +627,7 @@ func (a *Analyzer) buildHealthReport(events []TelemetryEvent, metrics []Resource
 		ns := e.InvolvedObject.Namespace
 		if ns != "" {
 			if report.Summary.Namespaces[ns] == nil {
-				report.Summary.Namespaces[ns] = &NamespaceStats{}
+				report.Summary.Namespaces[ns] = &types.NamespaceStats{}
 			}
 			report.Summary.Namespaces[ns].Warnings++
 		}
@@ -854,7 +647,7 @@ func (a *Analyzer) buildHealthReport(events []TelemetryEvent, metrics []Resource
 			podSet[ns+"/"+m.Resource.Name] = true
 
 			if report.Summary.Namespaces[ns] == nil {
-				report.Summary.Namespaces[ns] = &NamespaceStats{}
+				report.Summary.Namespaces[ns] = &types.NamespaceStats{}
 			}
 			report.Summary.Namespaces[ns].PodCount++
 
@@ -891,20 +684,20 @@ func (a *Analyzer) buildHealthReport(events []TelemetryEvent, metrics []Resource
 		}
 	}
 
-	report.ResourceUtilization = ResourceUtilization{
-		CPU: ResourceUsage{
+	report.ResourceUtilization = types.ResourceUtilization{
+		CPU: types.ResourceUsage{
 			Used:      cpuUsed,
 			Requested: cpuReq,
 			Capacity:  cpuCap,
 			Unit:      "cores",
 		},
-		Memory: ResourceUsage{
+		Memory: types.ResourceUsage{
 			Used:      memUsed,
 			Requested: memReq,
 			Capacity:  memCap,
 			Unit:      "Gi",
 		},
-		Storage: ResourceUsage{
+		Storage: types.ResourceUsage{
 			Used:      storageUsed,
 			Requested: storageCap, // typically same or just track capacity
 			Capacity:  storageCap,
@@ -914,7 +707,7 @@ func (a *Analyzer) buildHealthReport(events []TelemetryEvent, metrics []Resource
 
 	// Extract scores from LLM response
 	if llmResponse != nil {
-		if scores, ok := llmResponse["healthScores"].(map[string]interface{}); ok {
+		if scores, ok := llmResponse["healthScores"].(map[string]any); ok {
 			if v, ok := scores["reliability"].(float64); ok {
 				report.Scores.Reliability = int(v)
 			}
@@ -929,24 +722,14 @@ func (a *Analyzer) buildHealthReport(events []TelemetryEvent, metrics []Resource
 			}
 		}
 
-		// Calculate overall score
-		overall := float64(report.Scores.Reliability)*0.35 + float64(report.Scores.Security)*0.30 + float64(report.Scores.Cost)*0.20 + float64(report.Scores.Architecture)*0.15
-
-		// Apply floor caps
-		if report.Scores.Security < 50 && overall > 60 {
-			overall = 60
-		}
-		if report.Scores.Reliability < 50 && overall > 50 {
-			overall = 50
-		}
-
-		report.Scores.Overall = int(overall)
+		// Calculate overall score using shared constants
+		report.Scores.Overall = types.CalculateOverallScore(report.Scores)
 
 		// Extract issues
-		if issues, ok := llmResponse["issues"].([]interface{}); ok {
+		if issues, ok := llmResponse["issues"].([]any); ok {
 			for i, issue := range issues {
-				if issueMap, ok := issue.(map[string]interface{}); ok {
-					report.TopIssues = append(report.TopIssues, Issue{
+				if issueMap, ok := issue.(map[string]any); ok {
+					report.TopIssues = append(report.TopIssues, types.Issue{
 						ID:          fmt.Sprintf("issue-%d", i),
 						Severity:    getString(issueMap, "severity", "medium"),
 						Category:    getString(issueMap, "category", "reliability"),
@@ -961,11 +744,11 @@ func (a *Analyzer) buildHealthReport(events []TelemetryEvent, metrics []Resource
 		}
 
 		// Extract recommendations
-		if recs, ok := llmResponse["recommendations"].([]interface{}); ok {
+		if recs, ok := llmResponse["recommendations"].([]any); ok {
 			for i, rec := range recs {
-				if recMap, ok := rec.(map[string]interface{}); ok {
+				if recMap, ok := rec.(map[string]any); ok {
 					savings := getFloat(recMap, "estimatedSavings", 0)
-					report.Recommendations = append(report.Recommendations, Recommendation{
+					report.Recommendations = append(report.Recommendations, types.Recommendation{
 						ID:          fmt.Sprintf("rec-%d", i),
 						Category:    getString(recMap, "category", "reliability"),
 						Title:       getString(recMap, "title", "Recommendation"),
@@ -973,10 +756,10 @@ func (a *Analyzer) buildHealthReport(events []TelemetryEvent, metrics []Resource
 						Severity:    mapPriorityToSeverity(getFloat(recMap, "priority", 5)),
 						Confidence:  0.8,
 						Timestamp:   time.Now(),
-						Impact: RecommendationImpact{
+						Impact: types.RecommendationImpact{
 							Effort:    getString(recMap, "effort", "medium"),
 							RiskLevel: getString(recMap, "risk", "low"),
-							CostSavings: &CostSavings{
+							CostSavings: &types.CostSavings{
 								Monthly:  savings,
 								Currency: "USD",
 							},
@@ -1000,14 +783,14 @@ func (a *Analyzer) buildHealthReport(events []TelemetryEvent, metrics []Resource
 }
 
 // Helper functions
-func getString(m map[string]interface{}, key, defaultVal string) string {
+func getString(m map[string]any, key, defaultVal string) string {
 	if v, ok := m[key].(string); ok {
 		return v
 	}
 	return defaultVal
 }
 
-func getFloat(m map[string]interface{}, key string, defaultVal float64) float64 {
+func getFloat(m map[string]any, key string, defaultVal float64) float64 {
 	if v, ok := m[key].(float64); ok {
 		return v
 	}
@@ -1030,15 +813,15 @@ func (a *Analyzer) serveMetrics() {
 	defer a.wg.Done()
 
 	mux := http.NewServeMux()
-	mux.Handle("/metrics", promhttp.Handler())
+	mux.Handle("/metrics", promhttp.HandlerFor(a.registry, promhttp.HandlerOpts{}))
 
-	server := &http.Server{
+	a.metricsServer = &http.Server{
 		Addr:    fmt.Sprintf(":%d", a.config.MetricsPort),
 		Handler: mux,
 	}
 
 	log.Info().Int("port", a.config.MetricsPort).Msg("Starting metrics server")
-	if err := server.ListenAndServe(); err != http.ErrServerClosed {
+	if err := a.metricsServer.ListenAndServe(); err != http.ErrServerClosed {
 		log.Error().Err(err).Msg("Metrics server error")
 	}
 }
@@ -1067,34 +850,35 @@ func (a *Analyzer) serveAPI() {
 	mux.HandleFunc("/api/v1/dns/health", a.handleDNSHealth)
 	mux.HandleFunc("/api/v1/pods/", a.handlePodLogs)
 
-	// Enable CORS
-	handler := corsMiddleware(mux)
+	// Configure CORS from environment
+	allowedOriginsStr := getEnvOrDefault("CORS_ALLOWED_ORIGINS", "*")
+	allowedOrigins := strings.Split(allowedOriginsStr, ",")
+	for i := range allowedOrigins {
+		allowedOrigins[i] = strings.TrimSpace(allowedOrigins[i])
+	}
 
-	server := &http.Server{
+	corsMiddleware := mw.CORS(mw.CORSConfig{
+		AllowedOrigins: allowedOrigins,
+		AllowedMethods: []string{"GET", "POST", "OPTIONS"},
+		AllowedHeaders: []string{"Content-Type", "Authorization"},
+	})
+
+	// Add rate limiting: 100 requests per second, burst of 200
+	limiter := mw.NewRateLimiter(100, time.Second, 200)
+	rateLimitMiddleware := mw.RateLimit(limiter)
+
+	// Chain middleware: rate limit -> CORS -> mux
+	handler := rateLimitMiddleware(corsMiddleware(mux))
+
+	a.apiServer = &http.Server{
 		Addr:    fmt.Sprintf(":%d", a.config.APIPort),
 		Handler: handler,
 	}
 
 	log.Info().Int("port", a.config.APIPort).Msg("Starting API server")
-	if err := server.ListenAndServe(); err != http.ErrServerClosed {
+	if err := a.apiServer.ListenAndServe(); err != http.ErrServerClosed {
 		log.Error().Err(err).Msg("API server error")
 	}
-}
-
-// corsMiddleware adds CORS headers
-func corsMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-
-		if r.Method == "OPTIONS" {
-			w.WriteHeader(http.StatusOK)
-			return
-		}
-
-		next.ServeHTTP(w, r)
-	})
 }
 
 // handleHealthReport returns the full health report
@@ -1223,7 +1007,7 @@ func (a *Analyzer) handleTimeline(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var timeline []TimelineEvent
+	var timeline []types.TimelineEvent
 	for _, e := range events {
 		eventType := "info"
 		if e.Type == "Warning" || e.Type == "Error" {
@@ -1236,7 +1020,7 @@ func (a *Analyzer) handleTimeline(w http.ResponseWriter, r *http.Request) {
 			eventType = "recovery"
 		}
 
-		timeline = append(timeline, TimelineEvent{
+		timeline = append(timeline, types.TimelineEvent{
 			ID:          e.ID,
 			Type:        eventType,
 			Title:       e.Reason,
@@ -1245,17 +1029,10 @@ func (a *Analyzer) handleTimeline(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	importSort := func(i, j int) bool { return timeline[i].Timestamp.After(timeline[j].Timestamp) }
-	_ = importSort // Not needed since sort package is not imported. We will sort manually.
-
-	// simple bubble sort for now to avoid importing sort
-	for i := 0; i < len(timeline); i++ {
-		for j := i + 1; j < len(timeline); j++ {
-			if timeline[j].Timestamp.After(timeline[i].Timestamp) {
-				timeline[i], timeline[j] = timeline[j], timeline[i]
-			}
-		}
-	}
+	// Sort by timestamp descending (newest first)
+	sort.Slice(timeline, func(i, j int) bool {
+		return timeline[i].Timestamp.After(timeline[j].Timestamp)
+	})
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(timeline)
@@ -1321,6 +1098,22 @@ func (a *Analyzer) handlePodLogs(w http.ResponseWriter, r *http.Request) {
 func (a *Analyzer) Stop() {
 	log.Info().Msg("Stopping analyzer")
 	close(a.stopCh)
+
+	// Gracefully shut down HTTP servers with a 5-second timeout
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if a.apiServer != nil {
+		if err := a.apiServer.Shutdown(shutdownCtx); err != nil {
+			log.Error().Err(err).Msg("API server shutdown error")
+		}
+	}
+	if a.metricsServer != nil {
+		if err := a.metricsServer.Shutdown(shutdownCtx); err != nil {
+			log.Error().Err(err).Msg("Metrics server shutdown error")
+		}
+	}
+
 	a.wg.Wait()
 }
 

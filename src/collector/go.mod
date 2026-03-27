@@ -1,14 +1,21 @@
 module github.com/your-org/cluster-intel-collector
 
-go 1.22
+go 1.24.0
 
 require (
 	github.com/prometheus/client_golang v1.19.0
 	github.com/rs/zerolog v1.32.0
+	github.com/your-org/cluster-intel/pkg/types v0.0.0
+	github.com/your-org/cluster-intel/pkg/middleware v0.0.0
 	k8s.io/api v0.29.2
 	k8s.io/apimachinery v0.29.2
 	k8s.io/client-go v0.29.2
 	k8s.io/metrics v0.29.2
+)
+
+replace (
+	github.com/your-org/cluster-intel/pkg/types => ../../pkg/types
+	github.com/your-org/cluster-intel/pkg/middleware => ../../pkg/middleware
 )
 
 require (

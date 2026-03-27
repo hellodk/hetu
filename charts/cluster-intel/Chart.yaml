@@ -3,4 +3,4 @@ name: cluster-intel
 description: A Helm chart for deploying K8s Cluster Intelligence Engine
 type: application
 version: 1.0.0
-appVersion: "4.0.0"
+appVersion: "6.0.0"

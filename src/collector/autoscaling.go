@@ -4,29 +4,28 @@ import (
 	"context"
 	"time"
 
+	types "github.com/your-org/cluster-intel/pkg/types"
 	"k8s.io/apimachinery/pkg/labels"
 )
 
 // collectHPAMetrics gathers metrics for HorizontalPodAutoscalers
 func (c *Collector) collectHPAMetrics(ctx context.Context) {
-	// Not all clusters use v2, but we use what we can from informers
-	// Let's use v2 which is standard in 1.23+
 	hpas, err := c.informerFactory.Autoscaling().V2().HorizontalPodAutoscalers().Lister().List(labels.Everything())
 	if err != nil {
 		return
 	}
 
 	for _, hpa := range hpas {
-		metrics := ResourceMetrics{
+		metrics := types.ResourceMetrics{
 			Timestamp:    time.Now(),
 			Cluster:      c.config.ClusterID,
 			ResourceType: "hpa",
-			Resource: ResourceIdentifier{
+			Resource: types.ResourceIdentifier{
 				Namespace: hpa.Namespace,
 				Name:      hpa.Name,
 			},
-			Metrics: map[string]interface{}{
-				"min_replicas":     1, // Default if nil
+			Metrics: map[string]any{
+				"min_replicas":     1,
 				"max_replicas":     hpa.Spec.MaxReplicas,
 				"current_replicas": hpa.Status.CurrentReplicas,
 				"desired_replicas": hpa.Status.DesiredReplicas,
@@ -37,7 +36,6 @@ func (c *Collector) collectHPAMetrics(ctx context.Context) {
 			metrics.Metrics["min_replicas"] = *hpa.Spec.MinReplicas
 		}
 
-		// Calculate load percentage if possible
 		if hpa.Spec.MaxReplicas > 0 {
 			metrics.Metrics["utilization_percent"] = (float64(hpa.Status.CurrentReplicas) / float64(hpa.Spec.MaxReplicas)) * 100
 		}

@@ -11,37 +11,23 @@ import (
 	"time"
 
 	"github.com/rs/zerolog/log"
+	types "github.com/your-org/cluster-intel/pkg/types"
 	corev1 "k8s.io/api/core/v1"
 )
 
-// CorrelatedEvidence aggregates events, metrics and logs
-type CorrelatedEvidence struct {
-	Event       TelemetryEvent         `json:"event"`
-	Metrics     map[string][]DataPoint `json:"metrics"`
-	LogLines    []string               `json:"logLines"`
-	RelatedPods []string               `json:"relatedPods"`
-}
-
-// DataPoint represents a time-series point
-type DataPoint struct {
-	Timestamp time.Time `json:"timestamp"`
-	Value     float64   `json:"value"`
-}
-
 // GetCorrelatedEvents correlates recent events with metrics and logs
-func (c *Collector) GetCorrelatedEvents(ctx context.Context) []CorrelatedEvidence {
-	var results []CorrelatedEvidence
+func (c *Collector) GetCorrelatedEvents(ctx context.Context) []types.CorrelatedEvidence {
+	var results []types.CorrelatedEvidence
 	events := c.eventBuffer.GetAll()
 
-	for _, item := range events {
-		event, ok := item.(TelemetryEvent)
-		if !ok || (event.Type != "Warning" && event.Type != "Error") {
+	for _, event := range events {
+		if event.Type != "Warning" && event.Type != "Error" {
 			continue
 		}
 
-		evidence := CorrelatedEvidence{
+		evidence := types.CorrelatedEvidence{
 			Event:       event,
-			Metrics:     make(map[string][]DataPoint),
+			Metrics:     make(map[string][]types.DataPoint),
 			LogLines:    []string{},
 			RelatedPods: []string{},
 		}
@@ -95,8 +81,8 @@ func (c *Collector) fetchPodLogs(ctx context.Context, namespace, podName string,
 }
 
 // queryPrometheusAroundTime queries Prometheus for CPU/Memory ±5min of the event
-func (c *Collector) queryPrometheusAroundTime(ctx context.Context, obj InvolvedObject, t time.Time) map[string][]DataPoint {
-	metrics := make(map[string][]DataPoint)
+func (c *Collector) queryPrometheusAroundTime(ctx context.Context, obj types.InvolvedObject, t time.Time) map[string][]types.DataPoint {
+	metrics := make(map[string][]types.DataPoint)
 	if obj.Kind != "Pod" && obj.Kind != "Node" {
 		return metrics
 	}
@@ -120,7 +106,6 @@ func (c *Collector) queryPrometheusAroundTime(ctx context.Context, obj InvolvedO
 			c.config.PrometheusEndpoint, encodedQuery, start, end, step)
 
 		req, _ := http.NewRequestWithContext(ctx, "GET", urlStr, nil)
-		// short timeout for metrics to not block
 		client := &http.Client{Timeout: 5 * time.Second}
 		resp, err := client.Do(req)
 		if err != nil {
@@ -131,14 +116,14 @@ func (c *Collector) queryPrometheusAroundTime(ctx context.Context, obj InvolvedO
 		var pResp struct {
 			Data struct {
 				Result []struct {
-					Values [][]interface{} `json:"values"`
+					Values [][]any `json:"values"`
 				} `json:"result"`
 			} `json:"data"`
 		}
 
 		if err := json.NewDecoder(resp.Body).Decode(&pResp); err == nil {
 			if len(pResp.Data.Result) > 0 {
-				var points []DataPoint
+				var points []types.DataPoint
 				for _, v := range pResp.Data.Result[0].Values {
 					if len(v) == 2 {
 						ts := int64(v[0].(float64))
@@ -148,7 +133,7 @@ func (c *Collector) queryPrometheusAroundTime(ctx context.Context, obj InvolvedO
 						}
 						var val float64
 						fmt.Sscanf(valStr, "%f", &val)
-						points = append(points, DataPoint{
+						points = append(points, types.DataPoint{
 							Timestamp: time.Unix(ts, 0),
 							Value:     val,
 						})

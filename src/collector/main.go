@@ -18,6 +18,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	types "github.com/your-org/cluster-intel/pkg/types"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/informers"
@@ -40,67 +41,33 @@ type Config struct {
 	PrometheusEndpoint    string        `json:"prometheusEndpoint"`
 }
 
-// TelemetryEvent represents a normalized cluster event
-type TelemetryEvent struct {
-	ID             string                 `json:"id"`
-	Timestamp      time.Time              `json:"timestamp"`
-	Cluster        string                 `json:"cluster"`
-	Source         string                 `json:"source"`
-	Type           string                 `json:"type"`
-	Reason         string                 `json:"reason"`
-	InvolvedObject InvolvedObject         `json:"involvedObject"`
-	Message        string                 `json:"message"`
-	Count          int32                  `json:"count"`
-	FirstTimestamp time.Time              `json:"firstTimestamp"`
-	LastTimestamp  time.Time              `json:"lastTimestamp"`
-	Metadata       map[string]interface{} `json:"metadata"`
-}
-
-// InvolvedObject represents the Kubernetes object involved in an event
-type InvolvedObject struct {
-	Kind      string `json:"kind"`
-	Namespace string `json:"namespace"`
-	Name      string `json:"name"`
-	UID       string `json:"uid"`
-}
-
-// ResourceMetrics holds resource utilization metrics
-type ResourceMetrics struct {
-	Timestamp    time.Time              `json:"timestamp"`
-	Cluster      string                 `json:"cluster"`
-	ResourceType string                 `json:"resourceType"`
-	Resource     ResourceIdentifier     `json:"resource"`
-	Metrics      map[string]interface{} `json:"metrics"`
-}
-
-// ResourceIdentifier identifies a Kubernetes resource
-type ResourceIdentifier struct {
-	Namespace string `json:"namespace,omitempty"`
-	Name      string `json:"name"`
-}
-
 // Collector is the main collector service
 type Collector struct {
 	config          Config
 	clientset       *kubernetes.Clientset
 	metricsClient   *metricsv1beta1.Clientset
 	informerFactory informers.SharedInformerFactory
-	eventBuffer     *RingBuffer
-	metricsBuffer   *RingBuffer
+	eventBuffer     *RingBuffer[types.TelemetryEvent]
+	metricsBuffer   *RingBuffer[types.ResourceMetrics]
 	stopCh          chan struct{}
 	wg              sync.WaitGroup
 
-	// Prometheus metrics
+	// HTTP servers for graceful shutdown
+	metricsServer *http.Server
+	healthServer  *http.Server
+
+	// Prometheus metrics (custom registry to avoid MustRegister panics)
+	registry          *prometheus.Registry
 	eventsCollected   prometheus.Counter
 	metricsCollected  prometheus.Counter
 	collectionErrors  prometheus.Counter
 	bufferUtilization prometheus.Gauge
 }
 
-// RingBuffer is a thread-safe circular buffer for telemetry data
-type RingBuffer struct {
+// RingBuffer is a thread-safe generic circular buffer for telemetry data
+type RingBuffer[T any] struct {
 	mu       sync.RWMutex
-	data     []interface{}
+	data     []T
 	head     int
 	tail     int
 	size     int
@@ -108,15 +75,15 @@ type RingBuffer struct {
 }
 
 // NewRingBuffer creates a new ring buffer
-func NewRingBuffer(capacity int) *RingBuffer {
-	return &RingBuffer{
-		data:     make([]interface{}, capacity),
+func NewRingBuffer[T any](capacity int) *RingBuffer[T] {
+	return &RingBuffer[T]{
+		data:     make([]T, capacity),
 		capacity: capacity,
 	}
 }
 
 // Push adds an item to the buffer
-func (rb *RingBuffer) Push(item interface{}) {
+func (rb *RingBuffer[T]) Push(item T) {
 	rb.mu.Lock()
 	defer rb.mu.Unlock()
 
@@ -131,12 +98,12 @@ func (rb *RingBuffer) Push(item interface{}) {
 }
 
 // GetAll returns all items in the buffer
-func (rb *RingBuffer) GetAll() []interface{} {
+func (rb *RingBuffer[T]) GetAll() []T {
 	rb.mu.RLock()
 	defer rb.mu.RUnlock()
 
-	result := make([]interface{}, rb.size)
-	for i := 0; i < rb.size; i++ {
+	result := make([]T, rb.size)
+	for i := range rb.size {
 		idx := (rb.head + i) % rb.capacity
 		result[i] = rb.data[idx]
 	}
@@ -144,7 +111,7 @@ func (rb *RingBuffer) GetAll() []interface{} {
 }
 
 // Size returns the current buffer size
-func (rb *RingBuffer) Size() int {
+func (rb *RingBuffer[T]) Size() int {
 	rb.mu.RLock()
 	defer rb.mu.RUnlock()
 	return rb.size
@@ -152,7 +119,6 @@ func (rb *RingBuffer) Size() int {
 
 // NewCollector creates a new collector instance
 func NewCollector(config Config) (*Collector, error) {
-	// Build Kubernetes client config
 	var kubeConfig *rest.Config
 	var err error
 
@@ -165,7 +131,6 @@ func NewCollector(config Config) (*Collector, error) {
 		return nil, fmt.Errorf("failed to build kubeconfig: %w", err)
 	}
 
-	// Apply rate limiting to avoid overloading API server
 	kubeConfig.QPS = 50
 	kubeConfig.Burst = 100
 
@@ -179,7 +144,6 @@ func NewCollector(config Config) (*Collector, error) {
 		log.Warn().Err(err).Msg("metrics API not available, some features disabled")
 	}
 
-	// Create informer factory with resync period
 	informerFactory := informers.NewSharedInformerFactory(clientset, config.ResyncPeriod)
 
 	collector := &Collector{
@@ -187,19 +151,20 @@ func NewCollector(config Config) (*Collector, error) {
 		clientset:       clientset,
 		metricsClient:   metricsClient,
 		informerFactory: informerFactory,
-		eventBuffer:     NewRingBuffer(config.BufferSize),
-		metricsBuffer:   NewRingBuffer(config.BufferSize),
+		eventBuffer:     NewRingBuffer[types.TelemetryEvent](config.BufferSize),
+		metricsBuffer:   NewRingBuffer[types.ResourceMetrics](config.BufferSize),
 		stopCh:          make(chan struct{}),
 	}
 
-	// Initialize Prometheus metrics
 	collector.initMetrics()
 
 	return collector, nil
 }
 
-// initMetrics initializes Prometheus metrics
+// initMetrics initializes Prometheus metrics with a custom registry
 func (c *Collector) initMetrics() {
+	c.registry = prometheus.NewRegistry()
+
 	c.eventsCollected = prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "cluster_intel_events_collected_total",
 		Help: "Total number of events collected",
@@ -220,7 +185,7 @@ func (c *Collector) initMetrics() {
 		Help: "Current buffer utilization ratio",
 	})
 
-	prometheus.MustRegister(
+	c.registry.MustRegister(
 		c.eventsCollected,
 		c.metricsCollected,
 		c.collectionErrors,
@@ -232,29 +197,22 @@ func (c *Collector) initMetrics() {
 func (c *Collector) Start(ctx context.Context) error {
 	log.Info().Str("cluster", c.config.ClusterID).Msg("Starting collector")
 
-	// Start informers
 	c.setupEventInformer()
 	c.setupPodInformer()
 	c.setupNodeInformer()
-	c.setupDeploymentInformer()
 
-	// Start informer factory
 	c.informerFactory.Start(c.stopCh)
 
-	// Wait for cache sync
 	log.Info().Msg("Waiting for informer cache sync")
 	c.informerFactory.WaitForCacheSync(c.stopCh)
 	log.Info().Msg("Informer cache synced")
 
-	// Start metrics collection goroutine
 	c.wg.Add(1)
 	go c.collectMetricsLoop(ctx)
 
-	// Start buffer stats goroutine
 	c.wg.Add(1)
 	go c.updateBufferStats(ctx)
 
-	// Start HTTP servers
 	c.wg.Add(2)
 	go c.serveMetrics()
 	go c.serveHealth()
@@ -267,11 +225,11 @@ func (c *Collector) setupEventInformer() {
 	eventInformer := c.informerFactory.Core().V1().Events().Informer()
 
 	eventInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
+		AddFunc: func(obj any) {
 			event := obj.(*corev1.Event)
 			c.processEvent(event)
 		},
-		UpdateFunc: func(oldObj, newObj interface{}) {
+		UpdateFunc: func(oldObj, newObj any) {
 			event := newObj.(*corev1.Event)
 			c.processEvent(event)
 		},
@@ -283,15 +241,15 @@ func (c *Collector) setupPodInformer() {
 	podInformer := c.informerFactory.Core().V1().Pods().Informer()
 
 	podInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
+		AddFunc: func(obj any) {
 			pod := obj.(*corev1.Pod)
 			c.processPodStateChange(pod, "added")
 		},
-		UpdateFunc: func(oldObj, newObj interface{}) {
+		UpdateFunc: func(oldObj, newObj any) {
 			pod := newObj.(*corev1.Pod)
 			c.processPodStateChange(pod, "updated")
 		},
-		DeleteFunc: func(obj interface{}) {
+		DeleteFunc: func(obj any) {
 			pod := obj.(*corev1.Pod)
 			c.processPodStateChange(pod, "deleted")
 		},
@@ -303,42 +261,31 @@ func (c *Collector) setupNodeInformer() {
 	nodeInformer := c.informerFactory.Core().V1().Nodes().Informer()
 
 	nodeInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
+		AddFunc: func(obj any) {
 			node := obj.(*corev1.Node)
 			c.processNodeStateChange(node, "added")
 		},
-		UpdateFunc: func(oldObj, newObj interface{}) {
+		UpdateFunc: func(oldObj, newObj any) {
 			node := newObj.(*corev1.Node)
 			c.processNodeStateChange(node, "updated")
 		},
-		DeleteFunc: func(obj interface{}) {
+		DeleteFunc: func(obj any) {
 			node := obj.(*corev1.Node)
 			c.processNodeStateChange(node, "deleted")
 		},
 	})
 }
 
-// setupDeploymentInformer creates the deployment informer
-func (c *Collector) setupDeploymentInformer() {
-	deploymentInformer := c.informerFactory.Apps().V1().Deployments().Informer()
-
-	deploymentInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		UpdateFunc: func(oldObj, newObj interface{}) {
-			// Track deployment changes for analysis
-		},
-	})
-}
-
 // processEvent converts a Kubernetes event to a telemetry event
 func (c *Collector) processEvent(event *corev1.Event) {
-	telemetryEvent := TelemetryEvent{
+	telemetryEvent := types.TelemetryEvent{
 		ID:        fmt.Sprintf("evt-%s-%d", event.UID, event.Count),
 		Timestamp: time.Now(),
 		Cluster:   c.config.ClusterID,
 		Source:    "kubernetes",
 		Type:      event.Type,
 		Reason:    event.Reason,
-		InvolvedObject: InvolvedObject{
+		InvolvedObject: types.InvolvedObject{
 			Kind:      event.InvolvedObject.Kind,
 			Namespace: event.InvolvedObject.Namespace,
 			Name:      event.InvolvedObject.Name,
@@ -348,7 +295,7 @@ func (c *Collector) processEvent(event *corev1.Event) {
 		Count:          event.Count,
 		FirstTimestamp: event.FirstTimestamp.Time,
 		LastTimestamp:  event.LastTimestamp.Time,
-		Metadata: map[string]interface{}{
+		Metadata: map[string]any{
 			"source": event.Source.Component,
 			"host":   event.Source.Host,
 		},
@@ -357,7 +304,6 @@ func (c *Collector) processEvent(event *corev1.Event) {
 	c.eventBuffer.Push(telemetryEvent)
 	c.eventsCollected.Inc()
 
-	// Log critical events
 	if event.Type == "Warning" {
 		log.Warn().
 			Str("reason", event.Reason).
@@ -369,10 +315,9 @@ func (c *Collector) processEvent(event *corev1.Event) {
 
 // processPodStateChange handles pod state changes
 func (c *Collector) processPodStateChange(pod *corev1.Pod, action string) {
-	// Extract container statuses
-	containerStatuses := make([]map[string]interface{}, 0)
+	containerStatuses := make([]map[string]any, 0)
 	for _, cs := range pod.Status.ContainerStatuses {
-		status := map[string]interface{}{
+		status := map[string]any{
 			"name":         cs.Name,
 			"ready":        cs.Ready,
 			"restartCount": cs.RestartCount,
@@ -394,23 +339,22 @@ func (c *Collector) processPodStateChange(pod *corev1.Pod, action string) {
 		containerStatuses = append(containerStatuses, status)
 	}
 
-	// Create telemetry event for state changes
 	if action == "updated" && isPodUnhealthy(pod) {
-		event := TelemetryEvent{
+		event := types.TelemetryEvent{
 			ID:        fmt.Sprintf("pod-state-%s-%d", pod.UID, time.Now().UnixNano()),
 			Timestamp: time.Now(),
 			Cluster:   c.config.ClusterID,
 			Source:    "collector",
 			Type:      "Warning",
 			Reason:    "PodUnhealthy",
-			InvolvedObject: InvolvedObject{
+			InvolvedObject: types.InvolvedObject{
 				Kind:      "Pod",
 				Namespace: pod.Namespace,
 				Name:      pod.Name,
 				UID:       string(pod.UID),
 			},
 			Message: fmt.Sprintf("Pod %s/%s is unhealthy: %s", pod.Namespace, pod.Name, pod.Status.Phase),
-			Metadata: map[string]interface{}{
+			Metadata: map[string]any{
 				"phase":             pod.Status.Phase,
 				"containerStatuses": containerStatuses,
 				"conditions":        pod.Status.Conditions,
@@ -424,12 +368,10 @@ func (c *Collector) processPodStateChange(pod *corev1.Pod, action string) {
 
 // isPodUnhealthy checks if a pod is in an unhealthy state
 func isPodUnhealthy(pod *corev1.Pod) bool {
-	// Check phase
 	if pod.Status.Phase == corev1.PodFailed || pod.Status.Phase == corev1.PodUnknown {
 		return true
 	}
 
-	// Check for CrashLoopBackOff or other waiting reasons
 	for _, cs := range pod.Status.ContainerStatuses {
 		if cs.State.Waiting != nil {
 			reason := cs.State.Waiting.Reason
@@ -447,25 +389,24 @@ func isPodUnhealthy(pod *corev1.Pod) bool {
 
 // processNodeStateChange handles node state changes
 func (c *Collector) processNodeStateChange(node *corev1.Node, action string) {
-	// Check for node conditions that indicate problems
 	for _, condition := range node.Status.Conditions {
 		if condition.Status == corev1.ConditionTrue {
 			switch condition.Type {
 			case corev1.NodeMemoryPressure, corev1.NodeDiskPressure, corev1.NodePIDPressure:
-				event := TelemetryEvent{
+				event := types.TelemetryEvent{
 					ID:        fmt.Sprintf("node-pressure-%s-%d", node.UID, time.Now().UnixNano()),
 					Timestamp: time.Now(),
 					Cluster:   c.config.ClusterID,
 					Source:    "collector",
 					Type:      "Warning",
 					Reason:    string(condition.Type),
-					InvolvedObject: InvolvedObject{
+					InvolvedObject: types.InvolvedObject{
 						Kind: "Node",
 						Name: node.Name,
 						UID:  string(node.UID),
 					},
 					Message: condition.Message,
-					Metadata: map[string]interface{}{
+					Metadata: map[string]any{
 						"reason":         condition.Reason,
 						"lastTransition": condition.LastTransitionTime,
 					},
@@ -532,15 +473,15 @@ func (c *Collector) collectPodMetrics(ctx context.Context) {
 			}
 		}
 
-		metrics := ResourceMetrics{
+		metrics := types.ResourceMetrics{
 			Timestamp:    time.Now(),
 			Cluster:      c.config.ClusterID,
 			ResourceType: "pod",
-			Resource: ResourceIdentifier{
+			Resource: types.ResourceIdentifier{
 				Namespace: podMetrics.Namespace,
 				Name:      podMetrics.Name,
 			},
-			Metrics: map[string]interface{}{
+			Metrics: map[string]any{
 				"cpu_millicores":           cpuUsage,
 				"memory_bytes":             memoryUsage,
 				"cpu_requested_millicores": cpuReq,
@@ -579,14 +520,14 @@ func (c *Collector) collectNodeMetrics(ctx context.Context) {
 			}
 		}
 
-		metrics := ResourceMetrics{
+		metrics := types.ResourceMetrics{
 			Timestamp:    time.Now(),
 			Cluster:      c.config.ClusterID,
 			ResourceType: "node",
-			Resource: ResourceIdentifier{
+			Resource: types.ResourceIdentifier{
 				Name: nodeMetrics.Name,
 			},
-			Metrics: map[string]interface{}{
+			Metrics: map[string]any{
 				"cpu_millicores":          nodeMetrics.Usage.Cpu().MilliValue(),
 				"memory_bytes":            nodeMetrics.Usage.Memory().Value(),
 				"cpu_capacity_millicores": cpuCap,
@@ -625,20 +566,20 @@ func (c *Collector) serveMetrics() {
 	defer c.wg.Done()
 
 	mux := http.NewServeMux()
-	mux.Handle("/metrics", promhttp.Handler())
+	mux.Handle("/metrics", promhttp.HandlerFor(c.registry, promhttp.HandlerOpts{}))
 
-	server := &http.Server{
+	c.metricsServer = &http.Server{
 		Addr:    fmt.Sprintf(":%d", c.config.MetricsPort),
 		Handler: mux,
 	}
 
 	log.Info().Int("port", c.config.MetricsPort).Msg("Starting metrics server")
-	if err := server.ListenAndServe(); err != http.ErrServerClosed {
+	if err := c.metricsServer.ListenAndServe(); err != http.ErrServerClosed {
 		log.Error().Err(err).Msg("Metrics server error")
 	}
 }
 
-// serveHealth starts the health check server
+// serveHealth starts the health check and API server
 func (c *Collector) serveHealth() {
 	defer c.wg.Done()
 
@@ -650,7 +591,6 @@ func (c *Collector) serveHealth() {
 	})
 
 	mux.HandleFunc("/readyz", func(w http.ResponseWriter, r *http.Request) {
-		// Check if informers are synced
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("ok"))
 	})
@@ -678,7 +618,6 @@ func (c *Collector) serveHealth() {
 	})
 
 	mux.HandleFunc("/api/v1/pods/", func(w http.ResponseWriter, r *http.Request) {
-		// Expects /api/v1/pods/{namespace}/{pod}/logs
 		parts := strings.Split(r.URL.Path, "/")
 		if len(parts) != 7 || parts[6] != "logs" {
 			http.NotFound(w, r)
@@ -712,13 +651,13 @@ func (c *Collector) serveHealth() {
 		json.NewEncoder(w).Encode(metrics)
 	})
 
-	server := &http.Server{
+	c.healthServer = &http.Server{
 		Addr:    fmt.Sprintf(":%d", c.config.HealthPort),
 		Handler: mux,
 	}
 
 	log.Info().Int("port", c.config.HealthPort).Msg("Starting health server")
-	if err := server.ListenAndServe(); err != http.ErrServerClosed {
+	if err := c.healthServer.ListenAndServe(); err != http.ErrServerClosed {
 		log.Error().Err(err).Msg("Health server error")
 	}
 }
@@ -727,15 +666,25 @@ func (c *Collector) serveHealth() {
 func (c *Collector) Stop() {
 	log.Info().Msg("Stopping collector")
 	close(c.stopCh)
+
+	// Gracefully shutdown HTTP servers
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if c.metricsServer != nil {
+		c.metricsServer.Shutdown(shutdownCtx)
+	}
+	if c.healthServer != nil {
+		c.healthServer.Shutdown(shutdownCtx)
+	}
+
 	c.wg.Wait()
 }
 
 func main() {
-	// Configure logging
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
 
-	// Load configuration from environment
 	config := Config{
 		ClusterID:             getEnvOrDefault("CLUSTER_ID", "default"),
 		MetricsPort:           getEnvIntOrDefault("METRICS_PORT", 9090),
@@ -747,22 +696,18 @@ func main() {
 		PrometheusEndpoint:    getEnvOrDefault("PROMETHEUS_ENDPOINT", "http://prometheus:9090"),
 	}
 
-	// Create collector
 	collector, err := NewCollector(config)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to create collector")
 	}
 
-	// Setup context with cancellation
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Start collector
 	if err := collector.Start(ctx); err != nil {
 		log.Fatal().Err(err).Msg("Failed to start collector")
 	}
 
-	// Wait for shutdown signal
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 

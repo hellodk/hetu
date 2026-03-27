@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/rs/zerolog/log"
+	types "github.com/your-org/cluster-intel/pkg/types"
 )
 
 // collectPVCMetrics queries prometheus for PVC metrics and adds to the metrics buffer
@@ -23,7 +24,7 @@ func (c *Collector) collectPVCMetrics(ctx context.Context) {
 		"used_bytes":     `kubelet_volume_stats_used_bytes`,
 	}
 
-	results := make(map[string]map[string]float64) // "namespace/pvc_name" -> metric -> value
+	results := make(map[string]map[string]float64)
 
 	for name, query := range queries {
 		encodedQuery := url.QueryEscape(query)
@@ -41,7 +42,7 @@ func (c *Collector) collectPVCMetrics(ctx context.Context) {
 			Data struct {
 				Result []struct {
 					Metric map[string]string `json:"metric"`
-					Value  []interface{}     `json:"value"`
+					Value  []any             `json:"value"`
 				} `json:"result"`
 			} `json:"data"`
 		}
@@ -68,7 +69,6 @@ func (c *Collector) collectPVCMetrics(ctx context.Context) {
 		resp.Body.Close()
 	}
 
-	// Push metrics to buffer
 	for key, metricsMap := range results {
 		parts := strings.Split(key, "/")
 		if len(parts) != 2 {
@@ -77,7 +77,7 @@ func (c *Collector) collectPVCMetrics(ctx context.Context) {
 		ns := parts[0]
 		name := parts[1]
 
-		metricMap := map[string]interface{}{}
+		metricMap := map[string]any{}
 		if capBytes, ok := metricsMap["capacity_bytes"]; ok {
 			metricMap["capacity_bytes"] = capBytes
 			if usedBytes, ok := metricsMap["used_bytes"]; ok {
@@ -88,18 +88,17 @@ func (c *Collector) collectPVCMetrics(ctx context.Context) {
 			}
 		}
 
-		// determine status from informer if available
 		status := "Unknown"
 		if pvc, err := c.informerFactory.Core().V1().PersistentVolumeClaims().Lister().PersistentVolumeClaims(ns).Get(name); err == nil {
 			status = string(pvc.Status.Phase)
 		}
 		metricMap["status"] = status
 
-		metrics := ResourceMetrics{
+		metrics := types.ResourceMetrics{
 			Timestamp:    time.Now(),
 			Cluster:      c.config.ClusterID,
 			ResourceType: "pvc",
-			Resource: ResourceIdentifier{
+			Resource: types.ResourceIdentifier{
 				Namespace: ns,
 				Name:      name,
 			},
