@@ -76,7 +76,7 @@ func NewAnalyzer(config Config) (*Analyzer, error) {
 	analyzer := &Analyzer{
 		config: config,
 		httpClient: &http.Client{
-			Timeout: 60 * time.Second,
+			Timeout: 5 * time.Minute,
 		},
 		stopCh:          make(chan struct{}),
 		promptTemplates: make(map[string]*template.Template),
@@ -330,13 +330,26 @@ func (a *Analyzer) runAnalysis(ctx context.Context) {
 		log.Error().Err(err).Msg("Failed to fetch correlated events")
 	}
 
-	// Build analysis context
+	// Build analysis context - limit data to avoid overwhelming the LLM
+	warningEvents := filterWarningEvents(events)
+	if len(warningEvents) > 50 {
+		warningEvents = warningEvents[len(warningEvents)-50:]
+	}
+	limitedMetrics := metrics
+	if len(limitedMetrics) > 100 {
+		limitedMetrics = limitedMetrics[len(limitedMetrics)-100:]
+	}
+	limitedCorrelated := correlatedEvents
+	if len(limitedCorrelated) > 20 {
+		limitedCorrelated = limitedCorrelated[len(limitedCorrelated)-20:]
+	}
+
 	analysisCtx := map[string]any{
 		"ClusterID":        a.config.ClusterID,
 		"Timestamp":        time.Now().Format(time.RFC3339),
-		"Events":           filterWarningEvents(events),
-		"Metrics":          metrics,
-		"CorrelatedEvents": correlatedEvents,
+		"Events":           warningEvents,
+		"Metrics":          limitedMetrics,
+		"CorrelatedEvents": limitedCorrelated,
 	}
 
 	// Run LLM analysis

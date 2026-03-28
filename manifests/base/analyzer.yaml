@@ -161,7 +161,7 @@ metadata:
 data:
   llm-backend: "ollama"
   llm-endpoint: "http://192.168.1.10:11434/v1"
-  llm-model: "DeepSeek-Coder-V2-Lite-Instruct-Q4_K_M.gguf"
+  llm-model: "deepseek-coder:6.7b"
 ---
 # Secret placeholder - should be created externally or via sealed secrets
 apiVersion: v1
