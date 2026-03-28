@@ -37,6 +37,14 @@ spec:
           port: 443
         - protocol: TCP
           port: 6443
+    # Allow access to Prometheus in monitoring namespace
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - protocol: TCP
+          port: 9090
     # Allow DNS
     - to:
         - namespaceSelector: {}
@@ -106,17 +114,23 @@ spec:
       ports:
         - protocol: TCP
           port: 8080
-    # Allow access to LLM endpoint (external)
+    # Allow access to LLM endpoint (external APIs)
     - to:
         - ipBlock:
             cidr: 0.0.0.0/0
             except:
               - 10.0.0.0/8
               - 172.16.0.0/12
-              - 192.168.0.0/16
       ports:
         - protocol: TCP
           port: 443
+    # Allow access to local Ollama LLM (192.168.1.10:11434)
+    - to:
+        - ipBlock:
+            cidr: 192.168.1.10/32
+      ports:
+        - protocol: TCP
+          port: 11434
     # Allow DNS
     - to:
         - namespaceSelector: {}

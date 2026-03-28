@@ -11,12 +11,13 @@ resources:
   - collector.yaml
   - analyzer.yaml
   - dashboard.yaml
-  - network-policies.yaml
 
-commonLabels:
-  app.kubernetes.io/part-of: k8s-ai-cluster-intelligence
-  app.kubernetes.io/version: "1.0.0"
-  app.kubernetes.io/managed-by: kustomize
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: k8s-ai-cluster-intelligence
+      app.kubernetes.io/version: "6.0.0"
+      app.kubernetes.io/managed-by: kustomize
+    includeSelectors: false
 
 # Image configurations - override in overlays
 images:

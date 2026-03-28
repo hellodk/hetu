@@ -159,9 +159,9 @@ metadata:
     app.kubernetes.io/name: analyzer
     app.kubernetes.io/part-of: k8s-ai-cluster-intelligence
 data:
-  llm-backend: "openai"
-  llm-endpoint: "https://api.openai.com/v1"
-  llm-model: "gpt-4-turbo"
+  llm-backend: "ollama"
+  llm-endpoint: "http://192.168.1.10:11434/v1"
+  llm-model: "DeepSeek-Coder-V2-Lite-Instruct-Q4_K_M.gguf"
 ---
 # Secret placeholder - should be created externally or via sealed secrets
 apiVersion: v1
