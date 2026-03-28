@@ -100,11 +100,12 @@ metadata:
     app.kubernetes.io/component: dashboard
     app.kubernetes.io/part-of: k8s-ai-cluster-intelligence
 spec:
-  type: ClusterIP
+  type: NodePort
   ports:
     - name: http
       port: 3000
       targetPort: http
+      nodePort: 32080
       protocol: TCP
   selector:
     app.kubernetes.io/name: dashboard
