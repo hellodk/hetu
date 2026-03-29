@@ -31,7 +31,7 @@ spec:
       containers:
         - name: dashboard
           image: ghcr.io/your-org/cluster-intel-dashboard:latest
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: false
@@ -43,8 +43,6 @@ spec:
               containerPort: 3000
               protocol: TCP
           env:
-            - name: NEXT_PUBLIC_API_URL
-              value: "http://analyzer:8081"
             - name: NODE_ENV
               value: "production"
           resources:

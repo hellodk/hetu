@@ -4,9 +4,9 @@ const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   
-  // Environment variables
+  // Environment variables - empty string means use relative URLs (proxied via rewrites)
   env: {
-    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8081',
+    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || '',
   },
   
   // Headers for security
@@ -36,16 +36,15 @@ const nextConfig = {
     ]
   },
   
-  // Rewrites for API proxy (development)
+  // Rewrites to proxy API calls to the analyzer service
   async rewrites() {
-    return process.env.NODE_ENV === 'development'
-      ? [
-          {
-            source: '/api/:path*',
-            destination: `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8081'}/api/:path*`,
-          },
-        ]
-      : []
+    const analyzerUrl = process.env.ANALYZER_URL || 'http://analyzer:8081'
+    return [
+      {
+        source: '/api/:path*',
+        destination: `${analyzerUrl}/api/:path*`,
+      },
+    ]
   },
 }
 

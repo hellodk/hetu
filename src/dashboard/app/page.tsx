@@ -99,8 +99,10 @@ interface Toast {
   message: string
 }
 
-// API URL from environment or default
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8081'
+// API URL: read from runtime config injected by server layout, or fall back to build-time env
+const API_URL = typeof window !== 'undefined'
+  ? ((window as any).__CLUSTER_INTEL_API__ || '')
+  : (process.env.NEXT_PUBLIC_API_URL || '')
 
 // Tab configuration
 const TABS = [

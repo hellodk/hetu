@@ -35,7 +35,7 @@ spec:
       containers:
         - name: analyzer
           image: ghcr.io/your-org/cluster-intel-analyzer:latest
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true

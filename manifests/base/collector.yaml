@@ -35,7 +35,7 @@ spec:
       containers:
         - name: collector
           image: ghcr.io/your-org/cluster-intel-collector:latest
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
