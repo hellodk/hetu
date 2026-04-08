@@ -270,6 +270,17 @@ export default function Dashboard() {
     setToasts(prev => prev.filter(t => t.id !== id))
   }, [])
 
+  // Normalize report to ensure array fields are never null (Go marshals empty slices as null)
+  const normalizeReport = (data: any): HealthReport => ({
+    ...data,
+    topIssues: data?.topIssues ?? [],
+    recommendations: data?.recommendations ?? [],
+    summary: {
+      ...data?.summary,
+      namespaces: data?.summary?.namespaces ?? {},
+    },
+  })
+
   // Fetch health report
   const fetchReport = useCallback(async (showToast = false) => {
     try {
@@ -278,7 +289,7 @@ export default function Dashboard() {
         throw new Error(`HTTP error! status: ${response.status}`)
       }
       const data = await response.json()
-      setReport(data)
+      setReport(normalizeReport(data))
       setLastUpdated(new Date())
       setError(null)
       if (showToast) {
@@ -304,7 +315,7 @@ export default function Dashboard() {
     sse.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data)
-        setReport(data)
+        setReport(normalizeReport(data))
         setLastUpdated(new Date())
         setError(null)
       } catch (err) {

@@ -633,6 +633,10 @@ func (a *Analyzer) buildHealthReport(events []types.TelemetryEvent, metrics []ty
 			WarningEvents: len(filterWarningEvents(events)),
 			Namespaces:    make(map[string]*types.NamespaceStats),
 		},
+		// Initialize as empty slices so JSON marshals to [] not null
+		TopIssues:        []types.Issue{},
+		Recommendations:  []types.Recommendation{},
+		SecurityFindings: []types.SecurityFinding{},
 	}
 
 	// Pre-aggregate namespace warnings
