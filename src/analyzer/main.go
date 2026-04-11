@@ -23,8 +23,15 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
+	ucconfig "github.com/your-org/cluster-intel/pkg/config"
 	mw "github.com/your-org/cluster-intel/pkg/middleware"
 	types "github.com/your-org/cluster-intel/pkg/types"
+
+	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 )
 
 // Config holds analyzer configuration
@@ -54,9 +61,60 @@ type Analyzer struct {
 	wg              sync.WaitGroup
 	promptTemplates map[string]*template.Template
 
+	// Profile state: "live" or "mock". Controlled at startup via PROFILE env
+	// var and at runtime via POST /api/v1/profile. The default is "live" —
+	// no mock/fabricated data is served unless the operator explicitly
+	// switches the profile.
+	profileMu sync.RWMutex
+	profile   string
+
+	// Mock data source used only when profile == "mock". Runs on its own
+	// goroutine and writes reports through broadcastReport().
+	mockSource *mockSource
+
+	// Diagnostics for the live path. Each field is updated by runAnalysis
+	// and surfaced via GET /api/v1/status and the Status block on reports.
+	diagMu             sync.RWMutex
+	lastAnalysisAt     *time.Time
+	lastAnalysisError  string
+	collectorReachable bool
+	collectorLastOKAt  *time.Time
+	collectorLastError string
+	llmReachable       bool
+	llmLastOKAt        *time.Time
+	llmLastError       string
+
 	// SSE Support
 	subscribers map[chan *types.ClusterHealthReport]struct{}
 	subMu       sync.RWMutex
+
+	// Workload browser (v7 Phase 1)
+	workloadHandler *WorkloadHandler
+
+	// Error aggregator (v7 Phase 3)
+	errorAggregator *ErrorAggregator
+
+	// LB log aggregator (v7 Phase 4)
+	lbLogAggregator *LBLogAggregator
+
+	// Correlator + RCA (v7 Phase 5)
+	correlator *Correlator
+	rcaEngine  *RCAEngine
+
+	// Optimizer registry (v7 Phase 6)
+	optimizerRegistry *OptimizerRegistry
+
+	// Anomaly detection (v7 Phase 7)
+	anomalyDetector *AnomalyDetector
+
+	// Security scanner (v7 Phase 8)
+	securityScanner *SecurityScanner
+
+	// Pod health (v7 Phase 10)
+	podHealthScanner *PodHealthScanner
+
+	// LLM config API
+	llmConfigAPI *LLMConfigAPI
 
 	// Prometheus metrics (custom registry)
 	registry         *prometheus.Registry
@@ -81,6 +139,7 @@ func NewAnalyzer(config Config) (*Analyzer, error) {
 		stopCh:          make(chan struct{}),
 		promptTemplates: make(map[string]*template.Template),
 		subscribers:     make(map[chan *types.ClusterHealthReport]struct{}),
+		profile:         resolveProfile(getEnvOrDefault("PROFILE", types.ProfileLive)),
 	}
 
 	// Initialize prompt templates
@@ -89,7 +148,173 @@ func NewAnalyzer(config Config) (*Analyzer, error) {
 	// Initialize Prometheus metrics
 	analyzer.initMetrics()
 
+	// Initialize mock source; it does nothing until the profile is switched
+	// to mock (either at startup via PROFILE=mock or at runtime via the API).
+	interval := getDurationOrDefault("MOCK_INTERVAL", 20*time.Second)
+	analyzer.mockSource = newMockSource(analyzer, interval)
+
 	return analyzer, nil
+}
+
+// resolveProfile normalizes the incoming profile string to a known value,
+// defaulting to "live" for anything unrecognized. This keeps PROFILE=foo
+// from producing undefined behavior.
+func resolveProfile(p string) string {
+	switch strings.ToLower(strings.TrimSpace(p)) {
+	case types.ProfileMock:
+		return types.ProfileMock
+	default:
+		return types.ProfileLive
+	}
+}
+
+// getProfile returns the current profile ("live" or "mock").
+func (a *Analyzer) getProfile() string {
+	a.profileMu.RLock()
+	defer a.profileMu.RUnlock()
+	return a.profile
+}
+
+// setProfile changes the active profile. When transitioning into "mock" it
+// immediately generates a mock report so the dashboard gets instant
+// feedback; when transitioning out of "mock" it clears the current report so
+// the live analysis loop can repopulate it on the next tick (and the
+// dashboard shows an awaiting/diagnostic state in the meantime).
+// Returns the newly-active profile or an error if the requested profile is
+// not recognized.
+func (a *Analyzer) setProfile(p string) (string, error) {
+	normalized := resolveProfile(p)
+	// We want to reject unknown values rather than silently coerce to live.
+	if strings.ToLower(strings.TrimSpace(p)) != normalized {
+		return "", fmt.Errorf("unknown profile %q (expected %q or %q)", p, types.ProfileLive, types.ProfileMock)
+	}
+
+	a.profileMu.Lock()
+	previous := a.profile
+	a.profile = normalized
+	a.profileMu.Unlock()
+
+	if previous == normalized {
+		return normalized, nil
+	}
+
+	log.Info().Str("from", previous).Str("to", normalized).Msg("Profile switched")
+
+	if normalized == types.ProfileMock {
+		// Drop any live report — the dashboard should show mock data only.
+		a.reportMu.Lock()
+		a.latestReport = nil
+		a.previousReport = nil
+		a.reportMu.Unlock()
+		// Generate an immediate mock report so the dashboard doesn't have to
+		// wait for the next mock tick.
+		a.mockSource.generateAndBroadcast()
+	} else {
+		// Switched back to live. Clear the mock report so the dashboard
+		// shows a diagnostic/awaiting panel until the next real analysis.
+		a.reportMu.Lock()
+		a.latestReport = nil
+		a.previousReport = nil
+		a.reportMu.Unlock()
+	}
+	return normalized, nil
+}
+
+// recordCollectorSuccess / recordCollectorError / recordLLMSuccess /
+// recordLLMError update diagnostics under a write lock. They're tiny
+// helpers so the runAnalysis flow can just call them at decision points.
+func (a *Analyzer) recordCollectorSuccess() {
+	now := time.Now()
+	a.diagMu.Lock()
+	a.collectorReachable = true
+	a.collectorLastOKAt = &now
+	a.collectorLastError = ""
+	a.diagMu.Unlock()
+}
+
+func (a *Analyzer) recordCollectorError(err error) {
+	a.diagMu.Lock()
+	a.collectorReachable = false
+	a.collectorLastError = err.Error()
+	a.diagMu.Unlock()
+}
+
+func (a *Analyzer) recordLLMSuccess() {
+	now := time.Now()
+	a.diagMu.Lock()
+	a.llmReachable = true
+	a.llmLastOKAt = &now
+	a.llmLastError = ""
+	a.diagMu.Unlock()
+}
+
+func (a *Analyzer) recordLLMError(err error) {
+	a.diagMu.Lock()
+	a.llmReachable = false
+	a.llmLastError = err.Error()
+	a.diagMu.Unlock()
+}
+
+func (a *Analyzer) recordAnalysisOutcome(err error) {
+	now := time.Now()
+	a.diagMu.Lock()
+	a.lastAnalysisAt = &now
+	if err != nil {
+		a.lastAnalysisError = err.Error()
+	} else {
+		a.lastAnalysisError = ""
+	}
+	a.diagMu.Unlock()
+}
+
+// buildReportStatus snapshots the current diagnostics into a ReportStatus
+// block. The state is derived from the presence of scores and the
+// reachability of the upstream dependencies.
+func (a *Analyzer) buildReportStatus(hasScores bool) *types.ReportStatus {
+	a.diagMu.RLock()
+	defer a.diagMu.RUnlock()
+
+	profile := a.getProfile()
+	status := &types.ReportStatus{
+		Profile:           profile,
+		LastAnalysisAt:    a.lastAnalysisAt,
+		LastAnalysisError: a.lastAnalysisError,
+		Collector: types.ComponentHealth{
+			Reachable: a.collectorReachable,
+			Endpoint:  a.config.CollectorURL,
+			LastOKAt:  a.collectorLastOKAt,
+			LastError: a.collectorLastError,
+		},
+		LLM: types.ComponentHealth{
+			Reachable: a.llmReachable,
+			Endpoint:  a.config.LLMEndpoint,
+			LastOKAt:  a.llmLastOKAt,
+			LastError: a.llmLastError,
+		},
+	}
+
+	switch {
+	case profile == types.ProfileMock:
+		status.State = types.StateOK
+		status.Message = "Demo mode: synthetic data is being served. No real cluster analysis is running."
+	case hasScores:
+		status.State = types.StateOK
+		status.Message = "Live analysis is up to date."
+	case a.lastAnalysisAt == nil:
+		status.State = types.StateAwaiting
+		status.Message = "Awaiting first cluster analysis."
+	case !a.collectorReachable:
+		status.State = types.StateError
+		status.Message = "Collector unreachable — cannot fetch cluster telemetry."
+	case !a.llmReachable:
+		status.State = types.StateDegraded
+		status.Message = "LLM unreachable — cluster telemetry is flowing but no AI insights are available."
+	default:
+		status.State = types.StateDegraded
+		status.Message = "Scores unavailable — see lastAnalysisError for details."
+	}
+
+	return status
 }
 
 // initMetrics initializes Prometheus metrics with a custom registry
@@ -265,11 +490,26 @@ Only output valid JSON.`
 
 // Start begins the analyzer service
 func (a *Analyzer) Start(ctx context.Context) error {
-	log.Info().Str("cluster", a.config.ClusterID).Msg("Starting analyzer")
+	log.Info().
+		Str("cluster", a.config.ClusterID).
+		Str("profile", a.getProfile()).
+		Msg("Starting analyzer")
 
-	// Start analysis loop
+	// Start analysis loop. It no-ops while the profile is "mock" — we still
+	// keep it running so a switch back to "live" takes effect on the next
+	// tick without having to restart any goroutines.
 	a.wg.Add(1)
 	go a.analysisLoop(ctx)
+
+	// Start the mock source goroutine. It also no-ops while the profile is
+	// "live"; switching to "mock" is sufficient to make it produce data.
+	a.mockSource.Start(ctx)
+
+	// If the initial profile is "mock", emit a first synthetic report
+	// immediately so the dashboard doesn't have to wait for the first tick.
+	if a.getProfile() == types.ProfileMock {
+		a.mockSource.generateAndBroadcast()
+	}
 
 	// Start HTTP servers
 	a.wg.Add(2)
@@ -301,8 +541,15 @@ func (a *Analyzer) analysisLoop(ctx context.Context) {
 	}
 }
 
-// runAnalysis performs a full cluster analysis
+// runAnalysis performs a full cluster analysis. It is a no-op when the
+// profile is set to "mock" — in that case the mockSource goroutine is the
+// one producing reports and we don't want to poison latestReport with real
+// (or partial) data.
 func (a *Analyzer) runAnalysis(ctx context.Context) {
+	if a.getProfile() == types.ProfileMock {
+		return
+	}
+
 	start := time.Now()
 	a.analysisRuns.Inc()
 
@@ -313,6 +560,10 @@ func (a *Analyzer) runAnalysis(ctx context.Context) {
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to fetch events")
 		a.analysisErrors.Inc()
+		a.recordCollectorError(err)
+		a.recordAnalysisOutcome(err)
+		// Publish a diagnostic report so the dashboard can render the error.
+		a.publishReport(a.buildDiagnosticReport())
 		return
 	}
 
@@ -320,8 +571,14 @@ func (a *Analyzer) runAnalysis(ctx context.Context) {
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to fetch metrics")
 		a.analysisErrors.Inc()
+		a.recordCollectorError(err)
+		a.recordAnalysisOutcome(err)
+		a.publishReport(a.buildDiagnosticReport())
 		return
 	}
+
+	// Both collector calls succeeded.
+	a.recordCollectorSuccess()
 
 	log.Info().Int("events", len(events)).Int("metrics", len(metrics)).Msg("Fetched telemetry")
 
@@ -330,18 +587,43 @@ func (a *Analyzer) runAnalysis(ctx context.Context) {
 		log.Error().Err(err).Msg("Failed to fetch correlated events")
 	}
 
-	// Build analysis context - limit data to avoid overwhelming the LLM
+	// Build analysis context - limit data so the prompt fits small LLM
+	// context windows (e.g. llama.cpp defaults to 4k tokens). The caps are
+	// env-tunable: bigger models can raise them for richer analysis.
+	//
+	// Defaults (5 / 10 / 3) produce prompts well under 4k tokens which is
+	// the typical minimum for self-hosted backends. For OpenAI-class models
+	// you can reasonably set LLM_MAX_EVENTS=50, LLM_MAX_METRICS=100,
+	// LLM_MAX_CORRELATED=20.
+	maxEvents := getEnvIntOrDefault("LLM_MAX_EVENTS", 5)
+	maxMetrics := getEnvIntOrDefault("LLM_MAX_METRICS", 10)
+	maxCorrelated := getEnvIntOrDefault("LLM_MAX_CORRELATED", 3)
+
 	warningEvents := filterWarningEvents(events)
-	if len(warningEvents) > 50 {
-		warningEvents = warningEvents[len(warningEvents)-50:]
+	if len(warningEvents) > maxEvents {
+		warningEvents = warningEvents[len(warningEvents)-maxEvents:]
 	}
 	limitedMetrics := metrics
-	if len(limitedMetrics) > 100 {
-		limitedMetrics = limitedMetrics[len(limitedMetrics)-100:]
+	if len(limitedMetrics) > maxMetrics {
+		limitedMetrics = limitedMetrics[len(limitedMetrics)-maxMetrics:]
 	}
 	limitedCorrelated := correlatedEvents
-	if len(limitedCorrelated) > 20 {
-		limitedCorrelated = limitedCorrelated[len(limitedCorrelated)-20:]
+	if len(limitedCorrelated) > maxCorrelated {
+		limitedCorrelated = limitedCorrelated[len(limitedCorrelated)-maxCorrelated:]
+	}
+	// Each correlated event carries up to 50 pod log lines. Trim them to
+	// keep the prompt small — small-context backends can't afford the full
+	// tail. LLM_MAX_LOG_LINES=0 disables log lines entirely.
+	maxLogLines := getEnvIntOrDefault("LLM_MAX_LOG_LINES", 10)
+	if maxLogLines >= 0 {
+		trimmed := make([]types.CorrelatedEvidence, len(limitedCorrelated))
+		for i, ev := range limitedCorrelated {
+			trimmed[i] = ev
+			if len(ev.LogLines) > maxLogLines {
+				trimmed[i].LogLines = ev.LogLines[len(ev.LogLines)-maxLogLines:]
+			}
+		}
+		limitedCorrelated = trimmed
 	}
 
 	analysisCtx := map[string]any{
@@ -353,21 +635,25 @@ func (a *Analyzer) runAnalysis(ctx context.Context) {
 	}
 
 	// Run LLM analysis
-	llmResponse, err := a.runLLMAnalysis(ctx, "rca", analysisCtx)
-	if err != nil {
-		log.Error().Err(err).Msg("Failed to run LLM analysis")
+	llmResponse, llmErr := a.runLLMAnalysis(ctx, "rca", analysisCtx)
+	if llmErr != nil {
+		log.Error().Err(llmErr).Msg("Failed to run LLM analysis")
 		a.analysisErrors.Inc()
-		// Continue with basic analysis
+		a.recordLLMError(llmErr)
+		// Continue with basic analysis — scores will be nil.
+	} else {
+		a.recordLLMSuccess()
 	}
 
-	// Build health report
+	// Build health report. When llmResponse is nil, scores will be nil and
+	// the dashboard will render a diagnostic panel instead of fake numbers.
 	report := a.buildHealthReport(events, metrics, llmResponse)
+	report.Status = a.buildReportStatus(report.Scores != nil)
 
-	// Store report
+	// Store report and compute trends only when both reports have scores.
 	a.reportMu.Lock()
-	if a.latestReport != nil {
+	if a.latestReport != nil && a.latestReport.Scores != nil && report.Scores != nil {
 		a.previousReport = a.latestReport
-
 		report.Trends = types.HealthTrends{
 			Overall:      report.Scores.Overall - a.previousReport.Scores.Overall,
 			Reliability:  report.Scores.Reliability - a.previousReport.Scores.Reliability,
@@ -376,6 +662,9 @@ func (a *Analyzer) runAnalysis(ctx context.Context) {
 			Architecture: report.Scores.Architecture - a.previousReport.Scores.Architecture,
 		}
 	} else {
+		if a.latestReport != nil {
+			a.previousReport = a.latestReport
+		}
 		report.Trends = types.HealthTrends{}
 	}
 
@@ -387,18 +676,34 @@ func (a *Analyzer) runAnalysis(ctx context.Context) {
 	a.reportMu.Unlock()
 
 	// Update metrics
-	a.healthScore.Set(float64(report.Scores.Overall))
+	if report.Scores != nil {
+		a.healthScore.Set(float64(report.Scores.Overall))
+	}
 	a.analysisDuration.Observe(time.Since(start).Seconds())
 
-	log.Info().
-		Int("healthScore", report.Scores.Overall).
+	a.recordAnalysisOutcome(llmErr)
+
+	logEvent := log.Info()
+	if report.Scores != nil {
+		logEvent = logEvent.Int("healthScore", report.Scores.Overall)
+	} else {
+		logEvent = logEvent.Str("healthScore", "unavailable")
+	}
+	logEvent.
 		Int("issues", len(report.TopIssues)).
 		Int("recommendations", len(report.Recommendations)).
 		Dur("duration", time.Since(start)).
 		Msg("Analysis complete")
 
 	// Broadcast to SSE clients
+	a.broadcastReport(report)
+}
+
+// broadcastReport sends a report to all SSE subscribers. Used by both the
+// live analysis loop and the mock source.
+func (a *Analyzer) broadcastReport(report *types.ClusterHealthReport) {
 	a.subMu.RLock()
+	defer a.subMu.RUnlock()
 	for ch := range a.subscribers {
 		select {
 		case ch <- report:
@@ -406,7 +711,39 @@ func (a *Analyzer) runAnalysis(ctx context.Context) {
 			// Client slow, drop the report
 		}
 	}
-	a.subMu.RUnlock()
+}
+
+// publishReport stores a report as the latest report, appends to history,
+// and broadcasts. Used when a collector failure means we want to surface a
+// diagnostic-only report to connected clients.
+func (a *Analyzer) publishReport(report *types.ClusterHealthReport) {
+	a.reportMu.Lock()
+	if a.latestReport != nil {
+		a.previousReport = a.latestReport
+	}
+	a.latestReport = report
+	a.reportHistory = append(a.reportHistory, report)
+	if len(a.reportHistory) > 100 {
+		a.reportHistory = a.reportHistory[1:]
+	}
+	a.reportMu.Unlock()
+	a.broadcastReport(report)
+}
+
+// buildDiagnosticReport produces a minimal report containing only status
+// information. It's used when the collector is unreachable (so we can't
+// build a real report) but we still want the dashboard to show diagnostics.
+func (a *Analyzer) buildDiagnosticReport() *types.ClusterHealthReport {
+	return &types.ClusterHealthReport{
+		ClusterID:        a.config.ClusterID,
+		Timestamp:        time.Now(),
+		Scores:           nil,
+		Summary:          types.ClusterSummary{Namespaces: make(map[string]*types.NamespaceStats)},
+		TopIssues:        []types.Issue{},
+		Recommendations:  []types.Recommendation{},
+		SecurityFindings: []types.SecurityFinding{},
+		Status:           a.buildReportStatus(false),
+	}
 }
 
 // subscribe creates a new channel for SSE
@@ -619,16 +956,15 @@ func filterWarningEvents(events []types.TelemetryEvent) []types.TelemetryEvent {
 
 // buildHealthReport constructs the health report from analysis results
 func (a *Analyzer) buildHealthReport(events []types.TelemetryEvent, metrics []types.ResourceMetrics, llmResponse map[string]any) *types.ClusterHealthReport {
+	// Scores intentionally start as nil. They are only populated when the
+	// LLM returns a parsable healthScores block below. When the LLM is
+	// unreachable (or its output is unparsable) the report is emitted with
+	// scores == nil so the dashboard can render a diagnostic panel instead
+	// of inventing numbers.
 	report := &types.ClusterHealthReport{
 		ClusterID: a.config.ClusterID,
 		Timestamp: time.Now(),
-		Scores: types.HealthScores{
-			Overall:      85,
-			Reliability:  90,
-			Security:     80,
-			Cost:         75,
-			Architecture: 85,
-		},
+		Scores:    nil,
 		Summary: types.ClusterSummary{
 			WarningEvents: len(filterWarningEvents(events)),
 			Namespaces:    make(map[string]*types.NamespaceStats),
@@ -722,25 +1058,27 @@ func (a *Analyzer) buildHealthReport(events []types.TelemetryEvent, metrics []ty
 		},
 	}
 
-	// Extract scores from LLM response
+	// Extract scores from LLM response. Only allocate the Scores struct
+	// when the LLM actually returned a healthScores block — otherwise
+	// leave it as nil so the dashboard knows AI insights are unavailable.
 	if llmResponse != nil {
-		if scores, ok := llmResponse["healthScores"].(map[string]any); ok {
-			if v, ok := scores["reliability"].(float64); ok {
-				report.Scores.Reliability = int(v)
+		if rawScores, ok := llmResponse["healthScores"].(map[string]any); ok {
+			scores := &types.HealthScores{}
+			if v, ok := rawScores["reliability"].(float64); ok {
+				scores.Reliability = int(v)
 			}
-			if v, ok := scores["security"].(float64); ok {
-				report.Scores.Security = int(v)
+			if v, ok := rawScores["security"].(float64); ok {
+				scores.Security = int(v)
 			}
-			if v, ok := scores["cost"].(float64); ok {
-				report.Scores.Cost = int(v)
+			if v, ok := rawScores["cost"].(float64); ok {
+				scores.Cost = int(v)
 			}
-			if v, ok := scores["architecture"].(float64); ok {
-				report.Scores.Architecture = int(v)
+			if v, ok := rawScores["architecture"].(float64); ok {
+				scores.Architecture = int(v)
 			}
+			scores.Overall = types.CalculateOverallScore(*scores)
+			report.Scores = scores
 		}
-
-		// Calculate overall score using shared constants
-		report.Scores.Overall = types.CalculateOverallScore(report.Scores)
 
 		// Extract issues
 		if issues, ok := llmResponse["issues"].([]any); ok {
@@ -866,6 +1204,82 @@ func (a *Analyzer) serveAPI() {
 	mux.HandleFunc("/api/v1/history", a.handleHistory)
 	mux.HandleFunc("/api/v1/dns/health", a.handleDNSHealth)
 	mux.HandleFunc("/api/v1/pods/", a.handlePodLogs)
+	// Profile + diagnostics
+	mux.HandleFunc("/api/v1/profile", a.handleProfile)
+	mux.HandleFunc("/api/v1/status", a.handleStatus)
+
+	// v7 Phase 3: Error aggregator routes
+	if a.errorAggregator != nil {
+		a.errorAggregator.RegisterRoutes(mux)
+	}
+
+	// v7 Phase 4: LB log aggregator routes
+	if a.lbLogAggregator != nil {
+		a.lbLogAggregator.RegisterRoutes(mux)
+	}
+
+	// v7 Phase 6: Optimizer routes
+	if a.optimizerRegistry != nil {
+		a.optimizerRegistry.RegisterRoutes(mux)
+	}
+
+	// v7 Phase 7: Anomaly detection routes
+	if a.anomalyDetector != nil {
+		a.anomalyDetector.RegisterRoutes(mux)
+	}
+
+	// v7 Phase 8: Security scanner routes
+	if a.securityScanner != nil {
+		a.securityScanner.RegisterRoutes(mux)
+	}
+
+	// v7 Phase 10: Pod health routes
+	if a.podHealthScanner != nil {
+		a.podHealthScanner.RegisterRoutes(mux)
+	}
+
+	// LLM config API
+	if a.llmConfigAPI != nil {
+		a.llmConfigAPI.RegisterRoutes(mux)
+	}
+
+	// v7 Phase 5: Correlator + RCA routes
+	if a.correlator != nil {
+		a.correlator.RegisterRoutes(mux)
+	}
+	if a.rcaEngine != nil {
+		a.rcaEngine.RegisterRoutes(mux)
+	}
+
+	// v7 Phase 1: Workload browser routes
+	if a.workloadHandler != nil {
+		a.workloadHandler.RegisterRoutes(mux)
+
+		// v7 Phase 2: WS routes (logs, exec) + write actions
+		execEnabled := getEnvOrDefault("EXEC_ENABLED", "false") == "true"
+		writeEnabled := getEnvOrDefault("WRITE_ACTIONS_ENABLED", "false") == "true"
+		protectedStr := getEnvOrDefault("PROTECTED_NAMESPACES", "kube-system,kube-public,kube-node-lease")
+		execCmdsStr := getEnvOrDefault("EXEC_ALLOWED_COMMANDS", "/bin/sh,/bin/bash,/bin/ash")
+		var restCfg *rest.Config
+		if a.workloadHandler.restConfig == nil {
+			// Try to get restConfig from the K8s client setup
+			if rc, err := rest.InClusterConfig(); err == nil {
+				restCfg = rc
+			}
+		} else {
+			restCfg = a.workloadHandler.restConfig
+		}
+		a.workloadHandler.RegisterWSRoutes(mux, restCfg, wsConfig{
+			ExecEnabled:         execEnabled,
+			ExecAllowedCommands: strings.Split(execCmdsStr, ","),
+			WriteEnabled:        writeEnabled,
+			ProtectedNamespaces: strings.Split(protectedStr, ","),
+		})
+		log.Info().
+			Bool("exec", execEnabled).
+			Bool("writeActions", writeEnabled).
+			Msg("Registered workload browser API routes")
+	}
 
 	// Configure CORS from environment
 	allowedOriginsStr := getEnvOrDefault("CORS_ALLOWED_ORIGINS", "*")
@@ -898,15 +1312,17 @@ func (a *Analyzer) serveAPI() {
 	}
 }
 
-// handleHealthReport returns the full health report
+// handleHealthReport returns the full health report. If no report has been
+// produced yet, returns a synthetic diagnostic report (200 OK) rather than a
+// 503 so the dashboard can render the status block and help the operator
+// understand why data is missing.
 func (a *Analyzer) handleHealthReport(w http.ResponseWriter, r *http.Request) {
 	a.reportMu.RLock()
 	report := a.latestReport
 	a.reportMu.RUnlock()
 
 	if report == nil {
-		http.Error(w, "No report available", http.StatusServiceUnavailable)
-		return
+		report = a.buildDiagnosticReport()
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -926,16 +1342,18 @@ func (a *Analyzer) handleHealthStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Send initial report immediately if available
+	// Send initial report immediately. If no real report exists yet, send
+	// a synthetic diagnostic report so clients see the status block right
+	// away instead of a blank screen.
 	a.reportMu.RLock()
 	initialReport := a.latestReport
 	a.reportMu.RUnlock()
-
-	if initialReport != nil {
-		data, _ := json.Marshal(initialReport)
-		fmt.Fprintf(w, "data: %s\n\n", string(data))
-		flusher.Flush()
+	if initialReport == nil {
+		initialReport = a.buildDiagnosticReport()
 	}
+	data, _ := json.Marshal(initialReport)
+	fmt.Fprintf(w, "data: %s\n\n", string(data))
+	flusher.Flush()
 
 	ch := a.subscribe()
 	defer a.unsubscribe(ch)
@@ -956,49 +1374,102 @@ func (a *Analyzer) handleHealthStream(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// handleScores returns just the health scores
+// handleScores returns just the health scores. Returns null (JSON) when
+// scores are unavailable so clients can discriminate unambiguously.
 func (a *Analyzer) handleScores(w http.ResponseWriter, r *http.Request) {
 	a.reportMu.RLock()
 	report := a.latestReport
 	a.reportMu.RUnlock()
 
-	if report == nil {
-		http.Error(w, "No report available", http.StatusServiceUnavailable)
+	w.Header().Set("Content-Type", "application/json")
+	if report == nil || report.Scores == nil {
+		w.Write([]byte("null"))
 		return
 	}
-
-	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(report.Scores)
 }
 
-// handleRecommendations returns the recommendations
+// handleRecommendations returns the recommendations. Returns [] when no
+// report is available — the Summary/recommendations slice is a list, so
+// "no data" and "empty list" are indistinguishable at this endpoint.
+// Clients that need to know should consult /api/v1/status.
 func (a *Analyzer) handleRecommendations(w http.ResponseWriter, r *http.Request) {
 	a.reportMu.RLock()
 	report := a.latestReport
 	a.reportMu.RUnlock()
 
+	w.Header().Set("Content-Type", "application/json")
 	if report == nil {
-		http.Error(w, "No report available", http.StatusServiceUnavailable)
+		w.Write([]byte("[]"))
 		return
 	}
-
-	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(report.Recommendations)
 }
 
-// handleIssues returns the top issues
+// handleIssues returns the top issues. Same semantics as
+// handleRecommendations — [] when no report.
 func (a *Analyzer) handleIssues(w http.ResponseWriter, r *http.Request) {
 	a.reportMu.RLock()
 	report := a.latestReport
 	a.reportMu.RUnlock()
 
+	w.Header().Set("Content-Type", "application/json")
 	if report == nil {
-		http.Error(w, "No report available", http.StatusServiceUnavailable)
+		w.Write([]byte("[]"))
 		return
 	}
-
-	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(report.TopIssues)
+}
+
+// handleProfile handles GET (return current profile) and POST (switch
+// profile). POST body is {"profile":"live"|"mock"}.
+func (a *Analyzer) handleProfile(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	switch r.Method {
+	case http.MethodGet:
+		json.NewEncoder(w).Encode(map[string]any{
+			"profile":   a.getProfile(),
+			"available": []string{types.ProfileLive, types.ProfileMock},
+		})
+	case http.MethodPost:
+		var body struct {
+			Profile string `json:"profile"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, fmt.Sprintf("invalid body: %v", err), http.StatusBadRequest)
+			return
+		}
+		newProfile, err := a.setProfile(body.Profile)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]any{
+			"profile":   newProfile,
+			"available": []string{types.ProfileLive, types.ProfileMock},
+		})
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+// handleStatus returns full diagnostics about the analyzer's current state:
+// profile, collector reachability, LLM reachability, last analysis
+// timestamp and error, and whether scores are currently present.
+func (a *Analyzer) handleStatus(w http.ResponseWriter, r *http.Request) {
+	a.reportMu.RLock()
+	hasReport := a.latestReport != nil
+	hasScores := hasReport && a.latestReport.Scores != nil
+	a.reportMu.RUnlock()
+
+	status := a.buildReportStatus(hasScores)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{
+		"status":    status,
+		"hasReport": hasReport,
+		"hasScores": hasScores,
+	})
 }
 
 // handleTriggerAnalysis triggers an immediate analysis
@@ -1116,6 +1587,11 @@ func (a *Analyzer) Stop() {
 	log.Info().Msg("Stopping analyzer")
 	close(a.stopCh)
 
+	// Stop the mock source goroutine (no-op if it never started).
+	if a.mockSource != nil {
+		a.mockSource.Stop()
+	}
+
 	// Gracefully shut down HTTP servers with a 5-second timeout
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -1139,19 +1615,28 @@ func main() {
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
 
+	// v7: Try loading unified config file (CI_CONFIG env or /etc/cluster-intel/config.yaml).
+	// If available, its values seed the Config below; env vars still override as before.
+	ucfg, ucfgErr := ucconfig.LoadFromEnv("/etc/cluster-intel/config.yaml")
+	if ucfgErr != nil {
+		log.Debug().Err(ucfgErr).Msg("No unified config loaded, using legacy env vars")
+	} else {
+		log.Info().Str("cluster", ucfg.Cluster.ID).Msg("Loaded unified config")
+	}
+
 	// Load configuration
 	config := Config{
-		ClusterID:        getEnvOrDefault("CLUSTER_ID", "default"),
+		ClusterID:        coalesce(getEnvOrDefault("CLUSTER_ID", ""), ucfg.Cluster.ID, "default"),
 		CollectorURL:     getEnvOrDefault("COLLECTOR_URL", "http://collector:8080"),
-		LLMBackend:       getEnvOrDefault("LLM_BACKEND", "openai"),
-		LLMEndpoint:      getEnvOrDefault("LLM_ENDPOINT", "https://api.openai.com/v1"),
-		LLMModel:         getEnvOrDefault("LLM_MODEL", "gpt-4-turbo"),
-		LLMAPIKey:        os.Getenv("LLM_API_KEY"),
+		LLMBackend:       coalesce(getEnvOrDefault("LLM_BACKEND", ""), ucfg.LLM.Provider, "openai"),
+		LLMEndpoint:      coalesce(getEnvOrDefault("LLM_ENDPOINT", ""), ucfg.LLM.Endpoint, "https://api.openai.com/v1"),
+		LLMModel:         coalesce(getEnvOrDefault("LLM_MODEL", ""), ucfg.LLM.Model, "gpt-4-turbo"),
+		LLMAPIKey:        coalesce(os.Getenv("LLM_API_KEY"), ucfg.LLM.APIKey),
 		AnalysisInterval: getDurationOrDefault("ANALYSIS_INTERVAL", 5*time.Minute),
-		MetricsPort:      getEnvIntOrDefault("METRICS_PORT", 9091),
-		APIPort:          getEnvIntOrDefault("API_PORT", 8081),
-		MaxTokens:        getEnvIntOrDefault("LLM_MAX_TOKENS", 4096),
-		Temperature:      getEnvFloatOrDefault("LLM_TEMPERATURE", 0.3),
+		MetricsPort:      getEnvIntOrDefault("METRICS_PORT", ucfg.Server.MetricsPort),
+		APIPort:          getEnvIntOrDefault("API_PORT", ucfg.Server.APIPort),
+		MaxTokens:        getEnvIntOrDefault("LLM_MAX_TOKENS", ucfg.LLM.MaxTokens),
+		Temperature:      getEnvFloatOrDefault("LLM_TEMPERATURE", ucfg.LLM.Temperature),
 	}
 
 	// Validate LLM configuration
@@ -1163,6 +1648,59 @@ func main() {
 	analyzer, err := NewAnalyzer(config)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to create analyzer")
+	}
+
+	// v7 Phase 3: Error aggregator
+	analyzer.errorAggregator = NewErrorAggregator()
+
+	// v7 Phase 4: LB log aggregator
+	analyzer.lbLogAggregator = NewLBLogAggregator()
+
+	// LLM config API (for UI settings page)
+	analyzer.llmConfigAPI = NewLLMConfigAPI(
+		config.LLMBackend, config.LLMEndpoint, config.LLMModel, config.LLMAPIKey,
+		config.MaxTokens, config.Temperature, 1000000,
+	)
+
+	// v7 Phase 6-10: Optimizers, anomaly, security, pod health
+	promURL := coalesce(os.Getenv("PROMETHEUS_URL"), os.Getenv("PROMETHEUS_ENDPOINT"), "")
+	analyzer.optimizerRegistry = NewOptimizerRegistry(promURL, config.ClusterID)
+	analyzer.anomalyDetector = NewAnomalyDetector(promURL, config.ClusterID)
+
+	// v7 Phase 5: Correlator + RCA
+	analyzer.correlator = NewCorrelator(config.ClusterID, 5*time.Minute)
+	analyzer.rcaEngine = NewRCAEngine(ucfg.LLM, analyzer.correlator)
+	analyzer.correlator.onNewIncident = func(incidentID int64) {
+		if analyzer.rcaEngine != nil && analyzer.rcaEngine.llmClient != nil {
+			ctx := context.Background()
+			if _, err := analyzer.rcaEngine.Analyze(ctx, incidentID); err != nil {
+				log.Warn().Err(err).Int64("incident", incidentID).Msg("Auto-RCA failed")
+			}
+		}
+	}
+
+	// v7 Phase 1: Initialize K8s clients for the workload browser.
+	// Tries in-cluster first, falls back to kubeconfig.
+	restCfg, k8sErr := rest.InClusterConfig()
+	if k8sErr != nil {
+		kubeconfigPath := os.Getenv("KUBECONFIG")
+		if kubeconfigPath == "" {
+			kubeconfigPath = os.Getenv("HOME") + "/.kube/config"
+		}
+		restCfg, k8sErr = clientcmd.BuildConfigFromFlags("", kubeconfigPath)
+	}
+	if k8sErr != nil {
+		log.Warn().Err(k8sErr).Msg("K8s client init failed — workload browser disabled")
+	} else {
+		cs, _ := kubernetes.NewForConfig(restCfg)
+		dyn, _ := dynamic.NewForConfig(restCfg)
+		disc, _ := discovery.NewDiscoveryClientForConfig(restCfg)
+		if cs != nil && dyn != nil && disc != nil {
+			analyzer.workloadHandler = NewWorkloadHandler(cs, dyn, disc)
+			analyzer.securityScanner = NewSecurityScanner(cs)
+			analyzer.podHealthScanner = NewPodHealthScanner(cs)
+			log.Info().Msg("Workload browser + security + pod health enabled")
+		}
 	}
 
 	// Setup context
@@ -1218,4 +1756,14 @@ func getDurationOrDefault(key string, defaultVal time.Duration) time.Duration {
 		}
 	}
 	return defaultVal
+}
+
+// coalesce returns the first non-empty string.
+func coalesce(vals ...string) string {
+	for _, v := range vals {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
 }

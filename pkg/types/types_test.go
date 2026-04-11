@@ -147,7 +147,7 @@ func TestHealthReportJSON(t *testing.T) {
 	report := ClusterHealthReport{
 		ClusterID: "test",
 		Timestamp: time.Now(),
-		Scores: HealthScores{
+		Scores: &HealthScores{
 			Overall:      85,
 			Reliability:  90,
 			Security:     80,
@@ -176,9 +176,95 @@ func TestHealthReportJSON(t *testing.T) {
 	if decoded.ClusterID != "test" {
 		t.Errorf("ClusterID mismatch: got %q, want %q", decoded.ClusterID, "test")
 	}
+	if decoded.Scores == nil {
+		t.Fatal("Scores should not be nil after decode")
+	}
 	if decoded.Scores.Overall != 85 {
 		t.Errorf("Scores.Overall mismatch: got %d, want %d", decoded.Scores.Overall, 85)
 	}
+}
+
+// TestHealthReportJSON_NullScores ensures scores marshals as null — never as
+// a zero-valued struct — when the analyzer has no LLM-derived scores.
+func TestHealthReportJSON_NullScores(t *testing.T) {
+	now := time.Now()
+	report := ClusterHealthReport{
+		ClusterID: "test",
+		Timestamp: now,
+		Scores:    nil,
+		Status: &ReportStatus{
+			State:   StateDegraded,
+			Message: "LLM unreachable",
+			Profile: ProfileLive,
+			LLM: ComponentHealth{
+				Reachable: false,
+				Endpoint:  "http://llm:11434/v1",
+				LastError: "connection refused",
+			},
+			Collector: ComponentHealth{
+				Reachable: true,
+				Endpoint:  "http://collector:8080",
+				LastOKAt:  &now,
+			},
+		},
+		TopIssues:       []Issue{},
+		Recommendations: []Recommendation{},
+	}
+
+	data, err := json.Marshal(report)
+	if err != nil {
+		t.Fatalf("Failed to marshal: %v", err)
+	}
+
+	// The serialized JSON must contain "scores":null — NOT an object with zeros.
+	s := string(data)
+	if !contains(s, `"scores":null`) {
+		t.Errorf("Expected serialized output to contain \"scores\":null, got: %s", s)
+	}
+
+	// Roundtrip must preserve nil.
+	var decoded ClusterHealthReport
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("Failed to unmarshal: %v", err)
+	}
+	if decoded.Scores != nil {
+		t.Errorf("Expected Scores to be nil after roundtrip, got %+v", decoded.Scores)
+	}
+	if decoded.Status == nil {
+		t.Fatal("Status should not be nil after roundtrip")
+	}
+	if decoded.Status.State != StateDegraded {
+		t.Errorf("Status.State mismatch: got %q, want %q", decoded.Status.State, StateDegraded)
+	}
+	if decoded.Status.Profile != ProfileLive {
+		t.Errorf("Status.Profile mismatch: got %q, want %q", decoded.Status.Profile, ProfileLive)
+	}
+	if decoded.Status.LLM.Reachable {
+		t.Error("Status.LLM.Reachable should be false")
+	}
+	if decoded.Status.LLM.LastError != "connection refused" {
+		t.Errorf("Status.LLM.LastError mismatch: got %q", decoded.Status.LLM.LastError)
+	}
+}
+
+// TestReportStatus_Profiles ensures the profile constants are stable.
+func TestReportStatus_Profiles(t *testing.T) {
+	if ProfileLive != "live" {
+		t.Errorf("ProfileLive should equal 'live', got %q", ProfileLive)
+	}
+	if ProfileMock != "mock" {
+		t.Errorf("ProfileMock should equal 'mock', got %q", ProfileMock)
+	}
+}
+
+// contains is a tiny helper to keep the test self-contained without importing strings.
+func contains(s, sub string) bool {
+	for i := 0; i+len(sub) <= len(s); i++ {
+		if s[i:i+len(sub)] == sub {
+			return true
+		}
+	}
+	return false
 }
 
 func TestResourceMetricsJSON(t *testing.T) {

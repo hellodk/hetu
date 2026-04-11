@@ -2,9 +2,11 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"text/template"
 	"time"
@@ -25,8 +27,12 @@ func newTestAnalyzer() *Analyzer {
 		stopCh:          make(chan struct{}),
 		promptTemplates: make(map[string]*template.Template),
 		subscribers:     make(map[chan *types.ClusterHealthReport]struct{}),
+		profile:         types.ProfileLive,
 	}
 	a.initMetrics()
+	// Create a mock source so handlers that reference it don't NPE.
+	// Tests never Start() it so no goroutine is spawned.
+	a.mockSource = newMockSource(a, 20*time.Second)
 	return a
 }
 
@@ -525,12 +531,9 @@ func TestBuildHealthReport_Empty(t *testing.T) {
 	if report.Timestamp.IsZero() {
 		t.Error("Expected non-zero timestamp")
 	}
-	// Default scores when no LLM response
-	if report.Scores.Overall != 85 {
-		t.Errorf("Expected default overall 85, got %d", report.Scores.Overall)
-	}
-	if report.Scores.Reliability != 90 {
-		t.Errorf("Expected default reliability 90, got %d", report.Scores.Reliability)
+	// No LLM response → Scores MUST be nil (no hardcoded defaults).
+	if report.Scores != nil {
+		t.Errorf("Expected Scores to be nil when no LLM response, got %+v", report.Scores)
 	}
 	if report.Summary.TotalPods != 0 {
 		t.Errorf("Expected 0 pods, got %d", report.Summary.TotalPods)
@@ -679,6 +682,9 @@ func TestBuildHealthReport_WithLLMResponse(t *testing.T) {
 
 	report := a.buildHealthReport(nil, nil, llmResp)
 
+	if report.Scores == nil {
+		t.Fatal("Expected Scores to be populated when LLM returns healthScores, got nil")
+	}
 	if report.Scores.Reliability != 80 {
 		t.Errorf("Expected reliability 80, got %d", report.Scores.Reliability)
 	}
@@ -693,7 +699,7 @@ func TestBuildHealthReport_WithLLMResponse(t *testing.T) {
 	}
 
 	// Overall should be calculated via CalculateOverallScore
-	expectedOverall := types.CalculateOverallScore(report.Scores)
+	expectedOverall := types.CalculateOverallScore(*report.Scores)
 	if report.Scores.Overall != expectedOverall {
 		t.Errorf("Expected overall %d, got %d", expectedOverall, report.Scores.Overall)
 	}
@@ -856,8 +862,27 @@ func TestHandleHealthReport_NoReport(t *testing.T) {
 	rr := httptest.NewRecorder()
 	a.handleHealthReport(rr, req)
 
-	if rr.Code != http.StatusServiceUnavailable {
-		t.Errorf("Expected 503 when no report, got %d", rr.Code)
+	// When there's no report yet, the handler now returns 200 with a
+	// diagnostic "awaiting" report rather than 503 so the dashboard can
+	// render the status block and help the operator diagnose.
+	if rr.Code != http.StatusOK {
+		t.Errorf("Expected 200 with diagnostic report, got %d", rr.Code)
+	}
+	var diag types.ClusterHealthReport
+	if err := json.NewDecoder(rr.Body).Decode(&diag); err != nil {
+		t.Fatalf("Failed to decode diagnostic report: %v", err)
+	}
+	if diag.Scores != nil {
+		t.Errorf("Expected diagnostic report Scores to be nil, got %+v", diag.Scores)
+	}
+	if diag.Status == nil {
+		t.Fatal("Expected diagnostic report to have a Status block")
+	}
+	if diag.Status.State != types.StateAwaiting {
+		t.Errorf("Expected Status.State=%q, got %q", types.StateAwaiting, diag.Status.State)
+	}
+	if diag.Status.Profile != types.ProfileLive {
+		t.Errorf("Expected Status.Profile=%q, got %q", types.ProfileLive, diag.Status.Profile)
 	}
 }
 
@@ -865,7 +890,7 @@ func TestHandleHealthReport_WithReport(t *testing.T) {
 	a := newTestAnalyzer()
 	a.latestReport = &types.ClusterHealthReport{
 		ClusterID: "test",
-		Scores:    types.HealthScores{Overall: 85},
+		Scores:    &types.HealthScores{Overall: 85},
 	}
 
 	req := httptest.NewRequest("GET", "/api/v1/health", nil)
@@ -885,6 +910,9 @@ func TestHandleHealthReport_WithReport(t *testing.T) {
 	if err := json.NewDecoder(rr.Body).Decode(&report); err != nil {
 		t.Fatalf("Failed to decode: %v", err)
 	}
+	if report.Scores == nil {
+		t.Fatal("Expected Scores to be populated")
+	}
 	if report.Scores.Overall != 85 {
 		t.Errorf("Expected overall 85, got %d", report.Scores.Overall)
 	}
@@ -900,15 +928,20 @@ func TestHandleScores_NoReport(t *testing.T) {
 	rr := httptest.NewRecorder()
 	a.handleScores(rr, req)
 
-	if rr.Code != http.StatusServiceUnavailable {
-		t.Errorf("Expected 503, got %d", rr.Code)
+	// No report → 200 with a JSON null body so clients can distinguish
+	// "scores unavailable" from "server error".
+	if rr.Code != http.StatusOK {
+		t.Errorf("Expected 200, got %d", rr.Code)
+	}
+	if body := strings.TrimSpace(rr.Body.String()); body != "null" {
+		t.Errorf("Expected body 'null', got %q", body)
 	}
 }
 
 func TestHandleScores_WithReport(t *testing.T) {
 	a := newTestAnalyzer()
 	a.latestReport = &types.ClusterHealthReport{
-		Scores: types.HealthScores{
+		Scores: &types.HealthScores{
 			Overall:      85,
 			Reliability:  90,
 			Security:     80,
@@ -940,13 +973,42 @@ func TestHandleScores_WithReport(t *testing.T) {
 	}
 }
 
+// TestHandleScores_WithNilScores covers the case where a report exists but
+// the LLM call failed, so Scores is nil. handleScores should still return
+// null, not a zero-valued struct.
+func TestHandleScores_WithNilScores(t *testing.T) {
+	a := newTestAnalyzer()
+	a.latestReport = &types.ClusterHealthReport{
+		ClusterID: "test",
+		Scores:    nil,
+		Status: &types.ReportStatus{
+			State:   types.StateDegraded,
+			Profile: types.ProfileLive,
+		},
+	}
+
+	req := httptest.NewRequest("GET", "/api/v1/scores", nil)
+	rr := httptest.NewRecorder()
+	a.handleScores(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("Expected 200, got %d", rr.Code)
+	}
+	if body := strings.TrimSpace(rr.Body.String()); body != "null" {
+		t.Errorf("Expected body 'null', got %q", body)
+	}
+}
+
 func TestHandleIssues_NoReport(t *testing.T) {
 	a := newTestAnalyzer()
 	req := httptest.NewRequest("GET", "/api/v1/issues", nil)
 	rr := httptest.NewRecorder()
 	a.handleIssues(rr, req)
-	if rr.Code != http.StatusServiceUnavailable {
-		t.Errorf("Expected 503, got %d", rr.Code)
+	if rr.Code != http.StatusOK {
+		t.Errorf("Expected 200, got %d", rr.Code)
+	}
+	if body := strings.TrimSpace(rr.Body.String()); body != "[]" {
+		t.Errorf("Expected body '[]', got %q", body)
 	}
 }
 
@@ -983,8 +1045,11 @@ func TestHandleRecommendations_NoReport(t *testing.T) {
 	rr := httptest.NewRecorder()
 	a.handleRecommendations(rr, req)
 
-	if rr.Code != http.StatusServiceUnavailable {
-		t.Errorf("Expected 503, got %d", rr.Code)
+	if rr.Code != http.StatusOK {
+		t.Errorf("Expected 200, got %d", rr.Code)
+	}
+	if body := strings.TrimSpace(rr.Body.String()); body != "[]" {
+		t.Errorf("Expected body '[]', got %q", body)
 	}
 }
 
@@ -1061,8 +1126,8 @@ func TestHandleHistory_Empty(t *testing.T) {
 func TestHandleHistory_WithData(t *testing.T) {
 	a := newTestAnalyzer()
 	a.reportHistory = []*types.ClusterHealthReport{
-		{ClusterID: "test-1", Scores: types.HealthScores{Overall: 80}},
-		{ClusterID: "test-2", Scores: types.HealthScores{Overall: 90}},
+		{ClusterID: "test-1", Scores: &types.HealthScores{Overall: 80}},
+		{ClusterID: "test-2", Scores: &types.HealthScores{Overall: 90}},
 	}
 
 	req := httptest.NewRequest("GET", "/api/v1/history", nil)
@@ -1133,5 +1198,301 @@ func TestNewAnalyzer(t *testing.T) {
 	}
 	if analyzer.registry == nil {
 		t.Error("Expected non-nil prometheus registry")
+	}
+	// New fields added for Live/Mock profile support.
+	if analyzer.profile != types.ProfileLive {
+		t.Errorf("Expected default profile %q, got %q", types.ProfileLive, analyzer.profile)
+	}
+	if analyzer.mockSource == nil {
+		t.Error("Expected non-nil mockSource")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Profile, status, and diagnostic report tests
+// ---------------------------------------------------------------------------
+
+func TestResolveProfile(t *testing.T) {
+	cases := map[string]string{
+		"live":    types.ProfileLive,
+		"LIVE":    types.ProfileLive,
+		"  live ": types.ProfileLive,
+		"mock":    types.ProfileMock,
+		"Mock":    types.ProfileMock,
+		"":        types.ProfileLive,
+		"garbage": types.ProfileLive,
+	}
+	for in, expected := range cases {
+		if got := resolveProfile(in); got != expected {
+			t.Errorf("resolveProfile(%q) = %q, want %q", in, got, expected)
+		}
+	}
+}
+
+func TestSetProfile_SwitchAndReject(t *testing.T) {
+	a := newTestAnalyzer()
+
+	// Default is live.
+	if a.getProfile() != types.ProfileLive {
+		t.Fatalf("expected default live, got %q", a.getProfile())
+	}
+
+	// Switch to mock.
+	got, err := a.setProfile("mock")
+	if err != nil {
+		t.Fatalf("setProfile(mock) returned error: %v", err)
+	}
+	if got != types.ProfileMock {
+		t.Errorf("setProfile returned %q, want %q", got, types.ProfileMock)
+	}
+	if a.getProfile() != types.ProfileMock {
+		t.Errorf("getProfile = %q after switch, want %q", a.getProfile(), types.ProfileMock)
+	}
+
+	// Switching to mock should have triggered an immediate mock report.
+	a.reportMu.RLock()
+	latest := a.latestReport
+	a.reportMu.RUnlock()
+	if latest == nil {
+		t.Fatal("Expected a mock report to be published immediately after switching to mock")
+	}
+	if latest.Scores == nil {
+		t.Fatal("Expected mock report to have Scores populated")
+	}
+	if latest.Status == nil || latest.Status.Profile != types.ProfileMock {
+		t.Errorf("Expected mock report Status.Profile=%q", types.ProfileMock)
+	}
+
+	// Switch back to live.
+	if _, err := a.setProfile("live"); err != nil {
+		t.Fatalf("setProfile(live) returned error: %v", err)
+	}
+	a.reportMu.RLock()
+	latestAfter := a.latestReport
+	a.reportMu.RUnlock()
+	if latestAfter != nil {
+		t.Error("Expected latestReport to be cleared when switching back to live")
+	}
+
+	// Unknown profile should be rejected.
+	if _, err := a.setProfile("garbage"); err == nil {
+		t.Error("Expected error when setting unknown profile")
+	}
+}
+
+func TestHandleProfile_Get(t *testing.T) {
+	a := newTestAnalyzer()
+	req := httptest.NewRequest("GET", "/api/v1/profile", nil)
+	rr := httptest.NewRecorder()
+	a.handleProfile(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("Expected 200, got %d", rr.Code)
+	}
+	var body struct {
+		Profile   string   `json:"profile"`
+		Available []string `json:"available"`
+	}
+	if err := json.NewDecoder(rr.Body).Decode(&body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if body.Profile != types.ProfileLive {
+		t.Errorf("expected profile=%q, got %q", types.ProfileLive, body.Profile)
+	}
+	if len(body.Available) != 2 {
+		t.Errorf("expected 2 available profiles, got %d", len(body.Available))
+	}
+}
+
+func TestHandleProfile_PostSwitchesAndRejects(t *testing.T) {
+	a := newTestAnalyzer()
+
+	// POST with valid payload.
+	postReq := httptest.NewRequest("POST", "/api/v1/profile",
+		strings.NewReader(`{"profile":"mock"}`))
+	postReq.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	a.handleProfile(rr, postReq)
+	if rr.Code != http.StatusOK {
+		t.Errorf("Expected 200, got %d (body: %s)", rr.Code, rr.Body.String())
+	}
+	if a.getProfile() != types.ProfileMock {
+		t.Errorf("expected profile to be %q after POST, got %q", types.ProfileMock, a.getProfile())
+	}
+
+	// POST with invalid payload.
+	badReq := httptest.NewRequest("POST", "/api/v1/profile",
+		strings.NewReader(`{"profile":"nonsense"}`))
+	badReq.Header.Set("Content-Type", "application/json")
+	rr2 := httptest.NewRecorder()
+	a.handleProfile(rr2, badReq)
+	if rr2.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 for unknown profile, got %d", rr2.Code)
+	}
+
+	// Wrong method.
+	putReq := httptest.NewRequest("PUT", "/api/v1/profile", nil)
+	rr3 := httptest.NewRecorder()
+	a.handleProfile(rr3, putReq)
+	if rr3.Code != http.StatusMethodNotAllowed {
+		t.Errorf("Expected 405 for PUT, got %d", rr3.Code)
+	}
+}
+
+func TestHandleStatus(t *testing.T) {
+	a := newTestAnalyzer()
+	req := httptest.NewRequest("GET", "/api/v1/status", nil)
+	rr := httptest.NewRecorder()
+	a.handleStatus(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("Expected 200, got %d", rr.Code)
+	}
+	var body struct {
+		Status    types.ReportStatus `json:"status"`
+		HasReport bool               `json:"hasReport"`
+		HasScores bool               `json:"hasScores"`
+	}
+	if err := json.NewDecoder(rr.Body).Decode(&body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if body.HasReport {
+		t.Error("Expected hasReport=false on fresh analyzer")
+	}
+	if body.HasScores {
+		t.Error("Expected hasScores=false on fresh analyzer")
+	}
+	if body.Status.Profile != types.ProfileLive {
+		t.Errorf("Expected status.profile=%q, got %q", types.ProfileLive, body.Status.Profile)
+	}
+	if body.Status.State != types.StateAwaiting {
+		t.Errorf("Expected status.state=%q, got %q", types.StateAwaiting, body.Status.State)
+	}
+}
+
+func TestBuildDiagnosticReport(t *testing.T) {
+	a := newTestAnalyzer()
+	r := a.buildDiagnosticReport()
+	if r.Scores != nil {
+		t.Error("Diagnostic report should have nil Scores")
+	}
+	if r.Status == nil {
+		t.Fatal("Diagnostic report should have a Status block")
+	}
+	if r.Status.State != types.StateAwaiting {
+		t.Errorf("Expected state=awaiting, got %q", r.Status.State)
+	}
+	if r.Status.Profile != types.ProfileLive {
+		t.Errorf("Expected profile=live, got %q", r.Status.Profile)
+	}
+	// Empty-slice JSON marshaling is important for the dashboard — make
+	// sure the diagnostic report doesn't serialize these as null.
+	if r.TopIssues == nil || r.Recommendations == nil || r.SecurityFindings == nil {
+		t.Error("Slices should be empty (not nil) so JSON marshals to [], not null")
+	}
+}
+
+func TestBuildReportStatus_StatesFromDiagnostics(t *testing.T) {
+	a := newTestAnalyzer()
+
+	// Fresh analyzer → awaiting.
+	st := a.buildReportStatus(false)
+	if st.State != types.StateAwaiting {
+		t.Errorf("fresh → expected awaiting, got %q", st.State)
+	}
+
+	// Collector broken → error state (even after an analysis attempt).
+	now := time.Now()
+	a.diagMu.Lock()
+	a.lastAnalysisAt = &now
+	a.collectorReachable = false
+	a.collectorLastError = "connection refused"
+	a.llmReachable = false
+	a.diagMu.Unlock()
+	st = a.buildReportStatus(false)
+	if st.State != types.StateError {
+		t.Errorf("collector down → expected error, got %q", st.State)
+	}
+	if st.Collector.LastError != "connection refused" {
+		t.Errorf("expected collector error to flow through, got %q", st.Collector.LastError)
+	}
+
+	// Collector ok, LLM broken, still no scores → degraded.
+	a.diagMu.Lock()
+	a.collectorReachable = true
+	a.collectorLastOKAt = &now
+	a.collectorLastError = ""
+	a.llmReachable = false
+	a.llmLastError = "llm timeout"
+	a.diagMu.Unlock()
+	st = a.buildReportStatus(false)
+	if st.State != types.StateDegraded {
+		t.Errorf("LLM down → expected degraded, got %q", st.State)
+	}
+
+	// Collector and LLM ok, scores present → ok.
+	a.diagMu.Lock()
+	a.llmReachable = true
+	a.llmLastOKAt = &now
+	a.llmLastError = ""
+	a.diagMu.Unlock()
+	st = a.buildReportStatus(true)
+	if st.State != types.StateOK {
+		t.Errorf("all ok → expected ok, got %q", st.State)
+	}
+
+	// Switched to mock → always ok regardless of diagnostics.
+	if _, err := a.setProfile("mock"); err != nil {
+		t.Fatalf("setProfile(mock): %v", err)
+	}
+	st = a.buildReportStatus(false)
+	if st.State != types.StateOK {
+		t.Errorf("mock profile → expected ok, got %q", st.State)
+	}
+	if st.Profile != types.ProfileMock {
+		t.Errorf("mock profile → expected profile=mock, got %q", st.Profile)
+	}
+}
+
+func TestDiagRecorders(t *testing.T) {
+	a := newTestAnalyzer()
+
+	a.recordCollectorSuccess()
+	a.diagMu.RLock()
+	ok := a.collectorReachable && a.collectorLastOKAt != nil
+	a.diagMu.RUnlock()
+	if !ok {
+		t.Error("recordCollectorSuccess should set reachable=true and timestamp")
+	}
+
+	a.recordCollectorError(fmt.Errorf("boom"))
+	a.diagMu.RLock()
+	down := !a.collectorReachable && a.collectorLastError == "boom"
+	a.diagMu.RUnlock()
+	if !down {
+		t.Error("recordCollectorError should set reachable=false and error message")
+	}
+
+	a.recordLLMSuccess()
+	a.recordLLMError(fmt.Errorf("oops"))
+	a.diagMu.RLock()
+	llmdown := !a.llmReachable && a.llmLastError == "oops"
+	a.diagMu.RUnlock()
+	if !llmdown {
+		t.Error("recordLLMError should set reachable=false and error")
+	}
+
+	a.recordAnalysisOutcome(fmt.Errorf("failure"))
+	a.diagMu.RLock()
+	hasErr := a.lastAnalysisError == "failure" && a.lastAnalysisAt != nil
+	a.diagMu.RUnlock()
+	if !hasErr {
+		t.Error("recordAnalysisOutcome should set error and timestamp")
+	}
+
+	a.recordAnalysisOutcome(nil)
+	a.diagMu.RLock()
+	cleared := a.lastAnalysisError == ""
+	a.diagMu.RUnlock()
+	if !cleared {
+		t.Error("recordAnalysisOutcome(nil) should clear error")
 	}
 }

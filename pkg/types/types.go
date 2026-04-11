@@ -56,11 +56,52 @@ type DataPoint struct {
 	Value     float64   `json:"value"`
 }
 
-// ClusterHealthReport is the comprehensive health report
+// Profile names for the analyzer data source.
+const (
+	ProfileLive = "live"
+	ProfileMock = "mock"
+)
+
+// Report state values.
+const (
+	StateOK       = "ok"
+	StateAwaiting = "awaiting"
+	StateDegraded = "degraded"
+	StateError    = "error"
+)
+
+// ComponentHealth describes the reachability of an upstream dependency.
+type ComponentHealth struct {
+	Reachable bool       `json:"reachable"`
+	Endpoint  string     `json:"endpoint,omitempty"`
+	LastOKAt  *time.Time `json:"lastOkAt,omitempty"`
+	LastError string     `json:"lastError,omitempty"`
+}
+
+// ReportStatus describes why a report looks the way it does. It is always
+// present on a ClusterHealthReport so the dashboard can render diagnostics
+// even when Scores is nil.
+type ReportStatus struct {
+	State             string          `json:"state"`   // ok | awaiting | degraded | error
+	Message           string          `json:"message"` // human-readable summary
+	Profile           string          `json:"profile"` // live | mock
+	Collector         ComponentHealth `json:"collector"`
+	LLM               ComponentHealth `json:"llm"`
+	LastAnalysisAt    *time.Time      `json:"lastAnalysisAt,omitempty"`
+	LastAnalysisError string          `json:"lastAnalysisError,omitempty"`
+}
+
+// ClusterHealthReport is the comprehensive health report.
+//
+// Scores is a pointer and MAY be nil when the analyzer has no LLM-derived
+// scores available (collector unreachable, LLM unreachable, awaiting first
+// analysis, etc). The dashboard must render a diagnostic panel in that case
+// and MUST NOT substitute default numbers. Status is always populated to
+// explain the current state of the report.
 type ClusterHealthReport struct {
 	ClusterID           string              `json:"clusterId"`
 	Timestamp           time.Time           `json:"timestamp"`
-	Scores              HealthScores        `json:"scores"`
+	Scores              *HealthScores       `json:"scores"`
 	Summary             ClusterSummary      `json:"summary"`
 	ResourceUtilization ResourceUtilization `json:"resourceUtilization"`
 	TopIssues           []Issue             `json:"topIssues"`
@@ -68,6 +109,7 @@ type ClusterHealthReport struct {
 	SecurityFindings    []SecurityFinding   `json:"securityFindings"`
 	EstimatedSavings    float64             `json:"estimatedMonthlySavings"`
 	Trends              HealthTrends        `json:"trends"`
+	Status              *ReportStatus       `json:"status,omitempty"`
 }
 
 // HealthScores contains all health scores

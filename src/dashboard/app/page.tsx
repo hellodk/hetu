@@ -18,6 +18,8 @@ import { AIInsightFeed } from '@/components/AIInsightFeed'
 import { CoreDNSHealth } from '@/components/CoreDNSHealth'
 import { SettingsModal } from '@/components/SettingsModal'
 import { NamespacesTable, NamespaceStats } from '@/components/NamespacesTable'
+import { DiagnosticPanel } from '@/components/DiagnosticPanel'
+import { ProfileBadge } from '@/components/ProfileBadge'
 
 // Types
 interface HealthScores {
@@ -80,16 +82,42 @@ interface ResourceUtilizationData {
   storage: { used: number, requested: number, capacity: number, unit: string }
 }
 
+// ComponentHealth mirrors the Go type — describes reachability of an
+// upstream dependency (collector, LLM).
+interface ComponentHealth {
+  reachable: boolean
+  endpoint?: string
+  lastOkAt?: string
+  lastError?: string
+}
+
+// ReportStatus describes the current state of the analyzer. Always
+// populated on a report; the dashboard renders a diagnostic panel when
+// `scores` is null, using the fields in this block to explain why.
+interface ReportStatus {
+  state: 'ok' | 'awaiting' | 'degraded' | 'error'
+  message: string
+  profile: 'live' | 'mock'
+  collector: ComponentHealth
+  llm: ComponentHealth
+  lastAnalysisAt?: string
+  lastAnalysisError?: string
+}
+
 interface HealthReport {
   clusterId: string
   timestamp: string
-  scores: HealthScores
+  // Nullable: when the analyzer has no LLM-derived scores (degraded /
+  // awaiting / error states), scores is null and the dashboard must render
+  // a diagnostic panel instead of score cards. No fabricated defaults.
+  scores: HealthScores | null
   summary: ClusterSummaryData
   topIssues: Issue[]
   recommendations: Recommendation[]
   estimatedMonthlySavings: number
   trends: HealthTrends
   resourceUtilization: ResourceUtilizationData
+  status?: ReportStatus
 }
 
 // Toast notification type
@@ -270,14 +298,28 @@ export default function Dashboard() {
     setToasts(prev => prev.filter(t => t.id !== id))
   }, [])
 
-  // Normalize report to ensure array fields are never null (Go marshals empty slices as null)
+  // Normalize report to ensure array fields are never null (Go marshals
+  // empty slices as null) AND to guarantee a status block always exists,
+  // since the dashboard uses status.state/status.profile to decide what to
+  // render when scores are absent.
   const normalizeReport = (data: any): HealthReport => ({
     ...data,
+    // scores stays as-is, including null — do NOT fabricate defaults here.
+    scores: data?.scores ?? null,
     topIssues: data?.topIssues ?? [],
     recommendations: data?.recommendations ?? [],
     summary: {
       ...data?.summary,
       namespaces: data?.summary?.namespaces ?? {},
+    },
+    status: data?.status ?? {
+      state: data?.scores ? 'ok' : 'awaiting',
+      message: data?.scores
+        ? 'Live analysis is up to date.'
+        : 'Awaiting first cluster analysis.',
+      profile: 'live',
+      collector: { reachable: false },
+      llm: { reachable: false },
     },
   })
 
@@ -338,6 +380,37 @@ export default function Dashboard() {
     fetchReport(true)
   }, [fetchReport])
 
+  // Switch the analyzer profile (live | mock) via POST /api/v1/profile.
+  // Used by both the DiagnosticPanel "Switch to demo mode" button and the
+  // Settings modal.
+  const handleSwitchProfile = useCallback(
+    async (newProfile: 'live' | 'mock') => {
+      try {
+        const resp = await fetch(`${API_URL}/api/v1/profile`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ profile: newProfile }),
+        })
+        if (!resp.ok) {
+          throw new Error(`HTTP ${resp.status}`)
+        }
+        addToast(
+          'success',
+          newProfile === 'mock'
+            ? 'Demo mode enabled — synthetic data will appear shortly'
+            : 'Live mode enabled — waiting for real analysis'
+        )
+        // Fetch immediately so the UI reflects the change without waiting for
+        // the SSE stream to catch up.
+        fetchReport()
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Unknown error'
+        addToast('error', `Failed to switch profile: ${msg}`)
+      }
+    },
+    [addToast, fetchReport]
+  )
+
   // Keyboard navigation for tabs
   const handleTabKeyDown = useCallback((e: React.KeyboardEvent, currentIndex: number) => {
     const tabCount = TABS.length
@@ -395,71 +468,20 @@ export default function Dashboard() {
     )
   }
 
-  // Use mock data if no report (for development)
-  const displayReport: HealthReport = report || {
-    clusterId: 'dev-cluster',
-    timestamp: new Date().toISOString(),
-    scores: { overall: 82, reliability: 91, security: 72, cost: 65, architecture: 88 },
-    summary: {
-      totalNodes: 12,
-      totalPods: 156,
-      totalNamespaces: 8,
-      healthyPods: 148,
-      unhealthyPods: 5,
-      pendingPods: 3,
-      warningEvents: 12,
-      criticalEvents: 2,
-      namespaces: {
-        'default': { cpuUsed: 4.2, memoryUsed: 8.4, podCount: 12, warnings: 1 },
-        'kube-system': { cpuUsed: 12.1, memoryUsed: 16.3, podCount: 22, warnings: 0 },
-        'monitoring': { cpuUsed: 8.5, memoryUsed: 12.0, podCount: 8, warnings: 2 },
-      }
-    },
-    topIssues: [
-      {
-        id: '1',
-        severity: 'critical',
-        category: 'reliability',
-        title: 'CrashLoopBackOff in production',
-        description: 'Pod api-gateway experiencing repeated crashes',
-        affectedResources: ['prod/api-gateway-7d8f9c6b5-x2k9m'],
-        confidence: 0.94,
-        rootCause: 'Database connection timeout'
-      },
-      {
-        id: '2',
-        severity: 'high',
-        category: 'security',
-        title: 'Overly permissive RBAC',
-        description: 'Service account has cluster-admin privileges',
-        affectedResources: ['default/legacy-app'],
-        confidence: 0.87
-      }
-    ],
-    recommendations: [
-      {
-        id: '1',
-        category: 'cost',
-        title: 'Right-size api-gateway deployment',
-        description: 'CPU utilization consistently below 30%',
-        severity: 'medium',
-        confidence: 0.89,
-        impact: {
-          costSavings: { monthly: 245, currency: 'USD' },
-          riskLevel: 'low',
-          effort: 'low'
-        },
-        aiReasoning: 'Based on 7-day P95 metrics, CPU can be reduced by 50%'
-      }
-    ],
-    estimatedMonthlySavings: 2340,
-    trends: { overall: 2, reliability: -1, security: 5, cost: 0, architecture: 3 },
-    resourceUtilization: {
-      cpu: { used: 32.1, requested: 45.2, capacity: 94.0, unit: 'cores' },
-      memory: { used: 142.3, requested: 186.5, capacity: 376.0, unit: 'Gi' },
-      storage: { used: 1.8, requested: 2.4, capacity: 10.0, unit: 'Ti' },
-    }
+  // Show loading state if no report yet
+  if (!report) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <RefreshCw className="w-8 h-8 animate-spin text-blue-400 mx-auto mb-4" />
+          <p className="text-gray-400">Connecting to analyzer...</p>
+          <p className="text-gray-500 text-sm mt-2">Waiting for first health report from the cluster</p>
+        </div>
+      </div>
+    )
   }
+
+  const displayReport: HealthReport = report
 
   const criticalIssueCount = displayReport.topIssues.filter(i => i.severity === 'critical').length
 
@@ -502,6 +524,9 @@ export default function Dashboard() {
                 <option value="prod-eu-west">prod-eu-west</option>
                 <option value="staging">staging</option>
               </select>
+              {/* Profile badge — tells the operator at a glance whether this
+                  dashboard is showing real telemetry or synthetic demo data. */}
+              <ProfileBadge profile={displayReport.status?.profile ?? 'live'} />
             </div>
 
             {/* Header Actions */}
@@ -573,48 +598,64 @@ export default function Dashboard() {
 
       {/* Main Content */}
       <main id="main-content" className="flex-1 max-w-[1800px] w-full mx-auto px-4 sm:px-6 py-4 sm:py-6" ref={mainContentRef}>
-        {/* Score Cards */}
-        <section aria-labelledby="scores-heading">
-          <h2 id="scores-heading" className="sr-only">Health Scores</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 mb-6">
-            <ScoreCard
-              title="Overall Health"
-              score={displayReport.scores.overall}
-              icon={<Activity className="w-5 h-5 sm:w-6 sm:h-6" aria-hidden="true" />}
-              color="blue"
-              trend={displayReport.trends?.overall}
-            />
-            <ScoreCard
-              title="Reliability"
-              score={displayReport.scores.reliability}
-              icon={<CheckCircle className="w-5 h-5 sm:w-6 sm:h-6" aria-hidden="true" />}
-              color="green"
-              trend={displayReport.trends?.reliability}
-            />
-            <ScoreCard
-              title="Security"
-              score={displayReport.scores.security}
-              icon={<Shield className="w-5 h-5 sm:w-6 sm:h-6" aria-hidden="true" />}
-              color="purple"
-              trend={displayReport.trends?.security}
-            />
-            <ScoreCard
-              title="Cost Efficiency"
-              score={displayReport.scores.cost}
-              icon={<DollarSign className="w-5 h-5 sm:w-6 sm:h-6" aria-hidden="true" />}
-              color="emerald"
-              trend={displayReport.trends?.cost}
-              subtitle={`$${displayReport.estimatedMonthlySavings.toLocaleString()}/mo savings`}
-            />
-            <ScoreCard
-              title="Architecture"
-              score={displayReport.scores.architecture}
-              icon={<Boxes className="w-5 h-5 sm:w-6 sm:h-6" aria-hidden="true" />}
-              color="amber"
-              trend={displayReport.trends?.architecture}
-            />
-          </div>
-        </section>
+        {/*
+          Score cards OR diagnostic panel.
+
+          When displayReport.scores is null, we MUST NOT invent numbers —
+          instead we show the operator exactly why scores aren't available
+          (collector down / LLM down / awaiting) with actionable buttons.
+          Cluster summary, resource utilization, and the issue/recommendation
+          tabs below still render from real telemetry when available.
+        */}
+        {displayReport.scores ? (
+          <section aria-labelledby="scores-heading">
+            <h2 id="scores-heading" className="sr-only">Health Scores</h2>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 mb-6">
+              <ScoreCard
+                title="Overall Health"
+                score={displayReport.scores.overall}
+                icon={<Activity className="w-5 h-5 sm:w-6 sm:h-6" aria-hidden="true" />}
+                color="blue"
+                trend={displayReport.trends?.overall}
+              />
+              <ScoreCard
+                title="Reliability"
+                score={displayReport.scores.reliability}
+                icon={<CheckCircle className="w-5 h-5 sm:w-6 sm:h-6" aria-hidden="true" />}
+                color="green"
+                trend={displayReport.trends?.reliability}
+              />
+              <ScoreCard
+                title="Security"
+                score={displayReport.scores.security}
+                icon={<Shield className="w-5 h-5 sm:w-6 sm:h-6" aria-hidden="true" />}
+                color="purple"
+                trend={displayReport.trends?.security}
+              />
+              <ScoreCard
+                title="Cost Efficiency"
+                score={displayReport.scores.cost}
+                icon={<DollarSign className="w-5 h-5 sm:w-6 sm:h-6" aria-hidden="true" />}
+                color="emerald"
+                trend={displayReport.trends?.cost}
+                subtitle={`$${displayReport.estimatedMonthlySavings.toLocaleString()}/mo savings`}
+              />
+              <ScoreCard
+                title="Architecture"
+                score={displayReport.scores.architecture}
+                icon={<Boxes className="w-5 h-5 sm:w-6 sm:h-6" aria-hidden="true" />}
+                color="amber"
+                trend={displayReport.trends?.architecture}
+              />
+            </div>
+          </section>
+        ) : (
+          <DiagnosticPanel
+            status={displayReport.status}
+            onRetry={handleRefresh}
+            onSwitchToDemo={() => handleSwitchProfile('mock')}
+          />
+        )}
 
         {/* Navigation Tabs - Accessible */}
         <div
@@ -711,7 +752,12 @@ export default function Dashboard() {
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
 
       {/* Settings Modal */}
-      <SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} />
+      <SettingsModal
+        isOpen={showSettings}
+        onClose={() => setShowSettings(false)}
+        profile={displayReport.status?.profile ?? 'live'}
+        onSwitchProfile={handleSwitchProfile}
+      />
     </div>
   )
 }
