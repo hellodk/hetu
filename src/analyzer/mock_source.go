@@ -421,6 +421,53 @@ func (m *mockSource) populateAllHandlers() {
 		}
 	}
 
+	// --- LB Log Aggregator ---
+	if a.lbLogAggregator != nil {
+		now := time.Now()
+		urls := []string{"/api/v1/users", "/api/v1/orders", "/api/v1/products", "/healthz", "/api/v1/search", "/api/v1/auth/login", "/static/app.js", "/api/v1/payments"}
+		methods := []string{"GET", "POST", "GET", "GET", "GET", "POST", "GET", "POST"}
+		for i := 0; i < 500; i++ {
+			idx := i % len(urls)
+			status := 200
+			targetStatus := 200
+			latency := 15.0 + float64(m.rng.IntN(100))
+			// Inject some errors
+			if i%50 == 0 {
+				status = 502
+				targetStatus = 500
+				latency = 800 + float64(m.rng.IntN(2000))
+			} else if i%30 == 0 {
+				status = 429
+				targetStatus = 429
+				latency = 5
+			} else if i%20 == 0 {
+				status = 404
+				targetStatus = 404
+			}
+			a.lbLogAggregator.Ingest(
+				"app-alb", "ALB",
+				urls[idx], methods[idx], "tg-app-prod",
+				status, targetStatus, latency,
+				now.Add(-time.Duration(i)*3*time.Second),
+			)
+		}
+		// Second LB
+		for i := 0; i < 200; i++ {
+			status := 200
+			latency := 5.0 + float64(m.rng.IntN(30))
+			if i%40 == 0 {
+				status = 503
+				latency = 5000
+			}
+			a.lbLogAggregator.Ingest(
+				"internal-nlb", "NLB",
+				"/grpc.health.v1.Health/Check", "POST", "tg-internal",
+				status, status, latency,
+				now.Add(-time.Duration(i)*5*time.Second),
+			)
+		}
+	}
+
 	log.Info().Msg("Mock data populated for all dashboard pages")
 }
 
@@ -455,6 +502,12 @@ func (m *mockSource) clearAllHandlers() {
 		a.correlator.mu.Lock()
 		a.correlator.incidents = make(map[int64]*Incident)
 		a.correlator.mu.Unlock()
+	}
+	if a.lbLogAggregator != nil {
+		a.lbLogAggregator.mu.Lock()
+		a.lbLogAggregator.requests = make(map[string][]lbReqSummary)
+		a.lbLogAggregator.configs = nil
+		a.lbLogAggregator.mu.Unlock()
 	}
 	log.Info().Msg("Mock data cleared from all handlers")
 }
