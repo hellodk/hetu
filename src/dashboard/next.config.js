@@ -36,16 +36,8 @@ const nextConfig = {
     ]
   },
   
-  // Rewrites to proxy API calls to the analyzer service
-  async rewrites() {
-    const analyzerUrl = process.env.ANALYZER_URL || 'http://analyzer:8081'
-    return [
-      {
-        source: '/api/:path*',
-        destination: `${analyzerUrl}/api/:path*`,
-      },
-    ]
-  },
+  // API proxy is handled by the route handler at app/api/v1/[...path]/route.ts
+  // No rewrites needed — the route handler uses K8s DNS at runtime.
 }
 
 module.exports = nextConfig

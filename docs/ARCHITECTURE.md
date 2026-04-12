@@ -1,108 +1,62 @@
-# K8s AI Cluster Intelligence Engine - Architecture
+# K8s AI Cluster Intelligence Engine - Architecture (v7)
 
 ## System Overview
 
-```
-┌─────────────────────────────────────────────────────────────────────────────────────┐
-│                         K8s AI Cluster Intelligence Engine                          │
-├─────────────────────────────────────────────────────────────────────────────────────┤
-│                                                                                     │
-│  ┌──────────────────────────────────────────────────────────────────────────────┐  │
-│  │                           DATA COLLECTION LAYER                               │  │
-│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │  │
-│  │  │ K8s API     │  │ Prometheus  │  │ OTel        │  │ Audit Log           │  │  │
-│  │  │ Informers   │  │ Scraper     │  │ Collector   │  │ Processor           │  │  │
-│  │  │             │  │             │  │             │  │                     │  │  │
-│  │  │ • Events    │  │ • Metrics   │  │ • Traces    │  │ • API calls         │  │  │
-│  │  │ • Resources │  │ • Alerts    │  │ • Logs      │  │ • Auth events       │  │  │
-│  │  │ • Changes   │  │ • Rules     │  │ • Spans     │  │ • Mutations         │  │  │
-│  │  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘  └──────────┬──────────┘  │  │
-│  └─────────┼────────────────┼────────────────┼───────────────────┼──────────────┘  │
-│            │                │                │                   │                 │
-│            └────────────────┴────────────────┴───────────────────┘                 │
-│                                      │                                             │
-│                                      ▼                                             │
-│  ┌──────────────────────────────────────────────────────────────────────────────┐  │
-│  │                         PROCESSING PIPELINE                                   │  │
-│  │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────────────────┐   │  │
-│  │  │ Event           │  │ Metric          │  │ Context                     │   │  │
-│  │  │ Normalizer      │──│ Aggregator      │──│ Enricher                    │   │  │
-│  │  │                 │  │                 │  │                             │   │  │
-│  │  │ • Dedupe        │  │ • Downsample    │  │ • Owner refs                │   │  │
-│  │  │ • Correlate     │  │ • Aggregate     │  │ • Labels/annotations        │   │  │
-│  │  │ • Classify      │  │ • Compress      │  │ • Topology                  │   │  │
-│  │  └─────────────────┘  └─────────────────┘  └─────────────────────────────┘   │  │
-│  │                                      │                                        │  │
-│  │                                      ▼                                        │  │
-│  │  ┌─────────────────────────────────────────────────────────────────────────┐ │  │
-│  │  │                    TELEMETRY BUFFER (Ring Buffer)                       │ │  │
-│  │  │  • 15-minute sliding window • Configurable retention • Memory-bounded   │ │  │
-│  │  └─────────────────────────────────────────────────────────────────────────┘ │  │
-│  └──────────────────────────────────────────────────────────────────────────────┘  │
-│                                      │                                             │
-│                                      ▼                                             │
-│  ┌──────────────────────────────────────────────────────────────────────────────┐  │
-│  │                          LLM ANALYSIS LAYER                                   │  │
-│  │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────────────────┐   │  │
-│  │  │ Prompt          │  │ LLM             │  │ Response                    │   │  │
-│  │  │ Orchestrator    │──│ Gateway         │──│ Parser                      │   │  │
-│  │  │                 │  │                 │  │                             │   │  │
-│  │  │ • Templates     │  │ • Rate limit    │  │ • JSON extraction           │   │  │
-│  │  │ • Context mgmt  │  │ • Retry logic   │  │ • Confidence scoring        │   │  │
-│  │  │ • Chunking      │  │ • Multi-backend │  │ • Validation                │   │  │
-│  │  └─────────────────┘  └─────────────────┘  └─────────────────────────────┘   │  │
-│  │                                      │                                        │  │
-│  │                                      ▼                                        │  │
-│  │  ┌─────────────────────────────────────────────────────────────────────────┐ │  │
-│  │  │                    ANALYSIS ENGINES (Parallel)                          │ │  │
-│  │  │  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────────┐   │ │  │
-│  │  │  │Reliabil-│  │Resource │  │Cost     │  │Security │  │Architecture │   │ │  │
-│  │  │  │ity      │  │Optim    │  │Optim    │  │Audit    │  │Quality      │   │ │  │
-│  │  │  └─────────┘  └─────────┘  └─────────┘  └─────────┘  └─────────────┘   │ │  │
-│  │  └─────────────────────────────────────────────────────────────────────────┘ │  │
-│  └──────────────────────────────────────────────────────────────────────────────┘  │
-│                                      │                                             │
-│                                      ▼                                             │
-│  ┌──────────────────────────────────────────────────────────────────────────────┐  │
-│  │                       RECOMMENDATION ENGINE                                   │  │
-│  │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────────────────┐   │  │
-│  │  │ Scoring         │  │ Prioritization  │  │ Action                      │   │  │
-│  │  │ Engine          │──│ Engine          │──│ Generator                   │   │  │
-│  │  │                 │  │                 │  │                             │   │  │
-│  │  │ • Impact calc   │  │ • Risk-based    │  │ • YAML patches              │   │  │
-│  │  │ • Confidence    │  │ • Cost-based    │  │ • Policy updates            │   │  │
-│  │  │ • Blast radius  │  │ • Quick wins    │  │ • GitOps PRs                │   │  │
-│  │  └─────────────────┘  └─────────────────┘  └─────────────────────────────┘   │  │
-│  └──────────────────────────────────────────────────────────────────────────────┘  │
-│                                      │                                             │
-│                    ┌─────────────────┴─────────────────┐                          │
-│                    ▼                                   ▼                          │
-│  ┌────────────────────────────────┐  ┌────────────────────────────────────────┐  │
-│  │          API SERVER            │  │              STORAGE                    │  │
-│  │  • REST API                    │  │  • TimescaleDB (metrics)                │  │
-│  │  • WebSocket (real-time)       │  │  • PostgreSQL (recommendations)         │  │
-│  │  • GraphQL (queries)           │  │  • Redis (cache/pub-sub)                │  │
-│  │  • gRPC (internal)             │  │  • S3/MinIO (audit logs)                │  │
-│  └────────────────┬───────────────┘  └────────────────────────────────────────┘  │
-│                   │                                                               │
-│                   ▼                                                               │
-│  ┌──────────────────────────────────────────────────────────────────────────────┐  │
-│  │                          DASHBOARD (React/Next.js)                            │  │
-│  │  ┌───────────────────────────────────────────────────────────────────────┐   │  │
-│  │  │ ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐                       │   │  │
-│  │  │ │ Health  │ │Security │ │  Cost   │ │Reliabil-│    SCORE CARDS        │   │  │
-│  │  │ │   87    │ │   72    │ │   65    │ │   91    │                       │   │  │
-│  │  │ └─────────┘ └─────────┘ └─────────┘ └─────────┘                       │   │  │
-│  │  ├───────────────────────────────────────────────────────────────────────┤   │  │
-│  │  │ NAMESPACE VIEW │ POD VIEW │ NODE VIEW │ TIMELINE │ RECOMMENDATIONS    │   │  │
-│  │  ├───────────────────────────────────────────────────────────────────────┤   │  │
-│  │  │                     AI INSIGHT FEED                                   │   │  │
-│  │  │  [CRITICAL] CrashLoopBackOff detected in prod/api-gateway            │   │  │
-│  │  │  [WARNING] Memory pressure building on node-pool-2                    │   │  │
-│  │  │  [INFO] Cost savings opportunity: $2,340/mo by right-sizing          │   │  │
-│  │  └───────────────────────────────────────────────────────────────────────┘   │  │
-│  └──────────────────────────────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph External["External Systems"]
+        K8sAPI["K8s API"]
+        KPS["kube-prometheus-stack<br/>(existing)"]
+        S3["S3<br/>(LB logs)"]
+        LLM["LLM Provider"]
+        TrivyOp["Trivy Operator"]
+    end
+
+    subgraph Frontend["Frontend"]
+        Dashboard["Dashboard<br/>(Next.js)"]
+    end
+
+    subgraph Bus["Message Bus"]
+        NATS["NATS JetStream"]
+    end
+
+    subgraph Backend["Backend Services"]
+        Collector["Collector<br/>(Go, existing)"]
+        Analyzer["Analyzer<br/>(Go, existing)<br/>RCA / Optimizers /<br/>Anomaly / Workload Browser"]
+        CollectorPodlogs["collector-podlogs<br/>(Go, NEW)"]
+        CollectorLblogs["collector-lblogs<br/>(Go, NEW)"]
+        SecurityScanner["Security Scanner"]
+    end
+
+    subgraph Storage["Storage"]
+        Postgres["Postgres"]
+        ClickHouse["ClickHouse<br/>(optional)"]
+        Redis["Redis"]
+    end
+
+    %% Data flows
+    K8sAPI -->|watches & events| Collector
+    KPS -->|metrics| Collector
+    K8sAPI -->|pod log streams| CollectorPodlogs
+    S3 -->|LB access logs| CollectorLblogs
+    TrivyOp -->|vuln reports| SecurityScanner
+
+    Collector -->|publish| NATS
+    CollectorPodlogs -->|publish| NATS
+    CollectorLblogs -->|publish| NATS
+    SecurityScanner -->|publish| NATS
+
+    NATS -->|subscribe| Analyzer
+    Analyzer -->|query| LLM
+    LLM -->|response| Analyzer
+
+    Analyzer -->|write| Postgres
+    Analyzer -->|write| ClickHouse
+    Analyzer -->|cache| Redis
+    SecurityScanner -->|write| Postgres
+
+    Dashboard -->|read| Postgres
+    Dashboard -->|read| Redis
 ```
 
 ## Component Responsibilities
@@ -111,87 +65,65 @@
 
 | Component | Responsibility | Data Sources |
 |-----------|---------------|--------------|
-| K8s API Informers | Watch cluster state changes | Pods, Deployments, Events, Nodes, Services, PVCs, RBAC, NetworkPolicies |
-| Prometheus Scraper | Pull metrics from Prometheus/VictoriaMetrics | CPU, Memory, Network, Disk, Custom metrics |
-| OTel Collector | Receive OTLP data | Traces, Logs, Metrics from instrumented apps |
-| Audit Log Processor | Parse API server audit logs | API calls, Auth events, Mutations |
+| Collector (Go, existing) | Watch cluster state changes and scrape metrics | Pods, Deployments, Events, Nodes, Services, PVCs, RBAC, NetworkPolicies via K8s API; CPU, Memory, Network, Disk via kube-prometheus-stack |
+| collector-podlogs (Go, NEW) | Stream and forward pod logs | K8s API pod log streams |
+| collector-lblogs (Go, NEW) | Ingest load-balancer access logs | S3 buckets |
+| Security Scanner | Aggregate vulnerability and misconfiguration reports | Trivy Operator CRDs |
 
-### 2. Processing Pipeline
+### 2. Message Bus
 
-| Component | Responsibility | Output |
-|-----------|---------------|--------|
-| Event Normalizer | Deduplicate, correlate, classify events | Normalized event stream |
-| Metric Aggregator | Downsample, aggregate high-cardinality metrics | Aggregated time series |
-| Context Enricher | Add ownership, topology, labels | Enriched telemetry |
-| Telemetry Buffer | Ring buffer with sliding window | Bounded memory store |
+| Component | Responsibility | Notes |
+|-----------|---------------|-------|
+| NATS JetStream | Durable, ordered delivery between collectors and analyzers | Subjects per data type; at-least-once semantics |
 
-### 3. LLM Analysis Layer
+### 3. Analyzer (Go, existing + v7 extensions)
 
-| Component | Responsibility | Output |
-|-----------|---------------|--------|
-| Prompt Orchestrator | Build context-aware prompts | Structured prompts |
-| LLM Gateway | Route to configured LLM backend | Raw responses |
-| Response Parser | Extract structured data from LLM output | Parsed findings |
-| Analysis Engines | Domain-specific analysis | Categorized insights |
+| Sub-component | Responsibility | Output |
+|---------------|---------------|--------|
+| Correlator | Correlate events, metrics, and logs into incidents | Incident records |
+| RCA Engine | Root-cause analysis via LLM | RCA reports |
+| Optimizers | Resource, cost, and reliability optimization suggestions | Scored recommendations |
+| Anomaly Detector | Detect anomalous patterns in time-series and logs | Anomaly alerts |
+| Workload Browser | Queryable inventory of workloads and their status | Workload index |
 
-### 4. Recommendation Engine
+### 4. Security Scanner
 
 | Component | Responsibility | Output |
 |-----------|---------------|--------|
-| Scoring Engine | Calculate impact and confidence | Scored recommendations |
-| Prioritization Engine | Rank by risk, cost, effort | Prioritized list |
-| Action Generator | Generate remediation artifacts | YAML, policies, PRs |
+| Vuln Aggregator | Collect Trivy Operator VulnerabilityReports | Vulnerability summaries |
+| Policy Checker | Evaluate workloads against security baselines | Policy violations |
 
-## Data Flow Design
+### 5. Frontend
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                              DATA FLOW                                       │
-└─────────────────────────────────────────────────────────────────────────────┘
+| Component | Responsibility | Output |
+|-----------|---------------|--------|
+| Dashboard (Next.js) | Visualize health, incidents, RCA reports, recommendations | Interactive UI |
 
-1. INGESTION PHASE (Continuous)
-   ─────────────────────────────
-   
-   K8s API ──────────────┐
-                         │
-   Prometheus ───────────┼──► Event Queue ──► Normalizer ──► Buffer
-                         │      (NATS)
-   OTel Collector ───────┤
-                         │
-   Audit Logs ───────────┘
+## Data Flow
 
-2. ANALYSIS PHASE (Scheduled + Triggered)
-   ───────────────────────────────────────
-   
-   Buffer ──► Context Builder ──► Prompt Generator ──► LLM Gateway
-                    │                                       │
-                    │                                       ▼
-                    │                              Response Parser
-                    │                                       │
-                    └───────────────────────────────────────┘
-                                      │
-                                      ▼
-                              Analysis Engines
-                                      │
-                    ┌─────────────────┼─────────────────┐
-                    ▼                 ▼                 ▼
-              Reliability        Security           Cost
-                    │                 │                 │
-                    └─────────────────┼─────────────────┘
-                                      │
-                                      ▼
-                            Recommendation Store
+End-to-end root-cause analysis path:
 
-3. DELIVERY PHASE (Real-time + Batch)
-   ───────────────────────────────────
-   
-   Recommendation Store ──► API Server ──► Dashboard (WebSocket)
-                                  │
-                                  ├──► Alertmanager (Webhook)
-                                  │
-                                  ├──► Slack/Teams (Notifications)
-                                  │
-                                  └──► GitOps (PR Generation)
+```mermaid
+sequenceDiagram
+    participant K8sAPI as K8s API
+    participant Collector as Collector
+    participant NATS as NATS JetStream
+    participant Correlator as Correlator
+    participant Incident as Incident Store
+    participant RCA as RCA Engine
+    participant LLM as LLM Provider
+    participant Postgres as Postgres
+    participant Dashboard as Dashboard
+
+    K8sAPI->>Collector: events & metrics
+    Collector->>NATS: publish normalized data
+    NATS->>Correlator: subscribe
+    Correlator->>Incident: create incident
+    Incident->>RCA: trigger analysis
+    RCA->>LLM: send context + prompt
+    LLM->>RCA: structured diagnosis
+    RCA->>Postgres: persist RCA report
+    Postgres->>Dashboard: query & display
 ```
 
 ## Resource Footprint
@@ -201,32 +133,37 @@
 | Component | CPU | Memory | Storage |
 |-----------|-----|--------|---------|
 | Collector | 100m | 256Mi | - |
-| Processor | 200m | 512Mi | - |
+| collector-podlogs | 100m | 128Mi | - |
+| collector-lblogs | 50m | 128Mi | - |
 | Analyzer | 500m | 1Gi | - |
-| API Server | 100m | 256Mi | - |
+| Security Scanner | 100m | 256Mi | - |
 | Dashboard | 50m | 128Mi | - |
+| NATS JetStream | 100m | 256Mi | 2Gi |
 | Redis | 100m | 256Mi | 1Gi |
 | PostgreSQL | 200m | 512Mi | 10Gi |
-| **Total** | **1.25 cores** | **2.9Gi** | **11Gi** |
+| **Total** | **~1.3 cores** | **~2.9Gi** | **~13Gi** |
 
 ### Recommended (Medium Cluster 100-1000 nodes)
 
 | Component | CPU | Memory | Storage |
 |-----------|-----|--------|---------|
 | Collector | 500m | 1Gi | - |
-| Processor | 1000m | 2Gi | - |
+| collector-podlogs | 250m | 512Mi | - |
+| collector-lblogs | 100m | 256Mi | - |
 | Analyzer | 2000m | 4Gi | - |
-| API Server | 500m | 1Gi | - |
+| Security Scanner | 250m | 512Mi | - |
 | Dashboard | 100m | 256Mi | - |
+| NATS JetStream | 500m | 1Gi | 10Gi |
 | Redis | 500m | 1Gi | 5Gi |
 | PostgreSQL | 1000m | 2Gi | 50Gi |
-| **Total** | **5.6 cores** | **11.3Gi** | **55Gi** |
+| ClickHouse (optional) | 1000m | 2Gi | 100Gi |
+| **Total** | **~6.2 cores** | **~12.5Gi** | **~165Gi** |
 
 ### Large Scale (1000-10000+ nodes)
 
 - Deploy collector as DaemonSet with node-level aggregation
 - Shard analyzer across multiple pods
-- Use TimescaleDB for metrics retention
+- Use ClickHouse for high-volume log and metric retention
 - Implement hierarchical aggregation
 - Consider multi-cluster federation
 
@@ -235,43 +172,75 @@
 ### RBAC Requirements
 
 ```yaml
-# Minimum required permissions
+# cluster-intel-reader (existing) - read-only access for collection
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cluster-intel-reader
 rules:
   # Read-only access to most resources
   - apiGroups: [""]
-    resources: ["pods", "services", "endpoints", "nodes", "events", 
+    resources: ["pods", "pods/log", "services", "endpoints", "nodes", "events",
                 "namespaces", "configmaps", "secrets", "persistentvolumeclaims"]
     verbs: ["get", "list", "watch"]
-  
+
   # Metrics and status
   - apiGroups: ["metrics.k8s.io"]
     resources: ["pods", "nodes"]
     verbs: ["get", "list"]
-  
+
   # Workloads
   - apiGroups: ["apps"]
     resources: ["deployments", "replicasets", "statefulsets", "daemonsets"]
     verbs: ["get", "list", "watch"]
-  
+
   # Autoscaling
   - apiGroups: ["autoscaling"]
     resources: ["horizontalpodautoscalers"]
     verbs: ["get", "list", "watch"]
-  
+
   # Networking
   - apiGroups: ["networking.k8s.io"]
     resources: ["networkpolicies", "ingresses"]
     verbs: ["get", "list", "watch"]
-  
+
   # RBAC (for security analysis)
   - apiGroups: ["rbac.authorization.k8s.io"]
     resources: ["roles", "rolebindings", "clusterroles", "clusterrolebindings"]
     verbs: ["get", "list", "watch"]
-  
+
   # Policy
   - apiGroups: ["policy"]
     resources: ["poddisruptionbudgets", "podsecuritypolicies"]
     verbs: ["get", "list", "watch"]
+
+  # Trivy Operator CRDs
+  - apiGroups: ["aquasecurity.github.io"]
+    resources: ["vulnerabilityreports", "configauditreports"]
+    verbs: ["get", "list", "watch"]
+```
+
+```yaml
+# cluster-intel-writer (new, opt-in) - write access for remediation actions
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cluster-intel-writer
+rules:
+  # Patch deployments for resource right-sizing
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets"]
+    verbs: ["patch", "update"]
+
+  # Manage HPA recommendations
+  - apiGroups: ["autoscaling"]
+    resources: ["horizontalpodautoscalers"]
+    verbs: ["create", "patch", "update"]
+
+  # Create events for audit trail
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create"]
 ```
 
 ### Network Policies
@@ -310,6 +279,10 @@ rules:
 - TLS certificates for internal communication
 - Service account tokens auto-rotated
 - Support for Vault/AWS Secrets Manager/GCP Secret Manager
+
+## Configuration Model
+
+All external endpoints (Postgres, ClickHouse, Redis, NATS, Prometheus, LLM providers, S3 buckets) are configurable via `pkg/config` -- see `docs/PLAN_V7.md` section 4.5 for the complete specification, config schema, env-var conventions, and Helm chart values.
 
 ## Multi-Cluster Support
 

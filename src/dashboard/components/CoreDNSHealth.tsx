@@ -4,14 +4,22 @@ import { useState, useEffect } from 'react'
 import { Server, Activity, AlertTriangle, CheckCircle } from 'lucide-react'
 import clsx from 'clsx'
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8081'
+// API URL: read from runtime config injected by server layout, or fall back to build-time env
+const getApiUrl = () =>
+    typeof window !== 'undefined'
+        ? ((window as any).__CLUSTER_INTEL_API__ || '')
+        : (process.env.NEXT_PUBLIC_API_URL || '')
 
+// Matches the analyzer's DNSHealth response shape
 interface DNSHealthData {
-    status: string
-    requestRate: number
-    errorRate: number
-    latencyP99: number
-    cacheHitRate: number
+    requestsPerSecond?: number
+    errorRate?: number
+    avgLatencyMs?: number
+    p99LatencyMs?: number
+    cacheHitRate?: number
+    nxdomainRate?: number
+    servfailRate?: number
+    forwardHealthy?: boolean
 }
 
 export function CoreDNSHealth() {
@@ -21,7 +29,7 @@ export function CoreDNSHealth() {
     useEffect(() => {
         const fetchDNS = async () => {
             try {
-                const res = await fetch(`${API_URL}/api/v1/dns/health`)
+                const res = await fetch(`${getApiUrl()}/api/v1/dns/health`)
                 if (res.ok) {
                     const json = await res.json()
                     setData(json)
@@ -47,13 +55,20 @@ export function CoreDNSHealth() {
         )
     }
 
-    // Fallback to ensure UI behaves if API not ready
-    const safeData = data || {
-        status: 'Unknown',
-        requestRate: 0,
-        errorRate: 0,
-        latencyP99: 0,
-        cacheHitRate: 0
+    // Defensive normalization: API may omit fields, derive status from forwardHealthy + errorRate
+    const requestRate = data?.requestsPerSecond ?? 0
+    const errorRate = data?.errorRate ?? 0
+    const latencyP99 = data?.p99LatencyMs ?? 0
+    const cacheHitRate = data?.cacheHitRate ?? 0
+    const forwardHealthy = data?.forwardHealthy ?? false
+    const derivedStatus = forwardHealthy && errorRate < 1 ? 'Healthy' : (data ? 'Degraded' : 'Unknown')
+
+    const safeData = {
+        status: derivedStatus,
+        requestRate,
+        errorRate,
+        latencyP99,
+        cacheHitRate,
     }
 
     const isHealthy = safeData.status.toLowerCase() === 'healthy'

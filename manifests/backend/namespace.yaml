@@ -1,8 +1,0 @@
----
-# Namespace
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: cluster-intel
-  labels:
-    app.kubernetes.io/name: cluster-intel

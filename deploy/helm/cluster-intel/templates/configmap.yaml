@@ -1,0 +1,47 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-intel-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "cluster-intel.labels" . | nindent 4 }}
+data:
+  config.yaml: |
+    cluster:
+      id: {{ .Values.cluster.id | quote }}
+      displayName: {{ .Values.cluster.displayName | quote }}
+
+    stores:
+      postgres:
+        enabled: true
+        host: {{ include "cluster-intel.postgres.host" . | quote }}
+        port: {{ include "cluster-intel.postgres.port" . }}
+        database: {{ .Values.stores.postgres.external.db | quote }}
+        user: {{ .Values.stores.postgres.external.user | quote }}
+        sslMode: {{ .Values.stores.postgres.sslMode | quote }}
+        passwordFile: /etc/cluster-intel/secrets/postgres/password
+
+      redis:
+        enabled: true
+        addr: {{ include "cluster-intel.redis.addr" . | quote }}
+        passwordFile: /etc/cluster-intel/secrets/redis/password
+
+    bus:
+      nats:
+        enabled: true
+        url: {{ include "cluster-intel.nats.url" . | quote }}
+
+    llm:
+      provider: {{ .Values.llm.provider | quote }}
+      {{- if .Values.llm.endpoint }}
+      endpoint: {{ .Values.llm.endpoint | quote }}
+      {{- end }}
+      model: {{ .Values.llm.model | quote }}
+      apiKeyFile: /etc/cluster-intel/secrets/llm/api-key
+      maxTokens: {{ .Values.llm.maxTokens }}
+      temperature: {{ .Values.llm.temperature }}
+      dailyTokenBudget: {{ .Values.llm.dailyTokenBudget }}
+
+    logging:
+      level: {{ .Values.logging.level | quote }}
+      format: {{ .Values.logging.format | quote }}

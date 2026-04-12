@@ -1,0 +1,161 @@
+# -- Global settings
+global:
+  namespace: cluster-intel
+  createNamespace: true
+  imagePullSecrets: []
+
+# -- Cluster identity
+cluster:
+  id: "default"
+  displayName: "default"
+
+# ---------------------------------------------------------------------------
+# Collector (Go binary — reads Kubernetes API + Prometheus)
+# ---------------------------------------------------------------------------
+collector:
+  image:
+    repository: cluster-intel-collector
+    tag: latest
+    pullPolicy: IfNotPresent
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  prometheusUrl: "http://prometheus-server.monitoring.svc.cluster.local:9090"
+  env: []
+  # - name: EXTRA_VAR
+  #   value: "something"
+
+# ---------------------------------------------------------------------------
+# Analyzer (Go binary — LLM-powered analysis engine)
+# ---------------------------------------------------------------------------
+analyzer:
+  image:
+    repository: cluster-intel-analyzer
+    tag: latest
+    pullPolicy: IfNotPresent
+  replicas: 1
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 512Mi
+  env: []
+
+# ---------------------------------------------------------------------------
+# Dashboard (Next.js)
+# ---------------------------------------------------------------------------
+dashboard:
+  image:
+    repository: cluster-intel-dashboard
+    tag: latest
+    pullPolicy: IfNotPresent
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  env: []
+
+# ---------------------------------------------------------------------------
+# Persistent stores
+# ---------------------------------------------------------------------------
+stores:
+  postgres:
+    bundled: true
+    external:
+      host: ""
+      port: 5432
+      db: cluster_intel
+      user: cluster_intel
+      existingSecret: ""
+      existingSecretPasswordKey: password
+    sslMode: disable
+
+  clickhouse:
+    bundled: false
+    external:
+      hosts: []
+      port: 9000
+      db: cluster_intel
+      user: default
+      existingSecret: ""
+
+  redis:
+    bundled: true
+    external:
+      addr: ""
+      existingSecret: ""
+
+# ---------------------------------------------------------------------------
+# Message bus
+# ---------------------------------------------------------------------------
+bus:
+  nats:
+    bundled: true
+    external:
+      url: ""
+      existingSecret: ""
+
+# ---------------------------------------------------------------------------
+# LLM configuration (used by analyzer)
+# ---------------------------------------------------------------------------
+llm:
+  provider: anthropic
+  endpoint: ""
+  model: claude-sonnet-4-6
+  apiKeySecret:
+    name: ""
+    key: api-key
+  maxTokens: 4096
+  temperature: 0.2
+  dailyTokenBudget: 1000000
+
+# ---------------------------------------------------------------------------
+# Safety rails
+# ---------------------------------------------------------------------------
+writeActions:
+  enabled: false
+
+exec:
+  enabled: false
+
+protectedNamespaces:
+  - kube-system
+  - kube-public
+  - kube-node-lease
+
+# ---------------------------------------------------------------------------
+# Ingress
+# ---------------------------------------------------------------------------
+ingress:
+  enabled: false
+  className: ""
+  host: cluster-intel.example.com
+  annotations: {}
+  tls: []
+  # - secretName: cluster-intel-tls
+  #   hosts:
+  #     - cluster-intel.example.com
+
+# ---------------------------------------------------------------------------
+# Prometheus ServiceMonitor
+# ---------------------------------------------------------------------------
+serviceMonitor:
+  enabled: false
+
+# ---------------------------------------------------------------------------
+# Logging
+# ---------------------------------------------------------------------------
+logging:
+  level: info
+  format: json

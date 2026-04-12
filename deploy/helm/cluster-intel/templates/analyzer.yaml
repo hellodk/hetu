@@ -1,0 +1,114 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "cluster-intel.fullname" . }}-analyzer
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "cluster-intel.labels" . | nindent 4 }}
+    app.kubernetes.io/component: analyzer
+spec:
+  replicas: {{ .Values.analyzer.replicas }}
+  selector:
+    matchLabels:
+      {{- include "cluster-intel.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: analyzer
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print .Template.BasePath "/configmap.yaml") . | sha256sum }}
+      labels:
+        {{- include "cluster-intel.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: analyzer
+    spec:
+      serviceAccountName: cluster-intel
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      # TODO: add init container for DB migration runner
+      # initContainers:
+      #   - name: migrate
+      #     image: "{{ .Values.analyzer.image.repository }}:{{ .Values.analyzer.image.tag }}"
+      #     command: ["cluster-intel-analyzer", "migrate", "--up"]
+      #     volumeMounts:
+      #       - name: config
+      #         mountPath: /etc/cluster-intel
+      #         readOnly: true
+      containers:
+        - name: analyzer
+          image: "{{ .Values.analyzer.image.repository }}:{{ .Values.analyzer.image.tag }}"
+          imagePullPolicy: {{ .Values.analyzer.image.pullPolicy }}
+          env:
+            - name: CI_CONFIG
+              value: /etc/cluster-intel/config.yaml
+            {{- with .Values.analyzer.env }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: 8081
+              protocol: TCP
+            - name: metrics
+              containerPort: 9091
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.analyzer.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/cluster-intel
+              readOnly: true
+            {{- if .Values.stores.postgres.external.existingSecret }}
+            - name: postgres-secret
+              mountPath: /etc/cluster-intel/secrets/postgres
+              readOnly: true
+            {{- end }}
+            {{- if .Values.stores.redis.external.existingSecret }}
+            - name: redis-secret
+              mountPath: /etc/cluster-intel/secrets/redis
+              readOnly: true
+            {{- end }}
+            {{- if .Values.llm.apiKeySecret.name }}
+            - name: llm-secret
+              mountPath: /etc/cluster-intel/secrets/llm
+              readOnly: true
+            {{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: cluster-intel-config
+        {{- if .Values.stores.postgres.external.existingSecret }}
+        - name: postgres-secret
+          secret:
+            secretName: {{ .Values.stores.postgres.external.existingSecret }}
+            items:
+              - key: {{ .Values.stores.postgres.external.existingSecretPasswordKey }}
+                path: password
+        {{- end }}
+        {{- if .Values.stores.redis.external.existingSecret }}
+        - name: redis-secret
+          secret:
+            secretName: {{ .Values.stores.redis.external.existingSecret }}
+            items:
+              - key: password
+                path: password
+        {{- end }}
+        {{- if .Values.llm.apiKeySecret.name }}
+        - name: llm-secret
+          secret:
+            secretName: {{ .Values.llm.apiKeySecret.name }}
+            items:
+              - key: {{ .Values.llm.apiKeySecret.key }}
+                path: api-key
+        {{- end }}

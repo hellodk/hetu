@@ -18,6 +18,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	ucconfig "github.com/your-org/cluster-intel/pkg/config"
 	types "github.com/your-org/cluster-intel/pkg/types"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -685,14 +686,23 @@ func main() {
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
 
+	// v7: Try loading unified config file (CI_CONFIG env or /etc/cluster-intel/config.yaml).
+	// If available, its values seed the Config below; env vars still override as before.
+	ucfg, ucfgErr := ucconfig.LoadFromEnv("/etc/cluster-intel/config.yaml")
+	if ucfgErr != nil {
+		log.Debug().Err(ucfgErr).Msg("No unified config loaded, using legacy env vars")
+	} else {
+		log.Info().Str("cluster", ucfg.Cluster.ID).Msg("Loaded unified config")
+	}
+
 	config := Config{
-		ClusterID:             getEnvOrDefault("CLUSTER_ID", "default"),
-		MetricsPort:           getEnvIntOrDefault("METRICS_PORT", 9090),
-		HealthPort:            getEnvIntOrDefault("HEALTH_PORT", 8080),
+		ClusterID:             coalesce(getEnvOrDefault("CLUSTER_ID", ""), ucfg.Cluster.ID, "default"),
+		MetricsPort:           getEnvIntOrDefault("METRICS_PORT", ucfg.Server.MetricsPort),
+		HealthPort:            getEnvIntOrDefault("HEALTH_PORT", ucfg.Server.APIPort),
 		ResyncPeriod:          getDurationOrDefault("RESYNC_PERIOD", 5*time.Minute),
 		MetricsScrapeInterval: getDurationOrDefault("METRICS_SCRAPE_INTERVAL", 30*time.Second),
 		BufferSize:            getEnvIntOrDefault("BUFFER_SIZE", 10000),
-		NATSEndpoint:          getEnvOrDefault("NATS_ENDPOINT", "nats://nats:4222"),
+		NATSEndpoint:          coalesce(getEnvOrDefault("NATS_ENDPOINT", ""), ucfg.Bus.NATS.URL, "nats://nats:4222"),
 		PrometheusEndpoint:    getEnvOrDefault("PROMETHEUS_ENDPOINT", "http://prometheus:9090"),
 	}
 
@@ -742,4 +752,14 @@ func getDurationOrDefault(key string, defaultVal time.Duration) time.Duration {
 		}
 	}
 	return defaultVal
+}
+
+// coalesce returns the first non-empty string.
+func coalesce(vals ...string) string {
+	for _, v := range vals {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
 }

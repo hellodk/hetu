@@ -1,0 +1,849 @@
+#!/usr/bin/env bash
+# ──────────────────────────────────────────────────────────────────────────────
+# ci — Unified CLI for the K8s Cluster Intelligence Engine
+# ──────────────────────────────────────────────────────────────────────────────
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# ── Colors ────────────────────────────────────────────────────────────────────
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+BOLD='\033[1m'
+DIM='\033[2m'
+NC='\033[0m'
+
+info()    { echo -e "${BLUE}[info]${NC}  $*" >&2; }
+success() { echo -e "${GREEN}[ok]${NC}    $*" >&2; }
+warn()    { echo -e "${YELLOW}[warn]${NC}  $*" >&2; }
+error()   { echo -e "${RED}[error]${NC} $*" >&2; }
+header()  { echo -e "\n${BOLD}${CYAN}$*${NC}\n" >&2; }
+
+# Print the exact command being executed for transparency.
+# Usage: run cmd arg1 arg2 ...
+run() {
+    echo -e "${DIM}  \$ $*${NC}" >&2
+    "$@"
+}
+
+# Same as run but captures exit code without failing (for optional commands).
+run_soft() {
+    echo -e "${DIM}  \$ $*${NC}" >&2
+    "$@" || true
+}
+
+# ── Interactive helpers ────────────────────────────────────────────────────────
+VERSION_FILE="$ROOT_DIR/VERSION"
+version() { cat "$VERSION_FILE" 2>/dev/null || echo "7.0.0"; }
+
+PROMPT_RESULT=""
+
+_prompt_select() {
+    local prompt="$1"; shift
+    local options=("$@")
+    echo -e "\n${BOLD}${prompt}${NC}" >&2
+    for i in "${!options[@]}"; do
+        echo -e "  ${CYAN}$((i+1)))${NC} ${options[$i]}" >&2
+    done
+    local choice
+    while true; do
+        echo -en "${DIM}  Select [1-${#options[@]}]:${NC} " >&2
+        read -r choice </dev/tty || true
+        if [[ "$choice" =~ ^[0-9]+$ ]] && (( choice >= 1 && choice <= ${#options[@]} )); then
+            echo -e "  ${GREEN}→${NC} ${options[$((choice-1))]}" >&2
+            PROMPT_RESULT="${options[$((choice-1))]}"
+            return
+        fi
+        echo -e "  ${RED}Invalid choice. Try again.${NC}" >&2
+    done
+}
+
+_prompt_input() {
+    local prompt="$1"
+    local default="$2"
+    local value
+    echo -en "${DIM}  ${prompt} [${default}]:${NC} " >&2
+    read -r value </dev/tty || true
+    PROMPT_RESULT="${value:-$default}"
+}
+
+prompt_confirm() {
+    local prompt="$1"
+    local reply
+    echo -en "${BOLD}  ${prompt} (y/N):${NC} " >&2
+    read -r reply </dev/tty || true
+    [[ "$reply" =~ ^[Yy]$ ]]
+}
+
+require_root_dir() { cd "$ROOT_DIR"; }
+
+# ── Defaults ──────────────────────────────────────────────────────────────────
+REGISTRY="${REGISTRY:-hellodk}"
+NAMESPACE="${NAMESPACE:-cluster-intel}"
+SERVICES=(collector analyzer collector-podlogs collector-lblogs)
+
+# ══════════════════════════════════════════════════════════════════════════════
+# COMMANDS
+# ══════════════════════════════════════════════════════════════════════════════
+
+# ── ci build ─────────────────────────────────────────────────────────────────
+cmd_build() {
+    local sub="${1:-}"
+    shift 2>/dev/null || true
+
+    if [[ -z "$sub" ]]; then
+        _prompt_select "What would you like to build?" \
+            "go" "docker" "dashboard" "all"
+        sub="$PROMPT_RESULT"
+    fi
+
+    require_root_dir
+    case "$sub" in
+        go)        cmd_build_go "$@" ;;
+        docker)    cmd_build_docker "$@" ;;
+        dashboard) cmd_build_dashboard "$@" ;;
+        all)       cmd_build_all "$@" ;;
+        *)         error "Unknown build target: $sub"; exit 1 ;;
+    esac
+}
+
+cmd_build_go() {
+    header "Building Go binaries"
+    local v; v=$(version)
+    for svc in "${SERVICES[@]}"; do
+        info "Building $svc..."
+        run bash -c "cd src/$svc && go build -ldflags='-w -s -X main.version=$v' -o ../../bin/$svc ."
+        success "$svc → bin/$svc"
+    done
+}
+
+cmd_build_dashboard() {
+    header "Building Dashboard (Next.js)"
+    run bash -c "cd src/dashboard && npm run build"
+    success "Dashboard built"
+}
+
+cmd_build_docker() {
+    header "Building Docker Images"
+    local v; v=$(version)
+
+    _prompt_input "Image registry" "$REGISTRY"; REGISTRY="$PROMPT_RESULT"
+    _prompt_input "Image tag" "$v"; local tag="$PROMPT_RESULT"
+
+    local tag_latest=false
+    prompt_confirm "Also tag as :latest?" && tag_latest=true
+
+    for svc in "${SERVICES[@]}"; do
+        info "Building cluster-intel-${svc}:${tag}..."
+        run docker build -t "${REGISTRY}/cluster-intel-${svc}:${tag}" \
+            -f "src/${svc}/Dockerfile" .
+        if [[ "$tag_latest" == true ]]; then
+            run docker tag "${REGISTRY}/cluster-intel-${svc}:${tag}" "${REGISTRY}/cluster-intel-${svc}:latest"
+        fi
+        success "${REGISTRY}/cluster-intel-${svc}:${tag}"
+    done
+
+    info "Building cluster-intel-dashboard:${tag}..."
+    run docker build -t "${REGISTRY}/cluster-intel-dashboard:${tag}" \
+        -f src/dashboard/Dockerfile src/dashboard/
+    if [[ "$tag_latest" == true ]]; then
+        run docker tag "${REGISTRY}/cluster-intel-dashboard:${tag}" "${REGISTRY}/cluster-intel-dashboard:latest"
+    fi
+    success "${REGISTRY}/cluster-intel-dashboard:${tag}"
+
+    if prompt_confirm "Push images to registry?"; then
+        for svc in "${SERVICES[@]}"; do
+            run docker push "${REGISTRY}/cluster-intel-${svc}:${tag}"
+            [[ "$tag_latest" == true ]] && run docker push "${REGISTRY}/cluster-intel-${svc}:latest"
+        done
+        run docker push "${REGISTRY}/cluster-intel-dashboard:${tag}"
+        [[ "$tag_latest" == true ]] && run docker push "${REGISTRY}/cluster-intel-dashboard:latest"
+        success "All images pushed"
+    fi
+}
+
+cmd_build_all() {
+    cmd_build_go
+    cmd_build_dashboard
+    cmd_build_docker
+}
+
+# ── ci deploy ────────────────────────────────────────────────────────────────
+cmd_deploy() {
+    local sub="${1:-}"
+    shift 2>/dev/null || true
+
+    if [[ -z "$sub" ]]; then
+        _prompt_select "What would you like to deploy?" \
+            "stack" "upgrade" "podlogs" "lblogs"
+        sub="$PROMPT_RESULT"
+    fi
+
+    require_root_dir
+    case "$sub" in
+        stack)    cmd_deploy_stack "$@" ;;
+        upgrade)  cmd_deploy_upgrade "$@" ;;
+        podlogs)  cmd_deploy_podlogs "$@" ;;
+        lblogs)   cmd_deploy_lblogs "$@" ;;
+        *)        error "Unknown deploy target: $sub"; exit 1 ;;
+    esac
+}
+
+cmd_deploy_stack() {
+    header "Deploy Full Stack via Helm"
+
+    _prompt_input "Kubernetes namespace" "$NAMESPACE"; NAMESPACE="$PROMPT_RESULT"
+    _prompt_input "Image registry" "$REGISTRY"; REGISTRY="$PROMPT_RESULT"
+    local v; v=$(version)
+    _prompt_input "Image tag" "$v"; local tag="$PROMPT_RESULT"
+
+    # Prometheus URL
+    _prompt_input "Prometheus URL" "http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090"
+    local prom_url="$PROMPT_RESULT"
+
+    # LLM
+    _prompt_select "LLM Provider:" "anthropic" "openai" "ollama" "vllm" "llamacpp" "azure" "bedrock" "none"
+    local llm_provider="$PROMPT_RESULT"
+    local llm_model="" llm_secret=""
+    if [[ "$llm_provider" != "none" ]]; then
+        # Default endpoints per provider
+        local llm_endpoint_default=""
+        case "$llm_provider" in
+            anthropic) llm_endpoint_default="https://api.anthropic.com"; _prompt_input "LLM model" "claude-sonnet-4-6" ;;
+            openai)    llm_endpoint_default="https://api.openai.com/v1"; _prompt_input "LLM model" "gpt-4-turbo" ;;
+            ollama)    llm_endpoint_default="http://localhost:11434"; _prompt_input "LLM model" "llama3" ;;
+            vllm)      llm_endpoint_default="http://localhost:8000"; _prompt_input "LLM model" "meta-llama/Llama-3-70b-chat-hf" ;;
+            llamacpp)  llm_endpoint_default="http://localhost:8080"; _prompt_input "LLM model (or .gguf filename)" "local" ;;
+            azure)     llm_endpoint_default="https://YOUR_RESOURCE.openai.azure.com/openai/deployments/gpt-4"; _prompt_input "LLM model (deployment name)" "gpt-4" ;;
+            bedrock)   llm_endpoint_default="https://bedrock-runtime.us-east-1.amazonaws.com"; _prompt_input "LLM model" "anthropic.claude-3-sonnet-20240229-v1:0" ;;
+        esac
+        llm_model="$PROMPT_RESULT"
+
+        _prompt_input "LLM endpoint URL" "$llm_endpoint_default"
+        local llm_endpoint="$PROMPT_RESULT"
+
+        if [[ "$llm_provider" != "ollama" && "$llm_provider" != "llamacpp" && "$llm_provider" != "vllm" ]]; then
+            _prompt_input "K8s Secret name with API key (key: api-key)" "cluster-intel-llm"
+            llm_secret="$PROMPT_RESULT"
+
+            # Create secret if it doesn't exist
+            if ! kubectl -n "$NAMESPACE" get secret "$llm_secret" &>/dev/null; then
+                if prompt_confirm "Secret '$llm_secret' not found. Create it now?"; then
+                    _prompt_input "API key" ""
+                    local api_key="$PROMPT_RESULT"
+                    run_soft kubectl create namespace "$NAMESPACE"
+                    run kubectl -n "$NAMESPACE" create secret generic "$llm_secret" \
+                        --from-literal=api-key="$api_key"
+                    success "Secret created"
+                fi
+            fi
+        fi
+    fi
+
+    # Ingress
+    local ingress_enabled=false ingress_host=""
+    if prompt_confirm "Enable Ingress?"; then
+        ingress_enabled=true
+        _prompt_input "Ingress hostname" "cluster-intel.example.com"
+        ingress_host="$PROMPT_RESULT"
+    fi
+
+    # Build Helm deps
+    info "Building Helm chart dependencies..."
+    run_soft helm repo add bitnami https://charts.bitnami.com/bitnami
+    run_soft helm repo add nats https://nats-io.github.io/k8s/helm/charts/
+    run_soft helm repo update
+    run_soft helm dependency build deploy/helm/cluster-intel/
+
+    # Deploy
+    info "Deploying Cluster Intel v${tag} to namespace ${NAMESPACE}..."
+
+    local helm_args=(
+        upgrade --install cluster-intel deploy/helm/cluster-intel/
+        --namespace "$NAMESPACE" --create-namespace
+        --set "cluster.id=$(kubectl config current-context 2>/dev/null || echo default)"
+        --set "collector.image.repository=${REGISTRY}/cluster-intel-collector"
+        --set "collector.image.tag=${tag}"
+        --set "collector.prometheusUrl=${prom_url}"
+        --set "analyzer.image.repository=${REGISTRY}/cluster-intel-analyzer"
+        --set "analyzer.image.tag=${tag}"
+        --set "dashboard.image.repository=${REGISTRY}/cluster-intel-dashboard"
+        --set "dashboard.image.tag=${tag}"
+    )
+
+    if [[ "$llm_provider" != "none" ]]; then
+        helm_args+=(
+            --set "llm.provider=${llm_provider}"
+            --set "llm.model=${llm_model}"
+            --set "llm.endpoint=${llm_endpoint}"
+        )
+        [[ -n "$llm_secret" ]] && helm_args+=(--set "llm.apiKeySecret.name=${llm_secret}")
+    fi
+
+    if [[ "$ingress_enabled" == true ]]; then
+        helm_args+=(
+            --set "ingress.enabled=true"
+            --set "ingress.host=${ingress_host}"
+        )
+    fi
+
+    helm_args+=(--wait --timeout 5m)
+
+    run helm "${helm_args[@]}"
+    success "Stack deployed to $NAMESPACE"
+
+    echo "" >&2
+    info "Access the dashboard:"
+    if [[ "$ingress_enabled" == true ]]; then
+        info "  https://${ingress_host}"
+    else
+        info "  kubectl -n $NAMESPACE port-forward svc/cluster-intel-dashboard 3000:3000"
+        info "  open http://localhost:3000"
+    fi
+}
+
+cmd_deploy_upgrade() {
+    header "Rolling Upgrade"
+    _prompt_input "Namespace" "$NAMESPACE"; NAMESPACE="$PROMPT_RESULT"
+    local v; v=$(version)
+    _prompt_input "New image tag" "$v"; local tag="$PROMPT_RESULT"
+    _prompt_input "Registry" "$REGISTRY"; REGISTRY="$PROMPT_RESULT"
+
+    for svc in collector analyzer; do
+        info "Updating $svc to ${tag}..."
+        run_soft kubectl -n "$NAMESPACE" set image "deployment/cluster-intel-${svc}" \
+            "${svc}=${REGISTRY}/cluster-intel-${svc}:${tag}"
+    done
+    info "Updating dashboard to ${tag}..."
+    run_soft kubectl -n "$NAMESPACE" set image "deployment/cluster-intel-dashboard" \
+        "dashboard=${REGISTRY}/cluster-intel-dashboard:${tag}"
+
+    info "Waiting for rollout..."
+    for svc in collector analyzer dashboard; do
+        run_soft kubectl -n "$NAMESPACE" rollout status "deployment/cluster-intel-${svc}" --timeout=120s
+    done
+    success "Upgrade complete"
+}
+
+cmd_deploy_podlogs() {
+    header "Deploy Pod Log Collector"
+    _prompt_input "Namespace" "$NAMESPACE"; NAMESPACE="$PROMPT_RESULT"
+    _prompt_input "Registry" "$REGISTRY"; REGISTRY="$PROMPT_RESULT"
+    local v; v=$(version)
+    _prompt_input "Image tag" "$v"; local tag="$PROMPT_RESULT"
+    _prompt_input "Watch namespaces (comma-separated, empty=all)" ""
+    local watch_ns="$PROMPT_RESULT"
+
+    info "Applying deployment manifest:"
+    run kubectl -n "$NAMESPACE" apply -f - <<EOF
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: collector-podlogs
+  labels: {app: collector-podlogs, app.kubernetes.io/part-of: cluster-intel}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: collector-podlogs}
+  template:
+    metadata:
+      labels: {app: collector-podlogs}
+    spec:
+      serviceAccountName: cluster-intel
+      containers:
+      - name: collector-podlogs
+        image: ${REGISTRY}/cluster-intel-collector-podlogs:${tag}
+        env:
+        - name: CI_CONFIG
+          value: /etc/cluster-intel/config.yaml
+        - name: WATCH_NAMESPACES
+          value: "${watch_ns}"
+        volumeMounts:
+        - name: config
+          mountPath: /etc/cluster-intel
+      volumes:
+      - name: config
+        configMap: {name: cluster-intel-config}
+EOF
+    success "Pod log collector deployed"
+}
+
+cmd_deploy_lblogs() {
+    header "Deploy LB Log Collector"
+    _prompt_input "Namespace" "$NAMESPACE"; NAMESPACE="$PROMPT_RESULT"
+    _prompt_input "Registry" "$REGISTRY"; REGISTRY="$PROMPT_RESULT"
+    local v; v=$(version)
+    _prompt_input "Image tag" "$v"; local tag="$PROMPT_RESULT"
+    _prompt_input "IRSA role ARN (for S3 access)" ""
+    local irsa_arn="$PROMPT_RESULT"
+
+    echo -e "\n${BOLD}Configure load balancers:${NC}" >&2
+    local lb_configs="[]"
+    local adding=true
+    local lbs=()
+
+    while [[ "$adding" == true ]]; do
+        _prompt_input "LB name" "prod-alb"; local lb_name="$PROMPT_RESULT"
+        _prompt_select "LB type:" "alb" "nlb" "elb"; local lb_type="$PROMPT_RESULT"
+        _prompt_input "S3 bucket" ""; local bucket="$PROMPT_RESULT"
+        _prompt_input "S3 prefix" "AWSLogs/"; local prefix="$PROMPT_RESULT"
+        _prompt_input "AWS region" "us-east-1"; local region="$PROMPT_RESULT"
+        lbs+=("{\"name\":\"${lb_name}\",\"type\":\"${lb_type}\",\"bucket\":\"${bucket}\",\"prefix\":\"${prefix}\",\"region\":\"${region}\",\"pollIntervalSeconds\":60}")
+        prompt_confirm "Add another LB?" || adding=false
+    done
+
+    # Join array
+    local joined
+    joined=$(printf ',%s' "${lbs[@]}")
+    lb_configs="[${joined:1}]"
+
+    local sa_annotation=""
+    if [[ -n "$irsa_arn" ]]; then
+        sa_annotation="eks.amazonaws.com/role-arn: ${irsa_arn}"
+    fi
+
+    info "Applying deployment manifest:"
+    run kubectl -n "$NAMESPACE" apply -f - <<EOF
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: collector-lblogs
+  labels: {app: collector-lblogs, app.kubernetes.io/part-of: cluster-intel}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: collector-lblogs}
+  template:
+    metadata:
+      labels: {app: collector-lblogs}
+      ${sa_annotation:+annotations: {$sa_annotation}}
+    spec:
+      serviceAccountName: cluster-intel
+      containers:
+      - name: collector-lblogs
+        image: ${REGISTRY}/cluster-intel-collector-lblogs:${tag}
+        env:
+        - name: CI_CONFIG
+          value: /etc/cluster-intel/config.yaml
+        - name: LB_CONFIGS
+          value: '${lb_configs}'
+        volumeMounts:
+        - name: config
+          mountPath: /etc/cluster-intel
+      volumes:
+      - name: config
+        configMap: {name: cluster-intel-config}
+EOF
+    success "LB log collector deployed"
+}
+
+# ── ci test ──────────────────────────────────────────────────────────────────
+cmd_test() {
+    local sub="${1:-}"
+    shift 2>/dev/null || true
+
+    if [[ -z "$sub" ]]; then
+        _prompt_select "What would you like to test?" \
+            "unit" "lint" "e2e" "all"
+        sub="$PROMPT_RESULT"
+    fi
+
+    require_root_dir
+    case "$sub" in
+        unit)  cmd_test_unit "$@" ;;
+        lint)  cmd_test_lint "$@" ;;
+        e2e)   cmd_test_e2e "$@" ;;
+        all)   cmd_test_all "$@" ;;
+        *)     error "Unknown test type: $sub"; exit 1 ;;
+    esac
+}
+
+cmd_test_unit() {
+    header "Running Go Unit Tests"
+    local failed=false
+
+    for d in pkg/config pkg/store pkg/bus pkg/kube pkg/llm pkg/types pkg/middleware \
+             src/collector src/analyzer src/collector-podlogs src/collector-lblogs; do
+        if [[ -d "$d" ]]; then
+            info "Testing $d..."
+            if run bash -c "cd $d && go test ./... -count=1 -timeout 120s" 2>&1 | tail -5; then
+                success "$d passed"
+            else
+                warn "$d had failures"
+                failed=true
+            fi
+        fi
+    done
+
+    if [[ "$failed" == true ]]; then
+        error "Some tests failed"
+        return 1
+    fi
+    success "All unit tests passed"
+}
+
+cmd_test_lint() {
+    header "Running Lints"
+    local failed=false
+
+    # Go vet
+    for d in src/collector src/analyzer src/collector-podlogs src/collector-lblogs; do
+        if [[ -d "$d" ]]; then
+            info "go vet $d..."
+            if run bash -c "cd $d && go vet ./..." 2>&1; then
+                success "$d vet passed"
+            else
+                failed=true
+            fi
+        fi
+    done
+
+    # Next.js type check
+    info "TypeScript check..."
+    if run bash -c "cd src/dashboard && npx tsc --noEmit" 2>&1; then
+        success "TypeScript passed"
+    else
+        failed=true
+    fi
+
+    # Next.js build
+    info "Next.js build..."
+    if run bash -c "cd src/dashboard && npx next build" 2>&1 | tail -5; then
+        success "Dashboard build passed"
+    else
+        failed=true
+    fi
+
+    if [[ "$failed" == true ]]; then
+        error "Some checks failed"
+        return 1
+    fi
+    success "All lints passed"
+}
+
+cmd_test_e2e() {
+    header "Running E2E Smoke Tests"
+    bash "$SCRIPT_DIR/e2e-phase0.sh"
+}
+
+cmd_test_all() {
+    header "Running All Tests"
+
+    info "Phase 1/3: Unit tests"
+    cmd_test_unit || warn "Unit tests had failures"
+
+    info "Phase 2/3: Lints"
+    cmd_test_lint || warn "Lints had failures"
+
+    info "Phase 3/3: E2E"
+    cmd_test_e2e || warn "E2E had failures"
+
+    success "All test phases completed"
+}
+
+# ── ci status ────────────────────────────────────────────────────────────────
+cmd_status() {
+    header "Cluster Intel Status"
+    _prompt_input "Namespace" "$NAMESPACE"; NAMESPACE="$PROMPT_RESULT"
+
+    echo -e "\n${BOLD}Pods:${NC}" >&2
+    run_soft kubectl -n "$NAMESPACE" get pods -o wide
+
+    echo -e "\n${BOLD}Services:${NC}" >&2
+    run_soft kubectl -n "$NAMESPACE" get svc
+
+    echo -e "\n${BOLD}Ingress:${NC}" >&2
+    run_soft kubectl -n "$NAMESPACE" get ingress
+
+    # Health checks
+    echo -e "\n${BOLD}Health Checks:${NC}" >&2
+    for svc in collector analyzer; do
+        local port
+        case $svc in
+            collector) port=8080 ;;
+            analyzer)  port=8081 ;;
+        esac
+        local pod
+        pod=$(run_soft kubectl -n "$NAMESPACE" get pod -l "app.kubernetes.io/component=${svc}" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+        if [[ -n "$pod" ]]; then
+            local health
+            health=$(run_soft kubectl -n "$NAMESPACE" exec "$pod" -- wget -qO- "http://localhost:${port}/healthz" 2>/dev/null)
+            if [[ "$health" == "ok" ]]; then
+                success "$svc: healthy"
+            else
+                warn "$svc: ${health:-unreachable}"
+            fi
+        fi
+    done
+}
+
+# ── ci logs ──────────────────────────────────────────────────────────────────
+cmd_logs() {
+    header "View Logs"
+    _prompt_input "Namespace" "$NAMESPACE"; NAMESPACE="$PROMPT_RESULT"
+
+    _prompt_select "Which component?" \
+        "collector" "analyzer" "dashboard" "collector-podlogs" "collector-lblogs" "all"
+    local target="$PROMPT_RESULT"
+
+    _prompt_input "Tail lines" "100"; local tail="$PROMPT_RESULT"
+    local follow=""
+    prompt_confirm "Follow (stream) logs?" && follow="-f"
+
+    if [[ "$target" == "all" ]]; then
+        for svc in collector analyzer dashboard; do
+            echo -e "\n${BOLD}=== $svc ===${NC}" >&2
+            run_soft kubectl -n "$NAMESPACE" logs -l "app.kubernetes.io/component=${svc}" \
+                --tail="$tail" $follow
+        done
+    else
+        run_soft kubectl -n "$NAMESPACE" logs -l "app=${target}" \
+            --tail="$tail" $follow \
+            || run_soft kubectl -n "$NAMESPACE" logs -l "app.kubernetes.io/component=${target}" \
+                --tail="$tail" $follow
+    fi
+}
+
+# ── ci setup ─────────────────────────────────────────────────────────────────
+cmd_setup() {
+    local sub="${1:-}"
+    shift 2>/dev/null || true
+
+    if [[ -z "$sub" ]]; then
+        _prompt_select "What would you like to set up?" \
+            "local" "config"
+        sub="$PROMPT_RESULT"
+    fi
+
+    require_root_dir
+    case "$sub" in
+        local)  cmd_setup_local "$@" ;;
+        config) cmd_setup_config "$@" ;;
+        *)      error "Unknown setup target: $sub"; exit 1 ;;
+    esac
+}
+
+cmd_setup_local() {
+    header "Local Development Setup"
+
+    info "Checking prerequisites..."
+    local missing=false
+    for cmd in go node npm docker kubectl helm; do
+        if command -v "$cmd" &>/dev/null; then
+            success "$cmd found: $(command -v "$cmd")"
+        else
+            warn "$cmd not found"
+            missing=true
+        fi
+    done
+
+    if [[ "$missing" == true ]]; then
+        warn "Some tools are missing. Install them before proceeding."
+    fi
+
+    info "Installing Go dependencies..."
+    for d in pkg/config pkg/store pkg/bus pkg/kube pkg/llm src/collector src/analyzer \
+             src/collector-podlogs src/collector-lblogs; do
+        [[ -d "$d" ]] && (cd "$d" && go mod tidy 2>/dev/null)
+    done
+    success "Go deps installed"
+
+    info "Installing Dashboard dependencies..."
+    (cd src/dashboard && npm ci 2>/dev/null || npm install)
+    success "Dashboard deps installed"
+
+    info "Building Go binaries..."
+    cmd_build_go
+    success "Local setup complete"
+
+    echo "" >&2
+    info "Next steps:"
+    info "  1. ci setup config    — generate a config.yaml"
+    info "  2. ci build docker    — build container images"
+    info "  3. ci deploy stack    — deploy to Kubernetes"
+    info "  4. ci status          — check deployment health"
+}
+
+cmd_setup_config() {
+    header "Configuration Generator"
+    local CONFIG_OUT="config.yaml"
+    _prompt_input "Output config file" "$CONFIG_OUT"; CONFIG_OUT="$PROMPT_RESULT"
+
+    # Cluster
+    echo -e "\n${BOLD}Cluster${NC}" >&2
+    _prompt_input "Cluster ID" "$(kubectl config current-context 2>/dev/null || echo default)"; local cluster_id="$PROMPT_RESULT"
+    _prompt_input "Display name" "$cluster_id"; local display_name="$PROMPT_RESULT"
+
+    # Prometheus
+    echo -e "\n${BOLD}Prometheus${NC}" >&2
+    _prompt_input "Prometheus URL" "http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090"
+    local prom_url="$PROMPT_RESULT"
+
+    # Postgres
+    echo -e "\n${BOLD}PostgreSQL${NC}" >&2
+    local pg_enabled=false pg_host="localhost" pg_port="5432" pg_db="cluster_intel" pg_user="cluster_intel"
+    if prompt_confirm "Enable PostgreSQL?"; then
+        pg_enabled=true
+        _prompt_input "Host" "$pg_host"; pg_host="$PROMPT_RESULT"
+        _prompt_input "Port" "$pg_port"; pg_port="$PROMPT_RESULT"
+        _prompt_input "Database" "$pg_db"; pg_db="$PROMPT_RESULT"
+        _prompt_input "User" "$pg_user"; pg_user="$PROMPT_RESULT"
+    fi
+
+    # NATS
+    echo -e "\n${BOLD}NATS${NC}" >&2
+    local nats_enabled=false nats_url="nats://localhost:4222"
+    if prompt_confirm "Enable NATS?"; then
+        nats_enabled=true
+        _prompt_input "NATS URL" "$nats_url"; nats_url="$PROMPT_RESULT"
+    fi
+
+    # LLM
+    echo -e "\n${BOLD}LLM${NC}" >&2
+    local llm_provider="ollama" llm_model="llama3" llm_endpoint="http://localhost:11434"
+    _prompt_select "LLM provider:" "anthropic" "openai" "ollama" "vllm" "llamacpp" "azure" "bedrock" "none"
+    llm_provider="$PROMPT_RESULT"
+    case "$llm_provider" in
+        anthropic) llm_model="claude-sonnet-4-6"; llm_endpoint="https://api.anthropic.com" ;;
+        openai)    llm_model="gpt-4-turbo"; llm_endpoint="https://api.openai.com/v1" ;;
+        ollama)    llm_model="llama3"; llm_endpoint="http://localhost:11434" ;;
+        vllm)      llm_model="meta-llama/Llama-3-70b-chat-hf"; llm_endpoint="http://localhost:8000" ;;
+        llamacpp)  llm_model="local"; llm_endpoint="http://localhost:8080" ;;
+        azure)     llm_model="gpt-4"; llm_endpoint="https://YOUR_RESOURCE.openai.azure.com/openai/deployments/gpt-4" ;;
+        bedrock)   llm_model="anthropic.claude-3-sonnet-20240229-v1:0"; llm_endpoint="https://bedrock-runtime.us-east-1.amazonaws.com" ;;
+        none)      llm_provider="" ;;
+    esac
+    if [[ -n "$llm_provider" ]]; then
+        _prompt_input "Model (or .gguf filename for llamacpp)" "$llm_model"; llm_model="$PROMPT_RESULT"
+        _prompt_input "Endpoint URL" "$llm_endpoint"; llm_endpoint="$PROMPT_RESULT"
+    fi
+
+    # Write YAML
+    echo -e "\n${BOLD}Generating config...${NC}" >&2
+    cat > "$CONFIG_OUT" <<YAMLEOF
+# Cluster Intelligence Engine Configuration
+# Generated by: ci setup config
+# Date: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+cluster:
+  id: "${cluster_id}"
+  displayName: "${display_name}"
+
+server:
+  apiPort: 8081
+  metricsPort: 9091
+  bindAddress: "0.0.0.0"
+
+kube:
+  inCluster: true
+  qps: 50
+  burst: 100
+
+stores:
+  postgres:
+    enabled: ${pg_enabled}
+    host: "${pg_host}"
+    port: ${pg_port}
+    database: "${pg_db}"
+    user: "${pg_user}"
+    passwordFile: /var/run/secrets/cluster-intel/postgres-password
+    sslMode: disable
+    maxOpenConns: 25
+    migrationsPath: /etc/cluster-intel/migrations/postgres
+
+  redis:
+    enabled: false
+    addr: "localhost:6379"
+
+bus:
+  nats:
+    enabled: ${nats_enabled}
+    url: "${nats_url}"
+    streamPrefix: ci
+
+llm:
+  provider: "${llm_provider}"
+  endpoint: "${llm_endpoint}"
+  model: "${llm_model}"
+  apiKeyFile: /var/run/secrets/cluster-intel/llm-api-key
+  maxTokens: 4096
+  temperature: 0.2
+  dailyTokenBudget: 1000000
+
+logging:
+  level: info
+  format: json
+YAMLEOF
+
+    success "Config written to: $CONFIG_OUT"
+    echo "" >&2
+    info "Use this config with:"
+    info "  export CI_CONFIG=${CONFIG_OUT}"
+    info "  bin/analyzer"
+}
+
+# ── ci version ───────────────────────────────────────────────────────────────
+cmd_version() {
+    echo -e "${BOLD}Cluster Intel${NC} v$(version)" >&2
+}
+
+# ══════════════════════════════════════════════════════════════════════════════
+# MAIN
+# ══════════════════════════════════════════════════════════════════════════════
+usage() {
+    cat >&2 <<EOF
+
+${BOLD}ci${NC} — Cluster Intelligence CLI v$(version)
+
+${BOLD}Usage:${NC}  ci [command] [subcommand] [flags]
+
+${BOLD}Commands:${NC}
+  ${CYAN}build${NC}     Build components (go, docker, dashboard, all)
+  ${CYAN}deploy${NC}    Deploy to Kubernetes (stack, upgrade, podlogs, lblogs)
+  ${CYAN}test${NC}      Run tests (unit, lint, e2e, all)
+  ${CYAN}setup${NC}     Set up environment (local, config)
+  ${CYAN}status${NC}    Show deployment status and health
+  ${CYAN}logs${NC}      View component logs
+  ${CYAN}version${NC}   Show version
+
+${BOLD}Quick start:${NC}
+  ${DIM}ci setup local${NC}       Install deps, build binaries
+  ${DIM}ci build docker${NC}      Build & push container images
+  ${DIM}ci deploy stack${NC}      Interactive Helm deploy wizard
+  ${DIM}ci status${NC}            Check health of running services
+  ${DIM}ci test all${NC}          Run all tests + lints
+
+Run ${BOLD}ci${NC} without arguments for interactive mode.
+
+EOF
+}
+
+main() {
+    local cmd="${1:-}"
+    shift 2>/dev/null || true
+
+    if [[ -z "$cmd" ]]; then
+        echo -e "\n${BOLD}${CYAN}ci${NC} — Cluster Intelligence CLI v$(version)" >&2
+        _prompt_select "What would you like to do?" \
+            "build" "deploy" "test" "setup" "status" "logs"
+        cmd="$PROMPT_RESULT"
+    fi
+
+    case "$cmd" in
+        build)    cmd_build "$@" ;;
+        deploy)   cmd_deploy "$@" ;;
+        test)     cmd_test "$@" ;;
+        setup)    cmd_setup "$@" ;;
+        status)   cmd_status "$@" ;;
+        logs)     cmd_logs "$@" ;;
+        version|-v|--version) cmd_version ;;
+        help|-h|--help) usage ;;
+        *)        error "Unknown command: $cmd"; usage; exit 1 ;;
+    esac
+}
+
+main "$@"

@@ -13,3 +13,9 @@ resources:
 - backend/service.yaml
 - backend/networkpolicy.yaml
 namespace: utilities
+patches:
+- path: llm-patch.yaml
+  target:
+    kind: Deployment
+    name: cluster-intel
+    namespace: utilities

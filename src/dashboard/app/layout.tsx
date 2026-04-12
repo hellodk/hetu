@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
+import { Navigation } from '@/components/Navigation'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -17,10 +18,11 @@ export default function RootLayout({
 }: {
   children: React.ReactNode
 }) {
-  // K8s injects ANALYZER_SERVICE_HOST and ANALYZER_SERVICE_PORT_API for the analyzer service
-  const host = process.env.ANALYZER_SERVICE_HOST
-  const port = process.env.ANALYZER_SERVICE_PORT_API || process.env.ANALYZER_SERVICE_PORT || '8081'
-  const apiUrl = host ? `http://${host}:${port}` : (process.env.ANALYZER_URL || process.env.NEXT_PUBLIC_API_URL || '')
+  // Browser-side API URL: empty string means use relative URLs (/api/v1/...)
+  // which are proxied server-side by Next.js rewrites in next.config.js
+  // to the analyzer service (ANALYZER_URL env var, default http://cluster-intel-analyzer:8081).
+  // This avoids CORS entirely — the browser only talks to the dashboard.
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || ''
 
   return (
     <html lang="en" className="dark">
@@ -36,7 +38,10 @@ export default function RootLayout({
         <a href="#main-content" className="skip-link">
           Skip to main content
         </a>
-        {children}
+        <Navigation />
+        <main id="main-content" className="lg:ml-56">
+          {children}
+        </main>
       </body>
     </html>
   )

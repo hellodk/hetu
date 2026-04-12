@@ -1,0 +1,87 @@
+# Cluster Intel — Production deployment
+# Reuses Postgres + ClickHouse from avika namespace
+# Bundles Redis + NATS (no existing instances)
+
+cluster:
+  id: "cylon"
+  displayName: "Cylon Dev Cluster"
+
+# --- Images on Docker Hub ---
+collector:
+  image:
+    repository: docker.io/hellodk/cluster-intel-collector
+    tag: "7.0.0"
+    pullPolicy: Always
+  prometheusUrl: "http://monitoring-prometheus.monitoring.svc.cluster.local:9090"
+
+analyzer:
+  image:
+    repository: docker.io/hellodk/cluster-intel-analyzer
+    tag: "7.0.0"
+    pullPolicy: Always
+
+dashboard:
+  image:
+    repository: docker.io/hellodk/cluster-intel-dashboard
+    tag: "7.0.0"
+    pullPolicy: Always
+
+# --- External Postgres (avika namespace) ---
+stores:
+  postgres:
+    bundled: false
+    external:
+      host: avika-postgresql.avika.svc.cluster.local
+      port: 5432
+      db: cluster_intel
+      user: cluster_intel
+      existingSecret: cluster-intel-postgres
+      existingSecretPasswordKey: password
+    sslMode: disable
+
+  # External ClickHouse (avika namespace)
+  clickhouse:
+    bundled: false
+    external:
+      hosts:
+        - avika-clickhouse.avika.svc.cluster.local
+      port: 9000
+      db: cluster_intel
+      user: default
+      existingSecret: cluster-intel-clickhouse
+
+  # Bundled Redis (no existing instance)
+  redis:
+    bundled: true
+
+# Bundled NATS
+bus:
+  nats:
+    bundled: true
+
+# --- LLM (ollama local for now) ---
+llm:
+  provider: ollama
+  endpoint: "http://127.0.0.1:11434"
+  model: llama3
+
+# --- Safety ---
+writeActions:
+  enabled: false
+exec:
+  enabled: true
+
+# --- No ingress for now ---
+ingress:
+  enabled: false
+
+serviceMonitor:
+  enabled: false
+
+logging:
+  level: info
+  format: json
+
+# Override: disable Redis for now (image not available)
+redis:
+  enabled: false

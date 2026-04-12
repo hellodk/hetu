@@ -1,8 +1,15 @@
-go 1.24.0
+go 1.25.0
 
 use (
+	./pkg/bus
+	./pkg/config
+	./pkg/kube
+	./pkg/llm
 	./pkg/middleware
+	./pkg/store
 	./pkg/types
 	./src/analyzer
 	./src/collector
+	./src/collector-lblogs
+	./src/collector-podlogs
 )

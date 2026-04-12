@@ -16,6 +16,7 @@
 #   --skip-checks         Skip pre-deploy validation checks
 #   --prometheus URL      Set Prometheus server URL
 #   --webhook URL         Set alert webhook URL (Slack, Discord, etc.)
+#   --llm-endpoint URL    Set LLM API endpoint (default: 192.168.1.10:11434)
 #   --uninstall           Remove all components
 #   --version             Show version information
 #   --help                Show this help message
@@ -33,6 +34,7 @@ NC='\033[0m' # No Color
 
 # Configuration defaults
 NAMESPACE="utilities"
+LLM_ENDPOINT="http://192.168.1.10:11434/v1"
 SKIP_TRIVY=false
 SKIP_CHECKS=false
 PROMETHEUS_URL=""
@@ -69,6 +71,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --webhook)
             ALERT_WEBHOOK="$2"
+            shift 2
+            ;;
+        --llm-endpoint)
+            LLM_ENDPOINT="$2"
             shift 2
             ;;
         --uninstall)
@@ -264,12 +270,37 @@ data:
         cost: 0.15
         architecture: 0.20
 EOF
-        kustomize edit add patch prometheus-patch.yaml
+        kustomize edit add patch --path prometheus-patch.yaml
     fi
     
     # Note: ALERT_WEBHOOK wasn't supported robustly before, we are dropping support 
     # for inline string replacement to remain fully idempotent with kustomize.
     
+    # Update LLM endpoint
+    if [ -n "${LLM_ENDPOINT}" ]; then
+        echo -e "  Setting LLM endpoint to '${LLM_ENDPOINT}'..."
+        cat <<EOF > llm-patch.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cluster-intel
+  namespace: ${NAMESPACE}
+spec:
+  template:
+    spec:
+      containers:
+        - name: cluster-intel
+          env:
+            - name: LLM_BASE_URL
+              value: "${LLM_ENDPOINT}"
+            - name: LLM_PROVIDER
+              value: "ollama"
+            - name: LLM_MODEL
+              value: "llama3"
+EOF
+        kustomize edit add patch --path llm-patch.yaml --namespace "${NAMESPACE}" --kind Deployment --name cluster-intel
+    fi
+
     echo -e "  ${GREEN}✓${NC} Manifests prepared"
 }
 

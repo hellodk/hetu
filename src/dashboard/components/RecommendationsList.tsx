@@ -106,59 +106,12 @@ export function RecommendationsList({ recommendations, onApplyFix, onDismiss, on
     }
   }
 
-  // Generate fix YAML based on recommendation
+  // Return fix YAML from the recommendation if available
   const generateFixYaml = (rec: Recommendation): string => {
     if (rec.fix?.yaml) return rec.fix.yaml
-
-    // Generate sample YAML based on category
-    if (rec.category === 'cost') {
-      return `# Recommended resource configuration
-apiVersion: v1
-kind: Pod
-metadata:
-  name: ${rec.title.toLowerCase().replace(/\s+/g, '-')}
-spec:
-  containers:
-  - name: app
-    resources:
-      requests:
-        cpu: "100m"      # Reduced from current
-        memory: "128Mi"  # Optimized
-      limits:
-        cpu: "200m"
-        memory: "256Mi"`
-    }
-    if (rec.category === 'security') {
-      return `# Security fix configuration
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: restricted-sa
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: limited-role
-rules:
-- apiGroups: [""]
-  resources: ["pods"]
-  verbs: ["get", "list"]`
-    }
-    if (rec.category === 'reliability') {
-      return `# Reliability improvement
-apiVersion: policy/v1
-kind: PodDisruptionBudget
-metadata:
-  name: app-pdb
-spec:
-  minAvailable: 1
-  selector:
-    matchLabels:
-      app: myapp`
-    }
-    return `# Configuration update required
-# Please review the recommendation details
-# and apply the suggested changes`
+    return `# No specific YAML patch available for this recommendation.
+# Visit the Optimization page for detailed, data-driven recommendations
+# with copy-paste YAML patches based on actual cluster metrics.`
   }
 
   const visibleRecommendations = recommendations.filter(rec => !dismissedIds.has(rec.id))

@@ -15,54 +15,7 @@ interface TimelineEvent {
   severity?: string
 }
 
-// Mock timeline data
-const mockEvents: TimelineEvent[] = [
-  {
-    id: '1',
-    timestamp: '2026-02-14T10:30:00Z',
-    type: 'incident',
-    title: 'CrashLoopBackOff detected',
-    description: 'Pod api-gateway started experiencing repeated crashes',
-    severity: 'critical'
-  },
-  {
-    id: '2',
-    timestamp: '2026-02-14T10:15:00Z',
-    type: 'warning',
-    title: 'Memory pressure increasing',
-    description: 'Node node-pool-1-abc123 memory usage reached 85%',
-    severity: 'high'
-  },
-  {
-    id: '3',
-    timestamp: '2026-02-14T09:45:00Z',
-    type: 'recovery',
-    title: 'Deployment rollout complete',
-    description: 'Frontend deployment successfully rolled out 3 replicas'
-  },
-  {
-    id: '4',
-    timestamp: '2026-02-14T09:30:00Z',
-    type: 'info',
-    title: 'HPA scaled deployment',
-    description: 'worker-pool scaled from 3 to 5 replicas'
-  },
-  {
-    id: '5',
-    timestamp: '2026-02-14T09:00:00Z',
-    type: 'warning',
-    title: 'High latency detected',
-    description: 'API response time exceeded 500ms threshold',
-    severity: 'medium'
-  },
-  {
-    id: '6',
-    timestamp: '2026-02-14T08:30:00Z',
-    type: 'recovery',
-    title: 'Issue resolved',
-    description: 'Database connection pool recovered'
-  }
-]
+// No mock data — timeline shows real events from the cluster or empty state
 
 const typeConfig = {
   incident: {
@@ -102,13 +55,22 @@ export function TimelineChart() {
   useEffect(() => {
     const fetchEvents = async () => {
       try {
-        const res = await fetch(`${API_URL}/api/v1/events/timeline`)
+        const res = await fetch(`${API_URL}/api/v1/actions/log`)
         if (res.ok) {
           const data = await res.json()
-          setEvents(data || [])
+          // Map action logs to timeline events
+          const mappedEvents: TimelineEvent[] = (data.actions || []).map((action: any, i: number) => ({
+            id: `action-${i}`,
+            timestamp: action.timestamp,
+            type: action.success ? 'recovery' : 'incident',
+            title: `${action.action} on ${action.target}`,
+            description: `${action.message} (by ${action.initiatedBy})`,
+            severity: action.success ? undefined : 'high'
+          }))
+          setEvents(mappedEvents)
         }
       } catch (err) {
-        console.error("Failed to fetch timeline events", err)
+        console.error("Failed to fetch action logs", err)
       }
     }
     fetchEvents()
@@ -116,9 +78,7 @@ export function TimelineChart() {
     return () => clearInterval(interval)
   }, [])
 
-  const displayEvents = events.length > 0 ? events : mockEvents // fallback to mock if no real events
-
-  const filteredEvents = displayEvents.filter(event => {
+  const filteredEvents = events.filter(event => {
     if (filter === 'all') return true
     return event.type === filter
   })

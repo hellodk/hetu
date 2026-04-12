@@ -1,0 +1,37 @@
+{{- if .Values.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "cluster-intel.fullname" . }}-collector
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "cluster-intel.labels" . | nindent 4 }}
+    app.kubernetes.io/component: collector
+spec:
+  selector:
+    matchLabels:
+      {{- include "cluster-intel.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: collector
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 30s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "cluster-intel.fullname" . }}-analyzer
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "cluster-intel.labels" . | nindent 4 }}
+    app.kubernetes.io/component: analyzer
+spec:
+  selector:
+    matchLabels:
+      {{- include "cluster-intel.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: analyzer
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 30s
+{{- end }}
