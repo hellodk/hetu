@@ -113,6 +113,9 @@ type Analyzer struct {
 	// Pod health (v7 Phase 10)
 	podHealthScanner *PodHealthScanner
 
+	// Ingress scanner
+	ingressScanner *IngressScanner
+
 	// LLM config API
 	llmConfigAPI *LLMConfigAPI
 
@@ -585,6 +588,7 @@ func (a *Analyzer) startBackgroundScans(ctx context.Context) {
 	// Run all scans once immediately at startup.
 	a.runSecurityScan(ctx)
 	a.runPodHealthScan(ctx)
+	a.runIngressScan(ctx)
 	a.runAnomalyDetection()
 	a.runOptimizers()
 
@@ -687,6 +691,14 @@ func (a *Analyzer) runPodHealthScan(ctx context.Context) {
 			}
 		}
 	}
+}
+
+// runIngressScan triggers an Ingress resource scan.
+func (a *Analyzer) runIngressScan(ctx context.Context) {
+	if a.getProfile() != types.ProfileLive || a.ingressScanner == nil {
+		return
+	}
+	a.ingressScanner.Scan(ctx)
 }
 
 // runAnomalyDetection triggers anomaly detection and bridges detections → Correlator.
@@ -1456,6 +1468,11 @@ func (a *Analyzer) serveAPI() {
 		a.lbLogAggregator.RegisterRoutes(mux)
 	}
 
+	// Ingress scanner routes
+	if a.ingressScanner != nil {
+		a.ingressScanner.RegisterRoutes(mux)
+	}
+
 	// v7 Phase 6: Optimizer routes
 	if a.optimizerRegistry != nil {
 		a.optimizerRegistry.RegisterRoutes(mux)
@@ -2122,6 +2139,7 @@ func main() {
 			analyzer.workloadHandler = NewWorkloadHandler(cs, dyn, disc)
 			analyzer.securityScanner = NewSecurityScanner(cs)
 			analyzer.podHealthScanner = NewPodHealthScanner(cs)
+			analyzer.ingressScanner = NewIngressScanner(cs)
 			log.Info().Msg("Workload browser + security + pod health enabled")
 		}
 	}
