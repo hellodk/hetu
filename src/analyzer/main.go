@@ -1432,6 +1432,7 @@ func (a *Analyzer) serveAPI() {
 
 	// API endpoints
 	mux.HandleFunc("/api/v1/health", a.handleHealthReport)
+	mux.HandleFunc("/api/v1/health/breakdown", a.handleHealthBreakdown)
 	mux.HandleFunc("/api/v1/scores", a.handleScores)
 	mux.HandleFunc("/api/v1/recommendations", a.handleRecommendations)
 	mux.HandleFunc("/api/v1/issues", a.handleIssues)
@@ -1609,6 +1610,191 @@ func (a *Analyzer) handleHealthStream(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+}
+
+// handleHealthBreakdown returns a per-dimension breakdown showing which
+// cluster resources and conditions contribute to each health score. This
+// is built from real data (security findings, pod health, optimizer recs,
+// anomalies) — NOT from the LLM. It gives the operator drill-down
+// visibility into why each score is what it is.
+func (a *Analyzer) handleHealthBreakdown(w http.ResponseWriter, r *http.Request) {
+	type factor struct {
+		Name      string   `json:"name"`
+		Impact    int      `json:"impact"`
+		Resources []string `json:"resources,omitempty"`
+		Severity  string   `json:"severity,omitempty"`
+	}
+	type dimension struct {
+		Score   int      `json:"score"`
+		Factors []factor `json:"factors"`
+	}
+	type breakdown struct {
+		Reliability  dimension `json:"reliability"`
+		Security     dimension `json:"security"`
+		Cost         dimension `json:"cost"`
+		Architecture dimension `json:"architecture"`
+	}
+
+	bd := breakdown{}
+
+	// Current scores from latest report (if any)
+	a.reportMu.RLock()
+	if a.latestReport != nil && a.latestReport.Scores != nil {
+		bd.Reliability.Score = a.latestReport.Scores.Reliability
+		bd.Security.Score = a.latestReport.Scores.Security
+		bd.Cost.Score = a.latestReport.Scores.Cost
+		bd.Architecture.Score = a.latestReport.Scores.Architecture
+	}
+	a.reportMu.RUnlock()
+
+	// --- Reliability factors from Pod Health ---
+	if a.podHealthScanner != nil {
+		a.podHealthScanner.mu.RLock()
+		if rpt := a.podHealthScanner.report; rpt != nil {
+			for _, cat := range rpt.Categories {
+				if cat.Count == 0 {
+					continue
+				}
+				impact := -3 * cat.Count
+				sev := "medium"
+				switch cat.Name {
+				case "crashloop", "oomkilled":
+					impact = -5 * cat.Count
+					sev = "high"
+				case "evicted":
+					impact = -4 * cat.Count
+				case "pending":
+					impact = -2 * cat.Count
+				case "completed", "terminating":
+					impact = -1 * cat.Count
+					sev = "low"
+				}
+				resources := make([]string, 0, len(cat.Pods))
+				for _, p := range cat.Pods {
+					resources = append(resources, p.Namespace+"/"+p.Name)
+				}
+				bd.Reliability.Factors = append(bd.Reliability.Factors, factor{
+					Name:      fmt.Sprintf("%s pods (%d)", cat.Name, cat.Count),
+					Impact:    impact,
+					Resources: resources,
+					Severity:  sev,
+				})
+			}
+		}
+		a.podHealthScanner.mu.RUnlock()
+	}
+
+	// --- Security factors from Security Scanner ---
+	if a.securityScanner != nil {
+		a.securityScanner.mu.RLock()
+		bySev := map[string][]string{}
+		for _, f := range a.securityScanner.findings {
+			bySev[f.Severity] = append(bySev[f.Severity], f.Title)
+		}
+		a.securityScanner.mu.RUnlock()
+		for sev, titles := range bySev {
+			impact := -2 * len(titles)
+			if sev == "critical" {
+				impact = -8 * len(titles)
+			} else if sev == "high" {
+				impact = -5 * len(titles)
+			} else if sev == "low" {
+				impact = -1 * len(titles)
+			}
+			bd.Security.Factors = append(bd.Security.Factors, factor{
+				Name:      fmt.Sprintf("%s severity findings (%d)", sev, len(titles)),
+				Impact:    impact,
+				Resources: titles,
+				Severity:  sev,
+			})
+		}
+	}
+
+	// --- Cost factors from Optimizer ---
+	if a.optimizerRegistry != nil {
+		a.optimizerRegistry.mu.RLock()
+		byType := map[string]struct {
+			count   int
+			savings float64
+			targets []string
+		}{}
+		for _, rec := range a.optimizerRegistry.recommendations {
+			if rec.Status == "dismissed" || rec.Status == "applied" {
+				continue
+			}
+			entry := byType[rec.Type]
+			entry.count++
+			entry.savings += rec.EstimatedSavingsMonthly
+			entry.targets = append(entry.targets, rec.Target.Namespace+"/"+rec.Target.Name)
+			byType[rec.Type] = entry
+		}
+		a.optimizerRegistry.mu.RUnlock()
+		for typ, entry := range byType {
+			impact := -2 * entry.count
+			bd.Cost.Factors = append(bd.Cost.Factors, factor{
+				Name:      fmt.Sprintf("%s opportunities (%d, ~$%.0f/mo)", typ, entry.count, entry.savings),
+				Impact:    impact,
+				Resources: entry.targets,
+				Severity:  "medium",
+			})
+		}
+	}
+
+	// --- Architecture factors from Anomalies ---
+	if a.anomalyDetector != nil {
+		a.anomalyDetector.mu.RLock()
+		var activeAnomalies []string
+		for _, an := range a.anomalyDetector.anomalies {
+			if an.Status == "active" {
+				activeAnomalies = append(activeAnomalies, fmt.Sprintf("%s/%s %s (z=%.1f)", an.Namespace, an.Service, an.Metric, an.Score))
+			}
+		}
+		a.anomalyDetector.mu.RUnlock()
+		if len(activeAnomalies) > 0 {
+			bd.Architecture.Factors = append(bd.Architecture.Factors, factor{
+				Name:      fmt.Sprintf("Active anomalies (%d)", len(activeAnomalies)),
+				Impact:    -3 * len(activeAnomalies),
+				Resources: activeAnomalies,
+				Severity:  "medium",
+			})
+		}
+	}
+
+	// --- Architecture: also count incidents as a factor ---
+	if a.correlator != nil {
+		a.correlator.mu.RLock()
+		openCount := 0
+		for _, inc := range a.correlator.incidents {
+			if inc.Status == "open" || inc.Status == "investigating" {
+				openCount++
+			}
+		}
+		a.correlator.mu.RUnlock()
+		if openCount > 0 {
+			bd.Architecture.Factors = append(bd.Architecture.Factors, factor{
+				Name:     fmt.Sprintf("Open incidents (%d)", openCount),
+				Impact:   -2 * openCount,
+				Severity: "high",
+			})
+		}
+	}
+
+	// Default empty slices so JSON returns [] not null
+	if bd.Reliability.Factors == nil {
+		bd.Reliability.Factors = []factor{}
+	}
+	if bd.Security.Factors == nil {
+		bd.Security.Factors = []factor{}
+	}
+	if bd.Cost.Factors == nil {
+		bd.Cost.Factors = []factor{}
+	}
+	if bd.Architecture.Factors == nil {
+		bd.Architecture.Factors = []factor{}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(bd)
 }
 
 // handleScores returns just the health scores. Returns null (JSON) when
