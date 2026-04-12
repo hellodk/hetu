@@ -511,6 +511,12 @@ func (a *Analyzer) Start(ctx context.Context) error {
 		a.mockSource.generateAndBroadcast()
 	}
 
+	// Start background scanners (security, pod health, anomaly, optimizers).
+	// These populate the v7 feature pages with real data from K8s API and
+	// Prometheus. They're no-ops when the profile is "mock".
+	a.wg.Add(1)
+	go a.startBackgroundScans(ctx)
+
 	// Start HTTP servers
 	a.wg.Add(2)
 	go a.serveMetrics()
@@ -538,6 +544,230 @@ func (a *Analyzer) analysisLoop(ctx context.Context) {
 		case <-ticker.C:
 			a.runAnalysis(ctx)
 		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Background scanners — populate Security, Pod Health, Anomaly, Optimization,
+// Errors, and Incidents pages from existing K8s API and Prometheus data.
+// ---------------------------------------------------------------------------
+
+// startBackgroundScans runs the v7 scanners on independent intervals. Each
+// scan runs only when the profile is "live" — mock mode generates its own
+// synthetic data. After each scan, findings are bridged into the Correlator
+// as Signals so the Incidents page receives correlated data.
+func (a *Analyzer) startBackgroundScans(ctx context.Context) {
+	defer a.wg.Done()
+
+	secInterval := getDurationOrDefault("SCAN_SECURITY_INTERVAL", 5*time.Minute)
+	podInterval := getDurationOrDefault("SCAN_PODHEALTH_INTERVAL", 2*time.Minute)
+	anomalyInterval := getDurationOrDefault("SCAN_ANOMALY_INTERVAL", 3*time.Minute)
+	optInterval := getDurationOrDefault("SCAN_OPTIMIZER_INTERVAL", 10*time.Minute)
+
+	secTicker := time.NewTicker(secInterval)
+	podTicker := time.NewTicker(podInterval)
+	anomalyTicker := time.NewTicker(anomalyInterval)
+	optTicker := time.NewTicker(optInterval)
+	defer secTicker.Stop()
+	defer podTicker.Stop()
+	defer anomalyTicker.Stop()
+	defer optTicker.Stop()
+
+	log.Info().
+		Dur("security", secInterval).
+		Dur("podHealth", podInterval).
+		Dur("anomaly", anomalyInterval).
+		Dur("optimizer", optInterval).
+		Msg("Background scanners started")
+
+	// Run all scans once immediately at startup.
+	a.runSecurityScan(ctx)
+	a.runPodHealthScan(ctx)
+	a.runAnomalyDetection()
+	a.runOptimizers()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-a.stopCh:
+			return
+		case <-secTicker.C:
+			a.runSecurityScan(ctx)
+		case <-podTicker.C:
+			a.runPodHealthScan(ctx)
+		case <-anomalyTicker.C:
+			a.runAnomalyDetection()
+		case <-optTicker.C:
+			a.runOptimizers()
+		}
+	}
+}
+
+// runSecurityScan triggers a security scan and bridges findings → Correlator.
+func (a *Analyzer) runSecurityScan(ctx context.Context) {
+	if a.getProfile() != types.ProfileLive || a.securityScanner == nil {
+		return
+	}
+	a.securityScanner.RunScan(ctx)
+
+	// Bridge findings to Correlator for incident creation.
+	if a.correlator == nil {
+		return
+	}
+	a.securityScanner.mu.RLock()
+	defer a.securityScanner.mu.RUnlock()
+	for _, f := range a.securityScanner.findings {
+		a.correlator.IngestSignal(Signal{
+			ID:        fmt.Sprintf("sec-%d", f.ID),
+			Timestamp: f.DetectedAt,
+			Source:    "security",
+			Severity:  f.Severity,
+			Namespace: extractNamespace(f.Affected),
+			Kind:      f.Category,
+			Title:     f.Title,
+			Details:   f.Description,
+		})
+	}
+}
+
+// runPodHealthScan triggers a pod health scan and bridges issues → Correlator + ErrorAggregator.
+func (a *Analyzer) runPodHealthScan(ctx context.Context) {
+	if a.getProfile() != types.ProfileLive || a.podHealthScanner == nil {
+		return
+	}
+	a.podHealthScanner.Scan(ctx)
+
+	a.podHealthScanner.mu.RLock()
+	report := a.podHealthScanner.report
+	a.podHealthScanner.mu.RUnlock()
+	if report == nil {
+		return
+	}
+
+	for _, cat := range report.Categories {
+		if len(cat.Pods) == 0 {
+			continue
+		}
+		severity := "medium"
+		kind := cat.Name
+		if kind == "crashloop" || kind == "oomkilled" {
+			severity = "high"
+		}
+		for _, pod := range cat.Pods {
+			// Bridge to Correlator
+			if a.correlator != nil {
+				a.correlator.IngestSignal(Signal{
+					ID:        fmt.Sprintf("pod-%s-%s-%s", kind, pod.Namespace, pod.Name),
+					Timestamp: time.Now(),
+					Source:    "k8s",
+					Severity:  severity,
+					Service:   pod.Name,
+					Namespace: pod.Namespace,
+					Pod:       pod.Name,
+					Kind:      kind,
+					Title:     fmt.Sprintf("%s: %s/%s", cat.Name, pod.Namespace, pod.Name),
+					Details:   pod.Reason + ": " + pod.Message,
+				})
+			}
+			// Bridge to ErrorAggregator
+			if a.errorAggregator != nil {
+				a.errorAggregator.Ingest(IngestEvent{
+					Timestamp: time.Now(),
+					Namespace: pod.Namespace,
+					Pod:       pod.Name,
+					Service:   pod.Name,
+					Level:     "error",
+					Message:   pod.Message,
+					Reason:    kind,
+					Fingerprint: fmt.Sprintf("%s/%s/%s", kind, pod.Namespace, pod.Name),
+				})
+			}
+		}
+	}
+}
+
+// runAnomalyDetection triggers anomaly detection and bridges detections → Correlator.
+func (a *Analyzer) runAnomalyDetection() {
+	if a.getProfile() != types.ProfileLive || a.anomalyDetector == nil {
+		return
+	}
+	a.anomalyDetector.RunDetection()
+
+	if a.correlator == nil {
+		return
+	}
+	a.anomalyDetector.mu.RLock()
+	anomalies := make([]*Anomaly, 0, len(a.anomalyDetector.anomalies))
+	for _, an := range a.anomalyDetector.anomalies {
+		if an.Status == "active" {
+			anomalies = append(anomalies, an)
+		}
+	}
+	a.anomalyDetector.mu.RUnlock()
+	for _, anomaly := range anomalies {
+		kind := "spike"
+		if anomaly.Score < 0 {
+			kind = "drop"
+		}
+		a.correlator.IngestSignal(Signal{
+			ID:        fmt.Sprintf("anomaly-%d", anomaly.ID),
+			Timestamp: anomaly.DetectedAt,
+			Source:    "anomaly",
+			Severity:  anomaly.Severity,
+			Service:   anomaly.Service,
+			Namespace: anomaly.Namespace,
+			Kind:      kind,
+			Title:     fmt.Sprintf("Anomaly: %s %s (z=%.1f)", anomaly.Metric, kind, anomaly.Score),
+			Details:   fmt.Sprintf("expected=%.2f observed=%.2f", anomaly.Expected, anomaly.Observed),
+		})
+	}
+}
+
+// runOptimizers triggers all optimizer runs.
+func (a *Analyzer) runOptimizers() {
+	if a.getProfile() != types.ProfileLive || a.optimizerRegistry == nil {
+		return
+	}
+	a.optimizerRegistry.RunAll()
+}
+
+// extractNamespace tries to pull a namespace from affected resource strings
+// like "kube-system/pod-name". Returns empty string if none found.
+func extractNamespace(resources []string) string {
+	for _, r := range resources {
+		if i := strings.Index(r, "/"); i > 0 {
+			return r[:i]
+		}
+	}
+	return ""
+}
+
+// ---------------------------------------------------------------------------
+// Error event ingestion from collector telemetry
+// ---------------------------------------------------------------------------
+
+// ingestWarningEventsAsErrors feeds the ErrorAggregator from K8s warning
+// events that the collector already captures. This populates the Errors page
+// without requiring NATS or collector-podlogs.
+func (a *Analyzer) ingestWarningEventsAsErrors(events []types.TelemetryEvent) {
+	if a.errorAggregator == nil {
+		return
+	}
+	for _, evt := range events {
+		if evt.Type != "Warning" {
+			continue
+		}
+		a.errorAggregator.Ingest(IngestEvent{
+			Timestamp:   evt.Timestamp,
+			Namespace:   evt.InvolvedObject.Namespace,
+			Pod:         evt.InvolvedObject.Name,
+			Service:     evt.InvolvedObject.Name,
+			Level:       "warn",
+			Message:     evt.Message,
+			Reason:      evt.Reason,
+			Fingerprint: fmt.Sprintf("%s/%s/%s", evt.Reason, evt.InvolvedObject.Namespace, evt.InvolvedObject.Name),
+		})
 	}
 }
 
@@ -579,6 +809,11 @@ func (a *Analyzer) runAnalysis(ctx context.Context) {
 
 	// Both collector calls succeeded.
 	a.recordCollectorSuccess()
+
+	// Feed warning events into the ErrorAggregator so the Errors page shows
+	// K8s-native error patterns (CrashLoopBackOff, OOMKilled, etc.) without
+	// needing NATS or collector-podlogs.
+	a.ingestWarningEventsAsErrors(events)
 
 	log.Info().Int("events", len(events)).Int("metrics", len(metrics)).Msg("Fetched telemetry")
 
