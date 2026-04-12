@@ -301,18 +301,160 @@ func (m *mockSource) synthesizeRecommendations(now time.Time, totalSavings float
 		n = len(mockRecCatalog)
 	}
 	out := make([]types.Recommendation, 0, n)
-	// Divide the total savings across the recommendations so the sum stays
-	// consistent with report.EstimatedSavings.
 	per := totalSavings / float64(n)
 	for i := 0; i < n; i++ {
 		entry := mockRecCatalog[i]
 		entry.ID = fmt.Sprintf("mock-rec-%d-%d", now.Unix(), i)
 		entry.Timestamp = now
-		entry.Impact.CostSavings = &types.CostSavings{
-			Monthly:  per,
-			Currency: "USD",
-		}
+		entry.Impact.CostSavings = &types.CostSavings{Monthly: per, Currency: "USD"}
 		out = append(out, entry)
 	}
 	return out
+}
+
+// ---------------------------------------------------------------------------
+// Full demo mode: populate ALL v7 handlers with synthetic data
+// ---------------------------------------------------------------------------
+
+func (m *mockSource) populateAllHandlers() {
+	a := m.analyzer
+	now := time.Now()
+
+	if a.securityScanner != nil {
+		findings := []SecFinding{
+			{Severity: "critical", Category: "rbac", Title: "cluster-admin bound to default SA", Description: "The default ServiceAccount has cluster-admin privileges.", Affected: []string{"default/default"}, CISControl: "5.1.1", Remediation: "Remove the ClusterRoleBinding."},
+			{Severity: "high", Category: "rbac", Title: "Wildcard permissions in ClusterRole", Description: "ClusterRole 'admin-all' grants * verbs on * resources.", Affected: []string{"clusterrole/admin-all"}, CISControl: "5.1.3", Remediation: "Use explicit resource and verb lists."},
+			{Severity: "high", Category: "pod-security", Title: "Privileged container", Description: "monitoring/debug-shell runs privileged with hostPID.", Affected: []string{"monitoring/debug-shell"}, Remediation: "Remove privileged flag."},
+			{Severity: "medium", Category: "pod-security", Title: "Container running as root", Description: "default/legacy-app runs as UID 0.", Affected: []string{"default/legacy-app"}, CISControl: "5.2.6", Remediation: "Set runAsNonRoot: true."},
+			{Severity: "medium", Category: "rbac", Title: "SA can list secrets cluster-wide", Description: "monitoring/prometheus has get/list on secrets.", Affected: []string{"monitoring/prometheus"}, CISControl: "5.1.2", Remediation: "Scope to specific namespaces."},
+			{Severity: "low", Category: "pod-security", Title: "No resource limits on 3 pods", Description: "Pods in default lack limits.", Affected: []string{"default/api-gw", "default/worker", "default/cron"}, Remediation: "Add limits."},
+			{Severity: "high", Category: "pod-security", Title: "HostPath volume mount", Description: "kube-system/node-exporter mounts /proc.", Affected: []string{"kube-system/node-exporter"}, CISControl: "5.2.8", Remediation: "Use read-only mounts."},
+			{Severity: "medium", Category: "rbac", Title: "Unused elevated SA", Description: "utilities/deploy-bot unused 30 days.", Affected: []string{"utilities/deploy-bot"}, Remediation: "Delete or rotate."},
+		}
+		a.securityScanner.mu.Lock()
+		a.securityScanner.findings = make(map[int64]*SecFinding)
+		for i := range findings {
+			findings[i].ID = a.securityScanner.nextID
+			findings[i].DetectedAt = now
+			a.securityScanner.findings[a.securityScanner.nextID] = &findings[i]
+			a.securityScanner.nextID++
+		}
+		a.securityScanner.mu.Unlock()
+	}
+
+	if a.podHealthScanner != nil {
+		a.podHealthScanner.mu.Lock()
+		a.podHealthScanner.report = &PodHealthReport{Timestamp: now, TotalPods: 46, HealthyPods: 39, Categories: []PodHealthCategory{
+			{Name: "crashloop", Count: 3, Pods: []PodHealthItem{
+				{Namespace: "default", Name: "api-gateway-x2k9m", Phase: "Running", Reason: "CrashLoopBackOff", Message: "Back-off restarting failed container", Restarts: 14, Age: "2h", Node: "node-1"},
+				{Namespace: "elk", Name: "logstash-0", Phase: "Running", Reason: "CrashLoopBackOff", Message: "OOMKilled", Restarts: 8, Age: "45m", Node: "node-2"},
+				{Namespace: "monitoring", Name: "alertmanager-0", Phase: "Running", Reason: "CrashLoopBackOff", Message: "config validation failed", Restarts: 5, Age: "1h", Node: "node-1"},
+			}},
+			{Name: "pending", Count: 2, Pods: []PodHealthItem{
+				{Namespace: "default", Name: "ml-trainer-batch", Phase: "Pending", Reason: "Unschedulable", Message: "Insufficient cpu", Age: "15m"},
+				{Namespace: "kube-system", Name: "coredns-backup", Phase: "Pending", Reason: "Unschedulable", Message: "Insufficient memory", Age: "8m"},
+			}},
+			{Name: "oomkilled", Count: 1, Pods: []PodHealthItem{
+				{Namespace: "avika", Name: "backend-worker-abc", Phase: "Running", Reason: "OOMKilled", Message: "memory limit exceeded (512Mi)", Restarts: 3, Age: "30m", Node: "node-3"},
+			}},
+			{Name: "evicted", Count: 1, Pods: []PodHealthItem{
+				{Namespace: "default", Name: "batch-processor-old", Phase: "Failed", Reason: "Evicted", Message: "low on ephemeral-storage", Age: "4h", Node: "node-2"},
+			}},
+		}}
+		a.podHealthScanner.mu.Unlock()
+	}
+
+	if a.anomalyDetector != nil {
+		a.anomalyDetector.mu.Lock()
+		a.anomalyDetector.anomalies = map[int64]*Anomaly{
+			1: {ID: 1, Service: "api-gateway", Namespace: "default", Metric: "error_rate", Score: 4.2, Expected: 0.02, Observed: 0.18, Severity: "critical", DetectedAt: now.Add(-10 * time.Minute), Status: "active"},
+			2: {ID: 2, Service: "backend-worker", Namespace: "avika", Metric: "memory_usage", Score: 3.5, Expected: 0.45, Observed: 0.92, Severity: "high", DetectedAt: now.Add(-5 * time.Minute), Status: "active"},
+			3: {ID: 3, Service: "frontend", Namespace: "default", Metric: "p95_latency", Score: -3.1, Expected: 120, Observed: 350, Severity: "high", DetectedAt: now.Add(-3 * time.Minute), Status: "active"},
+			4: {ID: 4, Service: "coredns", Namespace: "kube-system", Metric: "request_rate", Score: 2.8, Expected: 1200, Observed: 3400, Severity: "medium", DetectedAt: now.Add(-15 * time.Minute), Status: "active"},
+		}
+		a.anomalyDetector.nextID = 5
+		a.anomalyDetector.mu.Unlock()
+	}
+
+	if a.optimizerRegistry != nil {
+		recs := []OptRecommendation{
+			{Type: "rightsizing", Severity: "medium", Confidence: 0.91, Target: OptTarget{Kind: "Deployment", Namespace: "default", Name: "api-gateway", Container: "api"}, CurrentState: map[string]any{"cpuRequest": "2000m", "cpuUsedP95": "450m"}, SuggestedState: map[string]any{"cpuRequest": "800m"}, Rationale: "CPU under 25% for 7d", EstimatedSavingsMonthly: 42.50, Status: "open"},
+			{Type: "rightsizing", Severity: "medium", Confidence: 0.87, Target: OptTarget{Kind: "Deployment", Namespace: "avika", Name: "backend", Container: "worker"}, CurrentState: map[string]any{"memReq": "1Gi", "memP95": "280Mi"}, SuggestedState: map[string]any{"memReq": "512Mi"}, Rationale: "Memory at 28%", EstimatedSavingsMonthly: 18.00, Status: "open"},
+			{Type: "hpa", Severity: "high", Confidence: 0.95, Target: OptTarget{Kind: "Deployment", Namespace: "default", Name: "api-gateway"}, CurrentState: map[string]any{"replicas": 5, "maxReplicas": 5}, SuggestedState: map[string]any{"maxReplicas": 10}, Rationale: "HPA stuck at max", Status: "open"},
+			{Type: "coredns", Severity: "low", Confidence: 0.78, Target: OptTarget{Kind: "ConfigMap", Namespace: "kube-system", Name: "coredns"}, CurrentState: map[string]any{"ndots": "5"}, SuggestedState: map[string]any{"ndots": "2"}, Rationale: "Saves 60% DNS queries", Status: "open"},
+			{Type: "cluster", Severity: "medium", Confidence: 0.85, Target: OptTarget{Kind: "Node", Name: "node-3"}, CurrentState: map[string]any{"cpuUtil": "12%", "memUtil": "18%"}, SuggestedState: map[string]any{"action": "drain"}, Rationale: "Underutilized", EstimatedSavingsMonthly: 120, Status: "open"},
+		}
+		a.optimizerRegistry.mu.Lock()
+		a.optimizerRegistry.recommendations = make(map[int64]*OptRecommendation)
+		for i := range recs {
+			recs[i].ID = a.optimizerRegistry.nextID
+			recs[i].CreatedAt = now
+			a.optimizerRegistry.recommendations[a.optimizerRegistry.nextID] = &recs[i]
+			a.optimizerRegistry.nextID++
+		}
+		a.optimizerRegistry.mu.Unlock()
+	}
+
+	if a.errorAggregator != nil {
+		for _, e := range []IngestEvent{
+			{Timestamp: now.Add(-30 * time.Minute), Namespace: "default", Pod: "api-gateway-x2k9m", Service: "api-gateway", Level: "error", Message: "Back-off restarting", Reason: "CrashLoopBackOff", Fingerprint: "CrashLoopBackOff/default/api-gateway"},
+			{Timestamp: now.Add(-25 * time.Minute), Namespace: "elk", Pod: "logstash-0", Service: "logstash", Level: "error", Message: "OOMKilled", Reason: "OOMKilled", Fingerprint: "OOMKilled/elk/logstash"},
+			{Timestamp: now.Add(-20 * time.Minute), Namespace: "default", Pod: "ml-trainer-batch", Service: "ml-trainer", Level: "warn", Message: "Insufficient cpu", Reason: "FailedScheduling", Fingerprint: "FailedScheduling/default/ml-trainer"},
+			{Timestamp: now.Add(-15 * time.Minute), Namespace: "avika", Pod: "backend-worker-abc", Service: "backend-worker", Level: "error", Message: "memory limit exceeded", Reason: "OOMKilled", Fingerprint: "OOMKilled/avika/backend-worker"},
+			{Timestamp: now.Add(-10 * time.Minute), Namespace: "monitoring", Pod: "alertmanager-0", Service: "alertmanager", Level: "error", Message: "config validation failed", Reason: "CrashLoopBackOff", Fingerprint: "CrashLoopBackOff/monitoring/alertmanager"},
+			{Timestamp: now.Add(-5 * time.Minute), Namespace: "kube-system", Pod: "coredns-4fz96", Service: "coredns", Level: "warn", Message: "Search Line limits exceeded", Reason: "DNSConfigForming", Fingerprint: "DNSConfigForming/kube-system/coredns"},
+		} {
+			a.errorAggregator.Ingest(e)
+		}
+	}
+
+	if a.correlator != nil {
+		for _, sig := range []Signal{
+			{ID: "mock-1", Timestamp: now.Add(-30 * time.Minute), Source: "k8s", Severity: "high", Service: "api-gateway", Namespace: "default", Pod: "api-gateway-x2k9m", Kind: "restart", Title: "CrashLoopBackOff: default/api-gateway"},
+			{ID: "mock-2", Timestamp: now.Add(-29 * time.Minute), Source: "anomaly", Severity: "critical", Service: "api-gateway", Namespace: "default", Kind: "spike", Title: "Error rate spike on api-gateway"},
+			{ID: "mock-3", Timestamp: now.Add(-28 * time.Minute), Source: "security", Severity: "high", Namespace: "monitoring", Kind: "pod-security", Title: "Privileged container: monitoring/debug-shell"},
+			{ID: "mock-4", Timestamp: now.Add(-15 * time.Minute), Source: "k8s", Severity: "medium", Service: "ml-trainer", Namespace: "default", Kind: "pending", Title: "Unschedulable: Insufficient cpu"},
+			{ID: "mock-5", Timestamp: now.Add(-10 * time.Minute), Source: "k8s", Severity: "high", Service: "logstash", Namespace: "elk", Pod: "logstash-0", Kind: "oom", Title: "OOMKilled: elk/logstash-0"},
+			{ID: "mock-6", Timestamp: now.Add(-5 * time.Minute), Source: "anomaly", Severity: "high", Service: "backend-worker", Namespace: "avika", Kind: "spike", Title: "Memory spike on backend-worker"},
+		} {
+			a.correlator.IngestSignal(sig)
+		}
+	}
+
+	log.Info().Msg("Mock data populated for all dashboard pages")
+}
+
+func (m *mockSource) clearAllHandlers() {
+	a := m.analyzer
+	if a.securityScanner != nil {
+		a.securityScanner.mu.Lock()
+		a.securityScanner.findings = make(map[int64]*SecFinding)
+		a.securityScanner.mu.Unlock()
+	}
+	if a.podHealthScanner != nil {
+		a.podHealthScanner.mu.Lock()
+		a.podHealthScanner.report = nil
+		a.podHealthScanner.mu.Unlock()
+	}
+	if a.anomalyDetector != nil {
+		a.anomalyDetector.mu.Lock()
+		a.anomalyDetector.anomalies = make(map[int64]*Anomaly)
+		a.anomalyDetector.mu.Unlock()
+	}
+	if a.optimizerRegistry != nil {
+		a.optimizerRegistry.mu.Lock()
+		a.optimizerRegistry.recommendations = make(map[int64]*OptRecommendation)
+		a.optimizerRegistry.mu.Unlock()
+	}
+	if a.errorAggregator != nil {
+		a.errorAggregator.mu.Lock()
+		a.errorAggregator.groups = make(map[string]*ErrorGroup)
+		a.errorAggregator.mu.Unlock()
+	}
+	if a.correlator != nil {
+		a.correlator.mu.Lock()
+		a.correlator.incidents = make(map[int64]*Incident)
+		a.correlator.mu.Unlock()
+	}
+	log.Info().Msg("Mock data cleared from all handlers")
 }

@@ -206,12 +206,14 @@ func (a *Analyzer) setProfile(p string) (string, error) {
 		a.latestReport = nil
 		a.previousReport = nil
 		a.reportMu.Unlock()
-		// Generate an immediate mock report so the dashboard doesn't have to
-		// wait for the next mock tick.
+		// Populate ALL v7 handlers with synthetic data so every dashboard
+		// page shows plausible content during the demo.
+		a.mockSource.populateAllHandlers()
+		// Generate an immediate mock health report.
 		a.mockSource.generateAndBroadcast()
 	} else {
-		// Switched back to live. Clear the mock report so the dashboard
-		// shows a diagnostic/awaiting panel until the next real analysis.
+		// Switched back to live. Clear all mock data so real scans start fresh.
+		a.mockSource.clearAllHandlers()
 		a.reportMu.Lock()
 		a.latestReport = nil
 		a.previousReport = nil
