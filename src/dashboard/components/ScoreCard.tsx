@@ -11,6 +11,7 @@ interface ScoreCardProps {
   color: 'blue' | 'green' | 'purple' | 'emerald' | 'amber' | 'red'
   trend?: number
   subtitle?: string
+  onClick?: () => void
 }
 
 const colorMap = {
@@ -75,7 +76,7 @@ function getTrendDescription(trend: number | undefined): string {
   return 'No change from last period'
 }
 
-export function ScoreCard({ title, score, icon, color, trend, subtitle }: ScoreCardProps) {
+export function ScoreCard({ title, score, icon, color, trend, subtitle, onClick }: ScoreCardProps) {
   const colors = colorMap[color]
   const circumference = 2 * Math.PI * 45 // radius = 45
   const offset = circumference - (score / 100) * circumference
@@ -93,14 +94,19 @@ export function ScoreCard({ title, score, icon, color, trend, subtitle }: ScoreC
   }, [])
 
   return (
-    <article 
+    <article
       className={clsx(
         'rounded-xl p-3 sm:p-4 border card-hover',
         colors.bg,
-        colors.border
+        colors.border,
+        onClick && 'cursor-pointer hover:ring-2 hover:ring-white/10 transition-all'
       )}
       aria-labelledby={titleId}
       aria-describedby={descId}
+      onClick={onClick}
+      onKeyDown={onClick ? (e) => e.key === 'Enter' && onClick() : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      role={onClick ? 'button' : undefined}
     >
       <div className="flex items-start justify-between mb-2 sm:mb-3">
         <div className={clsx('p-1.5 sm:p-2 rounded-lg', colors.bg)} aria-hidden="true">

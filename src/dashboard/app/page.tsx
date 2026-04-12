@@ -261,6 +261,8 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [showSettings, setShowSettings] = useState(false)
+  const [breakdownExpanded, setBreakdownExpanded] = useState(false)
+  const [focusDimension, setFocusDimension] = useState<string | null>(null)
   const [activeTab, _setActiveTab] = useState<TabId>('overview')
   const [toasts, setToasts] = useState<Toast[]>([])
 
@@ -411,6 +413,19 @@ export default function Dashboard() {
     },
     [addToast, fetchReport]
   )
+
+  // Drill into a specific score dimension — expands the breakdown panel
+  // and scrolls the target dimension card into view.
+  const drillIntoDimension = useCallback((dimension: string) => {
+    setBreakdownExpanded(true)
+    setFocusDimension(dimension)
+    // Scroll to the card after a tick so the DOM has rendered
+    setTimeout(() => {
+      document.getElementById(`breakdown-${dimension}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      // Clear focus highlight after 3 seconds
+      setTimeout(() => setFocusDimension(null), 3000)
+    }, 100)
+  }, [])
 
   // Keyboard navigation for tabs
   const handleTabKeyDown = useCallback((e: React.KeyboardEvent, currentIndex: number) => {
@@ -618,6 +633,7 @@ export default function Dashboard() {
                 icon={<Activity className="w-5 h-5 sm:w-6 sm:h-6" aria-hidden="true" />}
                 color="blue"
                 trend={displayReport.trends?.overall}
+                onClick={() => setBreakdownExpanded(!breakdownExpanded)}
               />
               <ScoreCard
                 title="Reliability"
@@ -625,6 +641,7 @@ export default function Dashboard() {
                 icon={<CheckCircle className="w-5 h-5 sm:w-6 sm:h-6" aria-hidden="true" />}
                 color="green"
                 trend={displayReport.trends?.reliability}
+                onClick={() => drillIntoDimension('reliability')}
               />
               <ScoreCard
                 title="Security"
@@ -632,6 +649,7 @@ export default function Dashboard() {
                 icon={<Shield className="w-5 h-5 sm:w-6 sm:h-6" aria-hidden="true" />}
                 color="purple"
                 trend={displayReport.trends?.security}
+                onClick={() => drillIntoDimension('security')}
               />
               <ScoreCard
                 title="Cost Efficiency"
@@ -640,6 +658,7 @@ export default function Dashboard() {
                 color="emerald"
                 trend={displayReport.trends?.cost}
                 subtitle={`$${displayReport.estimatedMonthlySavings.toLocaleString()}/mo savings`}
+                onClick={() => drillIntoDimension('cost')}
               />
               <ScoreCard
                 title="Architecture"
@@ -647,6 +666,7 @@ export default function Dashboard() {
                 icon={<Boxes className="w-5 h-5 sm:w-6 sm:h-6" aria-hidden="true" />}
                 color="amber"
                 trend={displayReport.trends?.architecture}
+                onClick={() => drillIntoDimension('architecture')}
               />
             </div>
           </section>
@@ -659,7 +679,13 @@ export default function Dashboard() {
         )}
 
         {/* Score breakdown drill-down — shows what contributes to each score */}
-        {displayReport.scores && <ScoreBreakdown />}
+        {displayReport.scores && (
+          <ScoreBreakdown
+            expanded={breakdownExpanded}
+            onToggle={() => setBreakdownExpanded(!breakdownExpanded)}
+            focusDimension={focusDimension}
+          />
+        )}
 
         {/* Navigation Tabs - Accessible */}
         <div

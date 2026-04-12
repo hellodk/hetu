@@ -121,10 +121,15 @@ function DimensionCard({ name, dim }: { name: keyof typeof dimensionConfig; dim:
   )
 }
 
-export function ScoreBreakdown() {
+interface ScoreBreakdownProps {
+  expanded: boolean
+  onToggle: () => void
+  focusDimension?: string | null
+}
+
+export function ScoreBreakdown({ expanded, onToggle, focusDimension }: ScoreBreakdownProps) {
   const [data, setData] = useState<Breakdown | null>(null)
   const [loading, setLoading] = useState(false)
-  const [expanded, setExpanded] = useState(false)
 
   const fetchBreakdown = useCallback(async () => {
     setLoading(true)
@@ -154,7 +159,7 @@ export function ScoreBreakdown() {
   return (
     <div className="mb-6">
       <button
-        onClick={() => setExpanded(!expanded)}
+        onClick={onToggle}
         className="flex items-center gap-2 text-sm text-slate-400 hover:text-slate-200 transition-colors mb-3"
       >
         {loading ? (
@@ -166,15 +171,23 @@ export function ScoreBreakdown() {
         )}
         <AlertTriangle className="w-4 h-4" aria-hidden="true" />
         <span>{expanded ? 'Hide' : 'Show'} score breakdown</span>
-        <span className="text-xs text-slate-500">— what contributes to each score</span>
+        <span className="text-xs text-slate-500">— click a score card or here to drill down</span>
       </button>
 
       {expanded && data && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in duration-300">
-          <DimensionCard name="reliability" dim={data.reliability} />
-          <DimensionCard name="security" dim={data.security} />
-          <DimensionCard name="cost" dim={data.cost} />
-          <DimensionCard name="architecture" dim={data.architecture} />
+          {(['reliability', 'security', 'cost', 'architecture'] as const).map(dim => (
+            <div
+              key={dim}
+              id={`breakdown-${dim}`}
+              className={clsx(
+                'transition-all duration-500',
+                focusDimension === dim && 'ring-2 ring-blue-500/50 rounded-xl'
+              )}
+            >
+              <DimensionCard name={dim} dim={data[dim]} />
+            </div>
+          ))}
         </div>
       )}
     </div>
