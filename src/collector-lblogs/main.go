@@ -20,6 +20,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -50,25 +51,89 @@ func main() {
 		defer eventBus.Close()
 	}
 
-	// Load LB configs from env (JSON array) or file
-	lbConfigs := loadLBConfigs()
-	if len(lbConfigs) == 0 {
-		log.Fatal().Msg("No load balancers configured. Set LB_CONFIGS env var.")
+	// Determine delivery mode: NATS (default) or HTTP fallback
+	deliveryMode := os.Getenv("DELIVERY_MODE")
+	if deliveryMode == "" {
+		deliveryMode = "nats"
 	}
 
-	// Processed key tracker (in-memory for now; Postgres when store wired)
-	processed := &processedTracker{keys: make(map[string]bool)}
+	// Build the publish callback based on delivery mode
+	var publishFn func(LBRequest)
+	var httpPusher *HTTPPusher
+
+	switch deliveryMode {
+	case "http":
+		analyzerURL := os.Getenv("ANALYZER_URL")
+		if analyzerURL == "" {
+			analyzerURL = "http://analyzer:8081"
+		}
+		httpPusher = NewHTTPPusher(analyzerURL, 50)
+		publishFn = httpPusher.Start(ctx)
+		log.Info().Str("target", analyzerURL).Msg("Using HTTP delivery mode")
+	default:
+		if eventBus != nil {
+			publishFn = func(req LBRequest) {
+				data, _ := json.Marshal(req)
+				eventBus.Publish(ctx, "lb.request", data)
+			}
+			log.Info().Msg("Using NATS delivery mode")
+		} else {
+			log.Warn().Msg("NATS not available and DELIVERY_MODE=nats; events will be dropped")
+			publishFn = func(LBRequest) {}
+		}
+	}
 
 	var wg sync.WaitGroup
-	for _, lbc := range lbConfigs {
+
+	// --- CloudWatch source ---
+	cwLogGroups := os.Getenv("CW_LOG_GROUPS")
+	if cwLogGroups != "" {
+		groups := strings.Split(cwLogGroups, ",")
+		for i := range groups {
+			groups[i] = strings.TrimSpace(groups[i])
+		}
+
+		awsRegion := os.Getenv("AWS_REGION")
+		opts := []func(*awsconfig.LoadOptions) error{}
+		if awsRegion != "" {
+			opts = append(opts, awsconfig.WithRegion(awsRegion))
+		}
+		awsCfg, err := awsconfig.LoadDefaultConfig(ctx, opts...)
+		if err != nil {
+			log.Fatal().Err(err).Msg("Failed to load AWS config for CloudWatch")
+		}
+		cwClient := cloudwatchlogs.NewFromConfig(awsCfg)
+
+		pollInterval := parseDuration(os.Getenv("CW_POLL_INTERVAL"), 10*time.Second)
+		lookback := parseDuration(os.Getenv("CW_LOOKBACK"), 5*time.Minute)
+
+		cwSource := NewCloudWatchSource(cwClient, groups, pollInterval, lookback, cfg.Cluster.ID, publishFn)
 		wg.Add(1)
-		go func(lb LBConfig) {
+		go func() {
 			defer wg.Done()
-			pollLoop(ctx, lb, cfg.Cluster.ID, eventBus, processed)
-		}(lbc)
+			cwSource.Start(ctx)
+		}()
 	}
 
-	log.Info().Int("lbs", len(lbConfigs)).Msg("LB log collector started")
+	// --- S3 source (existing) ---
+	lbConfigs := loadLBConfigs()
+	if len(lbConfigs) > 0 {
+		processed := &processedTracker{keys: make(map[string]bool)}
+		for _, lbc := range lbConfigs {
+			wg.Add(1)
+			go func(lb LBConfig) {
+				defer wg.Done()
+				pollLoop(ctx, lb, cfg.Cluster.ID, eventBus, processed)
+			}(lbc)
+		}
+		log.Info().Int("lbs", len(lbConfigs)).Msg("S3 LB log polling started")
+	}
+
+	if cwLogGroups == "" && len(lbConfigs) == 0 {
+		log.Warn().Msg("No LB sources configured. Set CW_LOG_GROUPS or LB_CONFIGS env var.")
+	}
+
+	log.Info().Str("delivery", deliveryMode).Msg("LB log collector started")
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
@@ -77,6 +142,20 @@ func main() {
 	log.Info().Msg("Shutting down")
 	cancel()
 	wg.Wait()
+	if httpPusher != nil {
+		httpPusher.Stop()
+	}
+}
+
+func parseDuration(s string, fallback time.Duration) time.Duration {
+	if s == "" {
+		return fallback
+	}
+	d, err := time.ParseDuration(s)
+	if err != nil {
+		return fallback
+	}
+	return d
 }
 
 func loadLBConfigs() []LBConfig {
