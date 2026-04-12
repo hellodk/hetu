@@ -11,20 +11,23 @@ function getAnalyzerUrl(): string {
   return 'http://cluster-intel-analyzer:8081'
 }
 
-export async function GET(req: NextRequest, { params }: { params: { path: string[] } }) {
-  return proxy(req, params.path)
+// Next.js 15+ changed route handler params to be async (Promise-based).
+type RouteContext = { params: Promise<{ path: string[] }> }
+
+export async function GET(req: NextRequest, ctx: RouteContext) {
+  return proxy(req, (await ctx.params).path)
 }
-export async function POST(req: NextRequest, { params }: { params: { path: string[] } }) {
-  return proxy(req, params.path)
+export async function POST(req: NextRequest, ctx: RouteContext) {
+  return proxy(req, (await ctx.params).path)
 }
-export async function PUT(req: NextRequest, { params }: { params: { path: string[] } }) {
-  return proxy(req, params.path)
+export async function PUT(req: NextRequest, ctx: RouteContext) {
+  return proxy(req, (await ctx.params).path)
 }
-export async function PATCH(req: NextRequest, { params }: { params: { path: string[] } }) {
-  return proxy(req, params.path)
+export async function PATCH(req: NextRequest, ctx: RouteContext) {
+  return proxy(req, (await ctx.params).path)
 }
-export async function DELETE(req: NextRequest, { params }: { params: { path: string[] } }) {
-  return proxy(req, params.path)
+export async function DELETE(req: NextRequest, ctx: RouteContext) {
+  return proxy(req, (await ctx.params).path)
 }
 
 async function proxy(request: NextRequest, pathSegments: string[]) {

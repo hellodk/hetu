@@ -11,7 +11,7 @@ interface Issue {
   category: string
   title: string
   description: string
-  affectedResources: string[]
+  affectedResources: string[] | null
   confidence: number
   rootCause?: string
   suggestedFix?: string
@@ -99,7 +99,7 @@ export function IssuesList({ issues, expanded = false, onViewAll, onIssueClick, 
         issue.title.toLowerCase().includes(query) ||
         issue.description.toLowerCase().includes(query) ||
         issue.category.toLowerCase().includes(query) ||
-        issue.affectedResources.some(r => r.toLowerCase().includes(query))
+        (issue.affectedResources ?? []).some(r => r.toLowerCase().includes(query))
       )
     }
 
@@ -307,7 +307,7 @@ export function IssuesList({ issues, expanded = false, onViewAll, onIssueClick, 
                         <div className="mt-3">
                           <p className="text-xs text-slate-400 uppercase tracking-wide mb-2">Affected Resources</p>
                           <div className="flex flex-wrap gap-2">
-                            {issue.affectedResources.map((resource, idx) => (
+                            {(issue.affectedResources ?? []).map((resource, idx) => (
                               <span
                                 key={idx}
                                 className="px-2 py-1 bg-black/20 rounded text-xs font-mono text-cluster-text flex items-center gap-1"
@@ -388,7 +388,7 @@ export function IssuesList({ issues, expanded = false, onViewAll, onIssueClick, 
             <div>
               <h4 className="text-sm font-medium text-slate-400 mb-2">Affected Resources</h4>
               <div className="flex flex-wrap gap-2">
-                {selectedIssue.affectedResources.map((resource, idx) => (
+                {(selectedIssue.affectedResources ?? []).map((resource, idx) => (
                   <span
                     key={idx}
                     className="px-3 py-1.5 bg-black/20 rounded-lg text-sm font-mono text-cluster-text flex items-center gap-2"
