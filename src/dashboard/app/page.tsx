@@ -20,6 +20,7 @@ import { SettingsModal } from '@/components/SettingsModal'
 import { NamespacesTable, NamespaceStats } from '@/components/NamespacesTable'
 import { DiagnosticPanel } from '@/components/DiagnosticPanel'
 import { ProfileBadge } from '@/components/ProfileBadge'
+import { ScoreBreakdown } from '@/components/ScoreBreakdown'
 
 // Types
 interface HealthScores {
@@ -656,6 +657,9 @@ export default function Dashboard() {
             onSwitchToDemo={() => handleSwitchProfile('mock')}
           />
         )}
+
+        {/* Score breakdown drill-down — shows what contributes to each score */}
+        {displayReport.scores && <ScoreBreakdown />}
 
         {/* Navigation Tabs - Accessible */}
         <div
