@@ -1457,6 +1457,7 @@ func (a *Analyzer) serveAPI() {
 	// Profile + diagnostics
 	mux.HandleFunc("/api/v1/profile", a.handleProfile)
 	mux.HandleFunc("/api/v1/status", a.handleStatus)
+	mux.HandleFunc("POST /api/v1/errors/analyze", a.handleErrorsAnalyze)
 
 	// v7 Phase 3: Error aggregator routes
 	if a.errorAggregator != nil {
@@ -1859,6 +1860,169 @@ func (a *Analyzer) handleIssues(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	json.NewEncoder(w).Encode(report.TopIssues)
+}
+
+// handleErrorsAnalyze sends the top error groups to the LLM for analysis.
+// The LLM returns a structured analysis per group which is stored in
+// aiSummary and returned to the caller.
+func (a *Analyzer) handleErrorsAnalyze(w http.ResponseWriter, r *http.Request) {
+	if a.errorAggregator == nil {
+		http.Error(w, "error aggregator not initialized", http.StatusServiceUnavailable)
+		return
+	}
+
+	// Collect top 10 error groups by count
+	a.errorAggregator.mu.RLock()
+	type kv struct {
+		fp string
+		g  *ErrorGroup
+	}
+	var sorted []kv
+	for fp, g := range a.errorAggregator.groups {
+		sorted = append(sorted, kv{fp, g})
+	}
+	a.errorAggregator.mu.RUnlock()
+
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i].g.Count > sorted[j].g.Count })
+	if len(sorted) > 10 {
+		sorted = sorted[:10]
+	}
+
+	if len(sorted) == 0 {
+		writeJSON(w, map[string]any{"analyzed": 0, "message": "No error groups to analyze"})
+		return
+	}
+
+	// Build prompt
+	var sb strings.Builder
+	sb.WriteString("Analyze these Kubernetes cluster error groups. For each, provide:\n")
+	sb.WriteString("1. Root cause analysis\n2. Impact assessment\n3. Recommended fix\n\n")
+	for i, s := range sorted {
+		sb.WriteString(fmt.Sprintf("Error %d: reason=%s service=%s namespace=%s count=%d\n",
+			i+1, s.g.Reason, s.g.Service, s.g.Namespace, s.g.Count))
+		sb.WriteString(fmt.Sprintf("  Title: %s\n", s.g.Title))
+		if s.g.SampleMessage != "" {
+			msg := s.g.SampleMessage
+			if len(msg) > 200 {
+				msg = msg[:200] + "..."
+			}
+			sb.WriteString(fmt.Sprintf("  Sample: %s\n", msg))
+		}
+		sb.WriteString("\n")
+	}
+	sb.WriteString("\nRespond with a JSON array where each element has: {\"index\": N, \"rootCause\": \"...\", \"impact\": \"...\", \"fix\": \"...\", \"severity\": \"critical|high|medium|low\"}\nOnly output valid JSON.")
+
+	// Call LLM
+	analysisCtx := map[string]any{
+		"ClusterID": a.config.ClusterID,
+		"Timestamp": time.Now().Format(time.RFC3339),
+		"Prompt":    sb.String(),
+	}
+
+	// Use a simple direct LLM call
+	llmReq := types.LLMRequest{
+		Model: a.config.LLMModel,
+		Messages: []types.LLMMessage{
+			{Role: "system", Content: "You are a Kubernetes SRE expert. Analyze error patterns and provide actionable root cause analysis. Always respond with valid JSON only."},
+			{Role: "user", Content: sb.String()},
+		},
+		MaxTokens:   a.config.MaxTokens,
+		Temperature: a.config.Temperature,
+	}
+
+	reqBody, _ := json.Marshal(llmReq)
+	httpReq, err := http.NewRequestWithContext(r.Context(), "POST", a.config.LLMEndpoint+"/chat/completions", bytes.NewReader(reqBody))
+	if err != nil {
+		http.Error(w, "failed to create LLM request: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	if a.config.LLMAPIKey != "" {
+		httpReq.Header.Set("Authorization", "Bearer "+a.config.LLMAPIKey)
+	}
+
+	resp, err := a.httpClient.Do(httpReq)
+	if err != nil {
+		http.Error(w, "LLM request failed: "+err.Error(), http.StatusBadGateway)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		http.Error(w, fmt.Sprintf("LLM returned %d: %s", resp.StatusCode, string(body)), http.StatusBadGateway)
+		return
+	}
+
+	var llmResp types.LLMResponse
+	if err := json.NewDecoder(resp.Body).Decode(&llmResp); err != nil {
+		http.Error(w, "failed to decode LLM response: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if len(llmResp.Choices) == 0 {
+		http.Error(w, "no choices in LLM response", http.StatusInternalServerError)
+		return
+	}
+
+	content := llmResp.Choices[0].Message.Content
+	content = extractJSON(content)
+
+	// Parse the array response
+	var analyses []struct {
+		Index    int    `json:"index"`
+		RootCause string `json:"rootCause"`
+		Impact   string `json:"impact"`
+		Fix      string `json:"fix"`
+		Severity string `json:"severity"`
+	}
+	if err := json.Unmarshal([]byte(content), &analyses); err != nil {
+		// Try wrapping in array if it's a single object
+		var single struct {
+			Index    int    `json:"index"`
+			RootCause string `json:"rootCause"`
+			Impact   string `json:"impact"`
+			Fix      string `json:"fix"`
+			Severity string `json:"severity"`
+		}
+		if err2 := json.Unmarshal([]byte(content), &single); err2 == nil {
+			analyses = append(analyses, single)
+		} else {
+			// Store raw response as summary for the first group
+			if len(sorted) > 0 {
+				a.errorAggregator.mu.Lock()
+				sorted[0].g.AISummary = content
+				a.errorAggregator.mu.Unlock()
+			}
+			writeJSON(w, map[string]any{
+				"analyzed": 1,
+				"raw":      content,
+				"model":    a.config.LLMModel,
+				"provider": a.config.LLMBackend,
+			})
+			return
+		}
+	}
+
+	// Store analysis back on each error group
+	a.errorAggregator.mu.Lock()
+	for _, analysis := range analyses {
+		idx := analysis.Index - 1
+		if idx >= 0 && idx < len(sorted) {
+			sorted[idx].g.AISummary = fmt.Sprintf("**Root Cause**: %s\n\n**Impact**: %s\n\n**Fix**: %s",
+				analysis.RootCause, analysis.Impact, analysis.Fix)
+		}
+	}
+	a.errorAggregator.mu.Unlock()
+
+	_ = analysisCtx // used for potential logging
+
+	writeJSON(w, map[string]any{
+		"analyzed": len(analyses),
+		"model":    a.config.LLMModel,
+		"provider": a.config.LLMBackend,
+		"analyses": analyses,
+	})
 }
 
 // handleProfile handles GET (return current profile) and POST (switch

@@ -134,7 +134,7 @@ async function fetchInsights(): Promise<Insight[]> {
   return insights
 }
 
-export function AIInsightFeed({ issues, recommendations }: { issues?: any[]; recommendations?: any[] }) {
+export function AIInsightFeed() {
   const [insights, setInsights] = useState<Insight[]>([])
   const [loading, setLoading] = useState(true)
   const [expanded, setExpanded] = useState(true)

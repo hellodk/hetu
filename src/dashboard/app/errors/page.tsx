@@ -263,6 +263,31 @@ export default function ErrorsPage() {
     }
   }
 
+  // AI analysis
+  const [analyzing, setAnalyzing] = useState(false)
+  const [analysisResult, setAnalysisResult] = useState<any>(null)
+
+  const handleRequestAnalysis = async () => {
+    setAnalyzing(true)
+    setAnalysisResult(null)
+    try {
+      const res = await fetch('/api/v1/errors/analyze', { method: 'POST' })
+      if (!res.ok) {
+        const text = await res.text()
+        setAnalysisResult({ error: text })
+        return
+      }
+      const data = await res.json()
+      setAnalysisResult(data)
+      // Refresh groups to pick up aiSummary
+      fetchGroups()
+    } catch (e: any) {
+      setAnalysisResult({ error: e.message })
+    } finally {
+      setAnalyzing(false)
+    }
+  }
+
   /* ================================================================== */
   /*  Render                                                             */
   /* ================================================================== */
@@ -278,11 +303,13 @@ export default function ErrorsPage() {
         </div>
         <div className="flex items-center gap-3">
           <button
-            className="flex items-center gap-2 px-3 py-1.5 text-sm bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 text-purple-300 rounded-lg transition-colors"
+            onClick={handleRequestAnalysis}
+            disabled={analyzing}
+            className="flex items-center gap-2 px-3 py-1.5 text-sm bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 text-purple-300 rounded-lg transition-colors disabled:opacity-50"
             title="Request AI analysis of all open error groups"
           >
-            <Sparkles className="w-4 h-4" />
-            Request AI Analysis
+            {analyzing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+            {analyzing ? 'Analyzing...' : 'Request AI Analysis'}
           </button>
           <button
             onClick={fetchGroups}
@@ -590,7 +617,21 @@ export default function ErrorsPage() {
                       </div>
                       {g.aiSummary ? (
                         <div>
-                          <p className="text-sm text-gray-300 leading-relaxed">{g.aiSummary}</p>
+                          <div className="text-sm text-gray-300 leading-relaxed whitespace-pre-wrap">
+                            {g.aiSummary.split('\n').map((line: string, i: number) => {
+                              // Simple markdown bold rendering
+                              const parts = line.split(/(\*\*[^*]+\*\*)/g)
+                              return (
+                                <p key={i} className={line === '' ? 'h-2' : ''}>
+                                  {parts.map((part, j) =>
+                                    part.startsWith('**') && part.endsWith('**')
+                                      ? <strong key={j} className="text-gray-100">{part.slice(2, -2)}</strong>
+                                      : part
+                                  )}
+                                </p>
+                              )
+                            })}
+                          </div>
                           {llmConfig && llmConfig.provider && llmConfig.model && (
                             <div className="mt-2 pt-2 border-t border-gray-700/30 text-xs text-gray-600 flex items-center gap-1">
                               <Sparkles className="w-3 h-3" />
@@ -603,9 +644,13 @@ export default function ErrorsPage() {
                           <p className="text-xs text-gray-500">
                             AI analysis pending. Use the &quot;Request AI Analysis&quot; button to analyze this error group.
                           </p>
-                          <button className="flex items-center gap-1.5 px-2.5 py-1 text-xs bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 text-purple-300 rounded transition-colors shrink-0 ml-3">
-                            <Sparkles className="w-3 h-3" />
-                            Analyze
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleRequestAnalysis() }}
+                            disabled={analyzing}
+                            className="flex items-center gap-1.5 px-2.5 py-1 text-xs bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 text-purple-300 rounded transition-colors shrink-0 ml-3 disabled:opacity-50"
+                          >
+                            {analyzing ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                            {analyzing ? 'Analyzing...' : 'Analyze'}
                           </button>
                         </div>
                       )}

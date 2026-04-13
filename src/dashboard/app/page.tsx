@@ -758,10 +758,7 @@ export default function Dashboard() {
 
           {/* Right Column - AI Insights */}
           <aside className="space-y-4 sm:space-y-6" aria-label="AI Insights sidebar">
-            <AIInsightFeed
-              issues={displayReport.topIssues}
-              recommendations={displayReport.recommendations}
-            />
+            <AIInsightFeed />
           </aside>
         </div>
       </main>
