@@ -115,10 +115,18 @@ func (o *RightSizingOptimizer) Run(ctx OptimizerContext) ([]OptRecommendation, e
 			sugMemLim = sugMemReq
 		}
 
-		// Estimate savings (rough: $0.03/core-hour, $0.004/GB-hour)
-		cpuSaved := math.Max(0, cpuReq-sugCPUReq) // cores saved
+		// Resource savings (no dollar estimates without cloud pricing config)
+		cpuSaved := math.Max(0, cpuReq-sugCPUReq)
 		memSavedGB := math.Max(0, (memReq-sugMemReq)/1e9)
-		monthlySavings := (cpuSaved*0.03 + memSavedGB*0.004) * 730 // hours/month
+
+		// Only compute dollar savings if cloud pricing is configured via env
+		var monthlySavings float64
+		cpuPricePerHr := getEnvFloatOrDefault("CLOUD_CPU_PRICE_PER_HOUR", 0)
+		memPricePerHr := getEnvFloatOrDefault("CLOUD_MEM_GB_PRICE_PER_HOUR", 0)
+		if cpuPricePerHr > 0 || memPricePerHr > 0 {
+			monthlySavings = (cpuSaved*cpuPricePerHr + memSavedGB*memPricePerHr) * 730
+		}
+		_ = cpuSaved // used above
 
 		yaml := fmt.Sprintf(`resources:
   requests:
@@ -158,7 +166,7 @@ func (o *RightSizingOptimizer) Run(ctx OptimizerContext) ([]OptRecommendation, e
 				"memRequest": formatBytes(sugMemReq),
 				"memLimit":   formatBytes(sugMemLim),
 			},
-			Rationale:               fmt.Sprintf("%s: CPU at %.0f%% of request, memory at %.0f%% of request", category, cpuRatio*100, memRatio*100),
+			Rationale:               fmt.Sprintf("%s: CPU at %.0f%% of request, memory at %.0f%% of request. Can reclaim %.0fm CPU + %.0fMi memory", category, cpuRatio*100, memRatio*100, cpuSaved*1000, memSavedGB*1024),
 			EstimatedSavingsMonthly: monthlySavings,
 			YAMLPatch:               yaml,
 		}

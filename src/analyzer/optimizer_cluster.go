@@ -43,8 +43,8 @@ func (o *ClusterOptimizer) Run(ctx OptimizerContext) ([]OptRecommendation, error
 						"cpuUtilization": fmt.Sprintf("%.1f%%", util*100),
 						"status":         "underutilized",
 					},
-					Rationale:               fmt.Sprintf("Node %s has only %.1f%% CPU utilization. Consider draining and removing this node to save costs.", node, util*100),
-					EstimatedSavingsMonthly: 50, // rough per-node estimate
+					Rationale:               fmt.Sprintf("Node %s has only %.1f%% CPU utilization. Consider draining and removing if workloads fit on remaining nodes.", node, util*100),
+					EstimatedSavingsMonthly: getEnvFloatOrDefault("CLOUD_NODE_PRICE_PER_MONTH", 0),
 				})
 			}
 		}
