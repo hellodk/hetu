@@ -133,10 +133,13 @@ export function ResourceUtilization({ resources }: ResourceUtilizationProps) {
     )
   }
 
-  const cpuSavings = ((resources.cpu.requested - resources.cpu.used) * 30 * 24 * 0.05).toFixed(0)
-  const memorySavings = ((resources.memory.requested - resources.memory.used) * 30 * 24 * 0.01).toFixed(0)
-  const overallEfficiency = ((resources.cpu.used / resources.cpu.requested +
-    resources.memory.used / resources.memory.requested) / 2 * 100).toFixed(0)
+  // Show reclaimable resources, NOT dollar amounts (we don't know cloud pricing)
+  const cpuReclaimable = Math.max(0, resources.cpu.requested - resources.cpu.used).toFixed(1)
+  const memoryReclaimable = Math.max(0, resources.memory.requested - resources.memory.used).toFixed(1)
+  const overallEfficiency = resources.cpu.requested > 0 && resources.memory.requested > 0
+    ? ((resources.cpu.used / resources.cpu.requested +
+        resources.memory.used / resources.memory.requested) / 2 * 100).toFixed(0)
+    : '0'
 
   return (
     <section className="bg-cluster-card rounded-xl border border-cluster-border p-4 sm:p-6" aria-labelledby="resource-heading">
@@ -186,16 +189,16 @@ export function ResourceUtilization({ resources }: ResourceUtilizationProps) {
       {/* Summary Cards */}
       <div className="grid grid-cols-3 gap-2 sm:gap-4 mt-6 pt-6 border-t border-cluster-border">
         <div className="text-center">
-          <p className="text-lg sm:text-2xl font-bold text-yellow-400" aria-label={`$${cpuSavings} potential CPU savings per month`}>
-            ${cpuSavings}
+          <p className="text-lg sm:text-2xl font-bold text-yellow-400" aria-label={`${cpuReclaimable} cores reclaimable`}>
+            {cpuReclaimable}
           </p>
-          <p className="text-[10px] sm:text-xs text-slate-400 mt-1">CPU savings/mo</p>
+          <p className="text-[10px] sm:text-xs text-slate-400 mt-1">Cores reclaimable</p>
         </div>
         <div className="text-center">
-          <p className="text-lg sm:text-2xl font-bold text-yellow-400" aria-label={`$${memorySavings} potential memory savings per month`}>
-            ${memorySavings}
+          <p className="text-lg sm:text-2xl font-bold text-yellow-400" aria-label={`${memoryReclaimable} Gi reclaimable`}>
+            {memoryReclaimable}
           </p>
-          <p className="text-[10px] sm:text-xs text-slate-400 mt-1">Memory savings/mo</p>
+          <p className="text-[10px] sm:text-xs text-slate-400 mt-1">Gi reclaimable</p>
         </div>
         <div className="text-center">
           <p className="text-lg sm:text-2xl font-bold text-green-400" aria-label={`${overallEfficiency}% overall efficiency`}>

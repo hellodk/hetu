@@ -657,7 +657,7 @@ export default function Dashboard() {
                 icon={<DollarSign className="w-5 h-5 sm:w-6 sm:h-6" aria-hidden="true" />}
                 color="emerald"
                 trend={displayReport.trends?.cost}
-                subtitle={`$${displayReport.estimatedMonthlySavings.toLocaleString()}/mo savings`}
+                subtitle={displayReport.estimatedMonthlySavings > 0 ? `$${displayReport.estimatedMonthlySavings.toLocaleString()}/mo savings` : undefined}
                 onClick={() => drillIntoDimension('cost')}
               />
               <ScoreCard
