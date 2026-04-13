@@ -454,6 +454,28 @@ function EnhancedLogViewer({
               WARN {levelCounts.warn}
             </button>
           )}
+          {levelCounts.info > 0 && (
+            <button
+              onClick={() => setLevelFilter(levelFilter === 'info' ? 'all' : 'info')}
+              className={clsx(
+                'px-2 py-1 text-xs rounded transition-colors',
+                levelFilter === 'info' ? 'bg-blue-700 text-white' : 'bg-gray-800 text-blue-400 hover:bg-blue-900/50'
+              )}
+            >
+              INFO {levelCounts.info}
+            </button>
+          )}
+          {levelCounts.debug > 0 && (
+            <button
+              onClick={() => setLevelFilter(levelFilter === 'debug' ? 'all' : 'debug')}
+              className={clsx(
+                'px-2 py-1 text-xs rounded transition-colors',
+                levelFilter === 'debug' ? 'bg-gray-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700/50'
+              )}
+            >
+              DEBUG {levelCounts.debug}
+            </button>
+          )}
         </div>
 
         <span className="flex-1" />

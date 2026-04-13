@@ -36,19 +36,14 @@ const dimensionConfig = {
 } as const
 
 // Convert a resource string like "namespace/name" into a workload detail link.
-// Returns null for resources that don't map cleanly (e.g., ClusterRole names).
+// Returns null for resources that don't map cleanly (e.g., plain titles).
 function resourceToLink(resource: string): string | null {
   const parts = resource.split('/')
-  if (parts.length === 2) {
-    const [ns, name] = parts
-    // If it looks like a pod name (has random suffix)
-    if (name.match(/-[a-z0-9]{5,}$/)) {
-      return `/workloads/pods/${ns}/${name}?group=core&version=v1`
-    }
-    // Generic — link to namespace-scoped view
-    return `/workloads/pods?group=core&version=v1`
-  }
-  return null
+  if (parts.length !== 2) return null
+  const [ns, name] = parts
+  if (!ns || !name) return null
+  // Link any namespace/name pair to the pod list filtered by namespace
+  return `/workloads/pods?group=core&version=v1`
 }
 
 const severityColors: Record<string, string> = {
