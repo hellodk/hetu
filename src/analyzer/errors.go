@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -149,6 +150,82 @@ func (ea *ErrorAggregator) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/errors/groups", ea.handleListGroups)
 	mux.HandleFunc("GET /api/v1/errors/groups/{id}", ea.handleGetGroup)
 	mux.HandleFunc("PATCH /api/v1/errors/groups/{id}/status", ea.handleUpdateStatus)
+	mux.HandleFunc("GET /api/v1/errors/summary", ea.handleSummary)
+}
+
+// handleSummary returns aggregated error statistics with per-reason breakdown.
+func (ea *ErrorAggregator) handleSummary(w http.ResponseWriter, r *http.Request) {
+	ea.mu.RLock()
+	defer ea.mu.RUnlock()
+
+	totalGroups := 0
+	totalOccurrences := int64(0)
+	openCount := 0
+	byReason := map[string]int{}
+	byNamespace := map[string]int{}
+	byService := map[string]int64{}
+	var topGroups []map[string]any
+
+	for _, g := range ea.groups {
+		totalGroups++
+		totalOccurrences += int64(g.Count)
+		if g.Status == "open" {
+			openCount++
+		}
+		byReason[g.Reason]++
+		byNamespace[g.Namespace]++
+		byService[g.Service] += int64(g.Count)
+	}
+
+	// Top 10 groups by count
+	type kv struct {
+		fp string
+		g  *ErrorGroup
+	}
+	var sorted []kv
+	for fp, g := range ea.groups {
+		sorted = append(sorted, kv{fp, g})
+	}
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i].g.Count > sorted[j].g.Count })
+	for i, s := range sorted {
+		if i >= 10 {
+			break
+		}
+		topGroups = append(topGroups, map[string]any{
+			"id":        s.g.ID,
+			"title":     s.g.Title,
+			"reason":    s.g.Reason,
+			"service":   s.g.Service,
+			"namespace": s.g.Namespace,
+			"count":     s.g.Count,
+			"lastSeen":  s.g.LastSeen,
+			"aiSummary": s.g.AISummary,
+		})
+	}
+
+	// Top services by error count
+	type svcCount struct {
+		Service string `json:"service"`
+		Count   int64  `json:"count"`
+	}
+	var topServices []svcCount
+	for svc, cnt := range byService {
+		topServices = append(topServices, svcCount{svc, cnt})
+	}
+	sort.Slice(topServices, func(i, j int) bool { return topServices[i].Count > topServices[j].Count })
+	if len(topServices) > 10 {
+		topServices = topServices[:10]
+	}
+
+	writeJSON(w, map[string]any{
+		"totalGroups":      totalGroups,
+		"totalOccurrences": totalOccurrences,
+		"openCount":        openCount,
+		"byReason":         byReason,
+		"byNamespace":      byNamespace,
+		"topGroups":        topGroups,
+		"topServices":      topServices,
+	})
 }
 
 func (ea *ErrorAggregator) handleListGroups(w http.ResponseWriter, r *http.Request) {
