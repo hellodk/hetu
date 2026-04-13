@@ -105,7 +105,7 @@ interface PodCondition {
   lastProbeTime?: string
 }
 
-type LogLevel = 'error' | 'warn' | 'info' | 'debug' | 'default'
+type LogLevel = 'fatal' | 'error' | 'warn' | 'info' | 'debug' | 'trace' | 'notice' | 'default'
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
@@ -131,23 +131,84 @@ function formatAge(timestamp: string | undefined): string {
   return `${days}d`
 }
 
+// detectLogLevel parses log lines from common formats:
+// - Structured JSON: {"level":"error",...} or {"severity":"ERROR",...}
+// - Logfmt: level=error or lvl=ERR
+// - Bracketed: [ERROR] or [ERR]
+// - Prefixed: ERROR: or E0413
+// - Go zerolog: "level":"error"
+// - Python: ERROR:root:message
+// - Java: FATAL, SEVERE, FINE, FINER, FINEST
 function detectLogLevel(line: string): LogLevel {
-  const lower = line.toLowerCase()
-  // Check common patterns: level=ERROR, [ERROR], "level":"error", ERROR:, etc.
-  if (/\b(error|fatal|panic|exception)\b/i.test(lower)) return 'error'
-  if (/\b(warn|warning)\b/i.test(lower)) return 'warn'
-  if (/\b(debug|trace)\b/i.test(lower)) return 'debug'
-  if (/\b(info)\b/i.test(lower)) return 'info'
+  // Try JSON structured logs first (most reliable)
+  const jsonMatch = line.match(/"(?:level|severity|lvl)"\s*:\s*"([^"]+)"/i)
+  if (jsonMatch) {
+    return mapLevelString(jsonMatch[1])
+  }
+
+  // Logfmt: level=error or lvl=warn
+  const logfmtMatch = line.match(/\b(?:level|lvl|log_level)=(\w+)/i)
+  if (logfmtMatch) {
+    return mapLevelString(logfmtMatch[1])
+  }
+
+  // Bracketed: [ERROR], [WARN], [DEBUG], [TRACE]
+  const bracketMatch = line.match(/\[(\w+)\]/)
+  if (bracketMatch) {
+    const mapped = mapLevelString(bracketMatch[1])
+    if (mapped !== 'default') return mapped
+  }
+
+  // K8s-style single letter prefix: E0413, W0413, I0413
+  if (/^[EF]\d{4}\s/.test(line)) return 'error'
+  if (/^W\d{4}\s/.test(line)) return 'warn'
+  if (/^I\d{4}\s/.test(line)) return 'info'
+
+  // Keyword search (least specific, last resort)
+  const first200 = line.slice(0, 200).toLowerCase()
+  if (/\b(fatal|panic|critical)\b/.test(first200)) return 'fatal'
+  if (/\b(error|err|exception|fail|failed)\b/.test(first200)) return 'error'
+  if (/\b(warn|warning)\b/.test(first200)) return 'warn'
+  if (/\b(notice)\b/.test(first200)) return 'notice'
+  if (/\b(debug|dbg)\b/.test(first200)) return 'debug'
+  if (/\b(trace|verbose|finest|finer)\b/.test(first200)) return 'trace'
+  if (/\b(info|inf)\b/.test(first200)) return 'info'
+
   return 'default'
+}
+
+function mapLevelString(s: string): LogLevel {
+  switch (s.toLowerCase()) {
+    case 'fatal': case 'panic': case 'critical': case 'severe': case 'dpanic': return 'fatal'
+    case 'error': case 'err': case 'e': return 'error'
+    case 'warn': case 'warning': case 'w': return 'warn'
+    case 'notice': return 'notice'
+    case 'info': case 'inf': case 'i': case 'information': return 'info'
+    case 'debug': case 'dbg': case 'd': case 'fine': return 'debug'
+    case 'trace': case 'verbose': case 'finest': case 'finer': case 'v': return 'trace'
+    default: return 'default'
+  }
 }
 
 function getLogLevelColor(level: LogLevel): string {
   switch (level) {
+    case 'fatal': return 'text-red-500 font-bold'
     case 'error': return 'text-red-400'
     case 'warn': return 'text-yellow-400'
-    case 'debug': return 'text-gray-500'
+    case 'notice': return 'text-blue-300'
     case 'info': return 'text-gray-300'
+    case 'debug': return 'text-gray-500'
+    case 'trace': return 'text-gray-600 italic'
     default: return 'text-gray-300'
+  }
+}
+
+function getLogLineBg(level: LogLevel): string {
+  switch (level) {
+    case 'fatal': return 'bg-red-950/50 border-l-2 border-red-500'
+    case 'error': return 'bg-red-950/30'
+    case 'warn': return 'bg-yellow-950/20'
+    default: return ''
   }
 }
 
@@ -425,7 +486,7 @@ function EnhancedLogViewer({
   }
 
   const levelCounts = useMemo(() => {
-    const counts = { error: 0, warn: 0, info: 0, debug: 0, default: 0 }
+    const counts = { fatal: 0, error: 0, warn: 0, notice: 0, info: 0, debug: 0, trace: 0, default: 0 }
     lines.forEach(l => { counts[l.level]++ })
     return counts
   }, [lines])
@@ -486,50 +547,25 @@ function EnhancedLogViewer({
           >
             All
           </button>
-          {levelCounts.error > 0 && (
-            <button
-              onClick={() => setLevelFilter(levelFilter === 'error' ? 'all' : 'error')}
-              className={clsx(
-                'px-2 py-1 text-xs rounded transition-colors',
-                levelFilter === 'error' ? 'bg-red-700 text-white' : 'bg-gray-800 text-red-400 hover:bg-red-900/50'
-              )}
-            >
-              ERR {levelCounts.error}
-            </button>
-          )}
-          {levelCounts.warn > 0 && (
-            <button
-              onClick={() => setLevelFilter(levelFilter === 'warn' ? 'all' : 'warn')}
-              className={clsx(
-                'px-2 py-1 text-xs rounded transition-colors',
-                levelFilter === 'warn' ? 'bg-yellow-700 text-white' : 'bg-gray-800 text-yellow-400 hover:bg-yellow-900/50'
-              )}
-            >
-              WARN {levelCounts.warn}
-            </button>
-          )}
-          {levelCounts.info > 0 && (
-            <button
-              onClick={() => setLevelFilter(levelFilter === 'info' ? 'all' : 'info')}
-              className={clsx(
-                'px-2 py-1 text-xs rounded transition-colors',
-                levelFilter === 'info' ? 'bg-blue-700 text-white' : 'bg-gray-800 text-blue-400 hover:bg-blue-900/50'
-              )}
-            >
-              INFO {levelCounts.info}
-            </button>
-          )}
-          {levelCounts.debug > 0 && (
-            <button
-              onClick={() => setLevelFilter(levelFilter === 'debug' ? 'all' : 'debug')}
-              className={clsx(
-                'px-2 py-1 text-xs rounded transition-colors',
-                levelFilter === 'debug' ? 'bg-gray-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700/50'
-              )}
-            >
-              DEBUG {levelCounts.debug}
-            </button>
-          )}
+          {([
+            { level: 'fatal' as const,  label: 'FATAL',  on: 'bg-red-800 text-white',    off: 'bg-gray-800 text-red-500 hover:bg-red-950/50' },
+            { level: 'error' as const,  label: 'ERR',    on: 'bg-red-700 text-white',    off: 'bg-gray-800 text-red-400 hover:bg-red-900/50' },
+            { level: 'warn' as const,   label: 'WARN',   on: 'bg-yellow-700 text-white', off: 'bg-gray-800 text-yellow-400 hover:bg-yellow-900/50' },
+            { level: 'notice' as const, label: 'NOTICE', on: 'bg-blue-800 text-white',   off: 'bg-gray-800 text-blue-300 hover:bg-blue-900/50' },
+            { level: 'info' as const,   label: 'INFO',   on: 'bg-blue-700 text-white',   off: 'bg-gray-800 text-blue-400 hover:bg-blue-900/50' },
+            { level: 'debug' as const,  label: 'DEBUG',  on: 'bg-gray-600 text-white',   off: 'bg-gray-800 text-gray-400 hover:bg-gray-700/50' },
+            { level: 'trace' as const,  label: 'TRACE',  on: 'bg-gray-700 text-white',   off: 'bg-gray-800 text-gray-500 hover:bg-gray-700/50' },
+          ]).map(({ level, label, on, off }) => (
+            levelCounts[level] > 0 && (
+              <button
+                key={level}
+                onClick={() => setLevelFilter(levelFilter === level ? 'all' : level)}
+                className={clsx('px-2 py-1 text-xs rounded transition-colors', levelFilter === level ? on : off)}
+              >
+                {label} {levelCounts[level]}
+              </button>
+            )
+          ))}
         </div>
 
         <span className="flex-1" />
@@ -657,10 +693,8 @@ function EnhancedLogViewer({
           <div
             key={line.id}
             className={clsx(
-              'px-3 py-0.5 hover:bg-white/5 border-l-2 transition-colors',
-              line.level === 'error' ? 'border-l-red-500/60 bg-red-950/20' :
-              line.level === 'warn' ? 'border-l-yellow-500/40' :
-              'border-l-transparent',
+              'px-3 py-0.5 hover:bg-white/5 transition-colors',
+              getLogLineBg(line.level) || 'border-l-2 border-l-transparent',
               wrapLines ? 'whitespace-pre-wrap break-all' : 'whitespace-pre'
             )}
           >
