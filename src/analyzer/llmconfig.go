@@ -333,11 +333,174 @@ func (a *LLMConfigAPI) handleUpdate(w http.ResponseWriter, r *http.Request) {
 
 	log.Info().Str("provider", a.config.Provider).Str("model", a.config.Model).Str("endpoint", a.config.Endpoint).Msg("LLM config updated via UI")
 
-	// Note: This is a runtime-only update. For persistence across restarts,
-	// the user should update values-deploy.yaml and helm upgrade.
-	// TODO: In a future version, write to a ConfigMap or Postgres.
-
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 	writeJSON(w, a.config)
+}
+
+// ---------------------------------------------------------------------------
+// Smart model router: auto-detect the best available model at startup
+// ---------------------------------------------------------------------------
+
+// AutoDetectModel probes the configured LLM endpoint and returns the best
+// available model name. Prefers larger models and instruction-tuned variants.
+// Returns the original model name unchanged if detection fails or the model exists.
+type discoveredModel struct {
+	id   string
+	size string
+}
+
+func AutoDetectModel(provider, endpoint, currentModel, apiKey string) string {
+	client := &http.Client{Timeout: 10 * time.Second}
+	baseEndpoint := strings.TrimRight(endpoint, "/")
+	var models []discoveredModel
+
+	switch provider {
+	case "ollama":
+		ollamaBase := strings.TrimSuffix(baseEndpoint, "/v1")
+		resp, err := client.Get(ollamaBase + "/api/tags")
+		if err != nil {
+			log.Debug().Err(err).Msg("Model auto-detect: cannot reach Ollama")
+			return currentModel
+		}
+		defer resp.Body.Close()
+		var data struct {
+			Models []struct {
+				Name    string `json:"name"`
+				Details struct {
+					ParameterSize string `json:"parameter_size"`
+				} `json:"details"`
+			} `json:"models"`
+		}
+		if json.NewDecoder(resp.Body).Decode(&data) == nil {
+			for _, m := range data.Models {
+				models = append(models, discoveredModel{id: m.Name, size: m.Details.ParameterSize})
+			}
+		}
+
+	case "llamacpp":
+		url := baseEndpoint + "/v1/models"
+		resp, err := client.Get(url)
+		if err != nil {
+			return currentModel
+		}
+		defer resp.Body.Close()
+		var data struct {
+			Data []struct {
+				ID string `json:"id"`
+			} `json:"data"`
+		}
+		if json.NewDecoder(resp.Body).Decode(&data) == nil {
+			for _, m := range data.Data {
+				models = append(models, discoveredModel{id: m.ID})
+			}
+		}
+
+	case "openai", "vllm":
+		url := baseEndpoint + "/models"
+		if !strings.HasSuffix(baseEndpoint, "/v1") {
+			url = baseEndpoint + "/v1/models"
+		}
+		httpReq, _ := http.NewRequest("GET", url, nil)
+		if apiKey != "" {
+			httpReq.Header.Set("Authorization", "Bearer "+apiKey)
+		}
+		resp, err := client.Do(httpReq)
+		if err != nil {
+			return currentModel
+		}
+		defer resp.Body.Close()
+		var data struct {
+			Data []struct {
+				ID string `json:"id"`
+			} `json:"data"`
+		}
+		if json.NewDecoder(resp.Body).Decode(&data) == nil {
+			for _, m := range data.Data {
+				models = append(models, discoveredModel{id: m.ID})
+			}
+		}
+
+	default:
+		return currentModel
+	}
+
+	if len(models) == 0 {
+		log.Warn().Str("provider", provider).Str("endpoint", endpoint).Msg("Model auto-detect: no models found")
+		return currentModel
+	}
+
+	// Check if the configured model exists
+	for _, m := range models {
+		if m.id == currentModel {
+			log.Info().Str("model", currentModel).Msg("Configured model found at endpoint")
+			return currentModel
+		}
+	}
+
+	// Configured model not found — pick the best available
+	best := selectBestModel(models)
+	log.Warn().
+		Str("configured", currentModel).
+		Str("selected", best).
+		Int("available", len(models)).
+		Msg("Configured model not found — auto-selected best available model")
+	return best
+}
+
+func selectBestModel(models []discoveredModel) string {
+	if len(models) == 0 {
+		return ""
+	}
+
+	type scored struct {
+		id    string
+		score int
+	}
+	var candidates []scored
+	for _, m := range models {
+		s := 0
+		lower := strings.ToLower(m.id)
+
+		if strings.Contains(lower, "instruct") {
+			s += 50
+		}
+		if strings.Contains(lower, "chat") {
+			s += 40
+		}
+		if strings.Contains(lower, "70b") || strings.Contains(lower, "72b") {
+			s += 60
+		}
+		if strings.Contains(lower, "14b") || strings.Contains(lower, "13b") {
+			s += 30
+		}
+		if strings.Contains(lower, "7b") || strings.Contains(lower, "8b") {
+			s += 20
+		}
+		if strings.Contains(lower, "qwen") {
+			s += 15
+		}
+		if strings.Contains(lower, "deepseek") || strings.Contains(lower, "coder") {
+			s += 15
+		}
+		if strings.Contains(lower, "llama") {
+			s += 10
+		}
+		if strings.Contains(lower, "mistral") || strings.Contains(lower, "codestral") {
+			s += 10
+		}
+		if strings.Contains(lower, "embed") || strings.Contains(lower, "nomic") {
+			s -= 100
+		}
+
+		candidates = append(candidates, scored{id: m.id, score: s})
+	}
+
+	best := candidates[0]
+	for _, c := range candidates[1:] {
+		if c.score > best.score {
+			best = c
+		}
+	}
+	return best.id
 }

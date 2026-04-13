@@ -2275,8 +2275,38 @@ func main() {
 	analyzer.anomalyDetector = NewAnomalyDetector(promURL, config.ClusterID)
 
 	// v7 Phase 5: Correlator + RCA
+	// Build RCA LLM config from the analyzer's resolved runtime config (env vars
+	// take precedence over unified config). This ensures the RCA engine uses the
+	// same model as the main analyzer — no hardcoded "llama3" fallback.
 	analyzer.correlator = NewCorrelator(config.ClusterID, 5*time.Minute)
-	analyzer.rcaEngine = NewRCAEngine(ucfg.LLM, analyzer.correlator)
+	rcaLLMCfg := ucfg.LLM
+	if config.LLMBackend != "" {
+		rcaLLMCfg.Provider = config.LLMBackend
+	}
+	if config.LLMEndpoint != "" {
+		rcaLLMCfg.Endpoint = config.LLMEndpoint
+	}
+	if config.LLMModel != "" {
+		rcaLLMCfg.Model = config.LLMModel
+	}
+	if config.LLMAPIKey != "" {
+		rcaLLMCfg.APIKey = config.LLMAPIKey
+	}
+	if config.MaxTokens > 0 {
+		rcaLLMCfg.MaxTokens = config.MaxTokens
+	}
+	if config.Temperature > 0 {
+		rcaLLMCfg.Temperature = config.Temperature
+	}
+	// For the Ollama provider, the LLM client adds /api/chat to the base
+	// endpoint. Strip /v1 suffix if present to avoid /v1/api/chat (404).
+	if rcaLLMCfg.Provider == "ollama" {
+		rcaLLMCfg.Endpoint = strings.TrimSuffix(rcaLLMCfg.Endpoint, "/v1")
+	}
+	// Smart model router: probe the endpoint and auto-select the best
+	// available model if the configured one doesn't exist.
+	rcaLLMCfg.Model = AutoDetectModel(rcaLLMCfg.Provider, rcaLLMCfg.Endpoint, rcaLLMCfg.Model, rcaLLMCfg.APIKey)
+	analyzer.rcaEngine = NewRCAEngine(rcaLLMCfg, analyzer.correlator)
 	analyzer.correlator.onNewIncident = func(incidentID int64) {
 		if analyzer.rcaEngine != nil && analyzer.rcaEngine.llmClient != nil {
 			ctx := context.Background()
