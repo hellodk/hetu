@@ -536,16 +536,19 @@ func (m *mockSource) clearAllHandlers() {
 	if a.optimizerRegistry != nil {
 		a.optimizerRegistry.mu.Lock()
 		a.optimizerRegistry.recommendations = make(map[int64]*OptRecommendation)
+		a.optimizerRegistry.nextID = 1
 		a.optimizerRegistry.mu.Unlock()
 	}
 	if a.errorAggregator != nil {
 		a.errorAggregator.mu.Lock()
 		a.errorAggregator.groups = make(map[string]*ErrorGroup)
+		a.errorAggregator.nextID = 1
 		a.errorAggregator.mu.Unlock()
 	}
 	if a.correlator != nil {
 		a.correlator.mu.Lock()
 		a.correlator.incidents = make(map[int64]*Incident)
+		a.correlator.nextID = 1
 		a.correlator.mu.Unlock()
 	}
 	if a.lbLogAggregator != nil {
