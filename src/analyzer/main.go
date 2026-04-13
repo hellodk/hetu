@@ -1235,54 +1235,79 @@ func (a *Analyzer) buildHealthReport(events []types.TelemetryEvent, metrics []ty
 		}
 	}
 
-	// Aggregate resource utilization
+	// Aggregate resource utilization from the LATEST metric per unique
+	// resource. The ring buffer contains multiple snapshots of the same
+	// pod/node (one per scrape tick). We must deduplicate by resource key
+	// and use the most recent entry, otherwise capacity/usage gets inflated
+	// by the number of scrape cycles in the buffer.
+	latestPods := make(map[string]types.ResourceMetrics)  // ns/name → latest
+	latestNodes := make(map[string]types.ResourceMetrics) // name → latest
+	latestPVCs := make(map[string]types.ResourceMetrics)  // ns/name → latest
+
+	for _, m := range metrics {
+		key := m.Resource.Namespace + "/" + m.Resource.Name
+		switch m.ResourceType {
+		case "pod":
+			if existing, ok := latestPods[key]; !ok || m.Timestamp.After(existing.Timestamp) {
+				latestPods[key] = m
+			}
+		case "node":
+			key = m.Resource.Name
+			if existing, ok := latestNodes[key]; !ok || m.Timestamp.After(existing.Timestamp) {
+				latestNodes[key] = m
+			}
+		case "pvc":
+			if existing, ok := latestPVCs[key]; !ok || m.Timestamp.After(existing.Timestamp) {
+				latestPVCs[key] = m
+			}
+		}
+	}
+
 	var cpuUsed, cpuReq, cpuCap float64
 	var memUsed, memReq, memCap float64
 	var storageUsed, storageCap float64
 
-	podSet := make(map[string]bool)
-	nodeSet := make(map[string]bool)
+	for key, m := range latestPods {
+		ns := m.Resource.Namespace
+		_ = key
 
-	for _, m := range metrics {
-		if m.ResourceType == "pod" {
-			ns := m.Resource.Namespace
-			podSet[ns+"/"+m.Resource.Name] = true
+		if report.Summary.Namespaces[ns] == nil {
+			report.Summary.Namespaces[ns] = &types.NamespaceStats{}
+		}
+		report.Summary.Namespaces[ns].PodCount++
 
-			if report.Summary.Namespaces[ns] == nil {
-				report.Summary.Namespaces[ns] = &types.NamespaceStats{}
-			}
-			report.Summary.Namespaces[ns].PodCount++
+		if v, ok := m.Metrics["cpu_millicores"].(float64); ok {
+			cpuUsed += v / 1000.0
+			report.Summary.Namespaces[ns].CPUUsed += v / 1000.0
+		}
+		if v, ok := m.Metrics["memory_bytes"].(float64); ok {
+			memGi := v / (1024 * 1024 * 1024)
+			memUsed += memGi
+			report.Summary.Namespaces[ns].MemoryUsed += memGi
+		}
+		if v, ok := m.Metrics["cpu_requested_millicores"].(float64); ok {
+			cpuReq += v / 1000.0
+		}
+		if v, ok := m.Metrics["memory_requested_bytes"].(float64); ok {
+			memReq += v / (1024 * 1024 * 1024)
+		}
+	}
 
-			if v, ok := m.Metrics["cpu_millicores"].(float64); ok {
-				cpuUsed += v / 1000.0
-				report.Summary.Namespaces[ns].CPUUsed += v / 1000.0
-			}
-			if v, ok := m.Metrics["memory_bytes"].(float64); ok {
-				memGi := v / (1024 * 1024 * 1024)
-				memUsed += memGi
-				report.Summary.Namespaces[ns].MemoryUsed += memGi
-			}
-			if v, ok := m.Metrics["cpu_requested_millicores"].(float64); ok {
-				cpuReq += v / 1000.0
-			}
-			if v, ok := m.Metrics["memory_requested_bytes"].(float64); ok {
-				memReq += v / (1024 * 1024 * 1024)
-			}
-		} else if m.ResourceType == "node" {
-			nodeSet[m.Resource.Name] = true
-			if v, ok := m.Metrics["cpu_capacity_millicores"].(float64); ok {
-				cpuCap += v / 1000.0
-			}
-			if v, ok := m.Metrics["memory_capacity_bytes"].(float64); ok {
-				memCap += v / (1024 * 1024 * 1024)
-			}
-		} else if m.ResourceType == "pvc" {
-			if v, ok := m.Metrics["capacity_bytes"].(float64); ok {
-				storageCap += v / (1024 * 1024 * 1024 * 1024) // Convert to Ti
-			}
-			if v, ok := m.Metrics["used_bytes"].(float64); ok {
-				storageUsed += v / (1024 * 1024 * 1024 * 1024)
-			}
+	for _, m := range latestNodes {
+		if v, ok := m.Metrics["cpu_capacity_millicores"].(float64); ok {
+			cpuCap += v / 1000.0
+		}
+		if v, ok := m.Metrics["memory_capacity_bytes"].(float64); ok {
+			memCap += v / (1024 * 1024 * 1024)
+		}
+	}
+
+	for _, m := range latestPVCs {
+		if v, ok := m.Metrics["capacity_bytes"].(float64); ok {
+			storageCap += v / (1024 * 1024 * 1024 * 1024)
+		}
+		if v, ok := m.Metrics["used_bytes"].(float64); ok {
+			storageUsed += v / (1024 * 1024 * 1024 * 1024)
 		}
 	}
 
@@ -1375,9 +1400,9 @@ func (a *Analyzer) buildHealthReport(events []types.TelemetryEvent, metrics []ty
 		}
 	}
 
-	// Pod counts already set implicitly above
-	report.Summary.TotalPods = len(podSet)
-	report.Summary.TotalNodes = len(nodeSet)
+	// Pod/node counts from deduplicated maps
+	report.Summary.TotalPods = len(latestPods)
+	report.Summary.TotalNodes = len(latestNodes)
 	report.Summary.HealthyPods = report.Summary.TotalPods - len(report.TopIssues)
 	if report.Summary.HealthyPods < 0 {
 		report.Summary.HealthyPods = 0
