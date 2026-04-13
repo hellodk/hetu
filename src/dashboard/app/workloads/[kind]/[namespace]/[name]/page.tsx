@@ -258,29 +258,53 @@ function EnhancedLogViewer({
   const [tailLines, setTailLines] = useState<number>(200)
   const [wrapLines, setWrapLines] = useState(true)
   const [levelFilter, setLevelFilter] = useState<LogLevel | 'all'>('all')
+  const [lastReceived, setLastReceived] = useState<number | null>(null)
+  const [lastHeartbeat, setLastHeartbeat] = useState<number | null>(null)
+  const [idleSeconds, setIdleSeconds] = useState(0)
   const wsRef = useRef<WebSocket | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const lineIdRef = useRef(0)
+  const reconnectRef = useRef(0)
 
   const connect = useCallback(() => {
     wsRef.current?.close()
     setLines([])
     setConnected(false)
+    setLastReceived(null)
+    setLastHeartbeat(null)
     lineIdRef.current = 0
 
     const base = getWsUrl()
     const url = `${base}/api/v1/k8s/pods/${namespace}/${podName}/logs?container=${encodeURIComponent(container)}&follow=true&tail=${tailLines}`
     const ws = new WebSocket(url)
 
-    ws.onopen = () => setConnected(true)
-    ws.onclose = () => setConnected(false)
+    ws.onopen = () => {
+      setConnected(true)
+      reconnectRef.current = 0 // reset backoff
+    }
+    ws.onclose = () => {
+      setConnected(false)
+      // Auto-reconnect with exponential backoff
+      const delay = Math.min(3000 * Math.pow(2, reconnectRef.current), 30000)
+      reconnectRef.current++
+      setTimeout(() => {
+        if (wsRef.current === ws) connect()
+      }, delay)
+    }
     ws.onerror = () => setConnected(false)
     ws.onmessage = (e) => {
       const text = e.data as string
+
+      // Filter heartbeat messages (backend sends these every 10s)
+      if (text.startsWith('{"type":"heartbeat"')) {
+        setLastHeartbeat(Date.now())
+        return
+      }
+
+      setLastReceived(Date.now())
       const level = detectLogLevel(text)
-      // Try to extract timestamp from the beginning of the line
       const tsMatch = text.match(/^(\d{4}-\d{2}-\d{2}T[\d:.]+Z?)\s/)
       const logLine: LogLine = {
         id: lineIdRef.current++,
@@ -300,8 +324,22 @@ function EnhancedLogViewer({
 
   useEffect(() => {
     connect()
-    return () => { wsRef.current?.close() }
+    return () => {
+      reconnectRef.current = 999 // prevent reconnect on unmount
+      wsRef.current?.close()
+    }
   }, [connect])
+
+  // Update idle seconds every second
+  useEffect(() => {
+    const id = setInterval(() => {
+      const lastActivity = lastReceived || lastHeartbeat
+      if (lastActivity) {
+        setIdleSeconds(Math.floor((Date.now() - lastActivity) / 1000))
+      }
+    }, 1000)
+    return () => clearInterval(id)
+  }, [lastReceived, lastHeartbeat])
 
   useEffect(() => {
     if (following && bottomRef.current) {
@@ -404,7 +442,11 @@ function EnhancedLogViewer({
         {/* Connection status */}
         <div className="flex items-center gap-1.5">
           <span className={clsx('w-2 h-2 rounded-full', connected ? 'bg-green-400 animate-pulse' : 'bg-red-400')} />
-          <span className="text-xs text-gray-400">{connected ? 'Live' : 'Disconnected'}</span>
+          <span className="text-xs text-gray-400">
+            {connected
+              ? (lastReceived && idleSeconds < 5 ? 'Receiving' : `Live${idleSeconds > 5 ? ` · idle ${idleSeconds}s` : ''}`)
+              : 'Reconnecting...'}
+          </span>
         </div>
 
         {/* Tail lines selector */}
@@ -552,7 +594,7 @@ function EnhancedLogViewer({
             onClick={() => setFollowing(false)}
             className="flex items-center gap-1 px-2 py-1.5 text-xs bg-green-700 text-white rounded hover:bg-green-600"
           >
-            <Pause className="w-3 h-3" /> Following
+            <Pause className="w-3 h-3" /> Following{idleSeconds > 10 ? ` (idle ${idleSeconds}s)` : ''}
           </button>
         )}
       </div>
@@ -593,7 +635,9 @@ function EnhancedLogViewer({
         {filteredLines.length === 0 && (
           <div className="flex items-center justify-center h-full text-gray-500 text-sm">
             {lines.length === 0
-              ? (connected ? 'Waiting for log output...' : 'Not connected')
+              ? (connected
+                ? `Stream connected — waiting for log output${idleSeconds > 5 ? ` (${idleSeconds}s)` : '...'}`
+                : 'Connecting...')
               : 'No lines match the current filter'}
           </div>
         )}

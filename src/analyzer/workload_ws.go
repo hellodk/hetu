@@ -100,17 +100,40 @@ func (h *WorkloadHandler) handlePodLogsWS(w http.ResponseWriter, r *http.Request
 	}
 	defer stream.Close()
 
+	// Heartbeat: send periodic proof-of-life so the frontend knows the
+	// stream is still connected even when the pod isn't writing logs.
+	heartbeatDone := make(chan struct{})
+	go func() {
+		defer close(heartbeatDone)
+		ticker := time.NewTicker(10 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-r.Context().Done():
+				return
+			case <-ticker.C:
+				if err := conn.WriteJSON(map[string]string{
+					"type": "heartbeat",
+					"ts":   time.Now().Format(time.RFC3339),
+				}); err != nil {
+					return
+				}
+			}
+		}
+	}()
+
 	// Read lines and send over WS
 	scanner := bufio.NewScanner(stream)
 	scanner.Buffer(make([]byte, 0, 64*1024), 256*1024)
 	for scanner.Scan() {
 		if err := conn.WriteMessage(websocket.TextMessage, scanner.Bytes()); err != nil {
-			return // client disconnected
+			break // client disconnected
 		}
 	}
 	if err := scanner.Err(); err != nil {
 		conn.WriteJSON(map[string]string{"error": err.Error()})
 	}
+	<-heartbeatDone
 }
 
 // --- Pod exec (WebSocket) ----------------------------------------------------
