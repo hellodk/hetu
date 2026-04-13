@@ -46,6 +46,7 @@ func (h *WorkloadHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/k8s/ns/{namespace}/{group}/{version}/{kind}/{name}", h.handleDetail)
 	mux.HandleFunc("GET /api/v1/k8s/ns/{namespace}/{group}/{version}/{kind}/{name}/yaml", h.handleYAML)
 	mux.HandleFunc("GET /api/v1/k8s/ns/{namespace}/{group}/{version}/{kind}/{name}/events", h.handleEvents)
+	mux.HandleFunc("GET /api/v1/k8s/ns/{namespace}/{group}/{version}/{kind}/{name}/pods", h.handleChildPods)
 
 	// Cluster-scoped resources (prefixed with /cluster/ to avoid route conflicts)
 	mux.HandleFunc("GET /api/v1/k8s/cluster/{group}/{version}/{kind}", h.handleListCluster)
@@ -345,6 +346,58 @@ func (h *WorkloadHandler) getEvents(w http.ResponseWriter, r *http.Request, ns, 
 		return
 	}
 	writeJSON(w, eventList)
+}
+
+// --- Child Pods --------------------------------------------------------------
+
+// handleChildPods returns the pods owned by a parent workload (Deployment,
+// StatefulSet, ReplicaSet, DaemonSet). It reads .spec.selector.matchLabels
+// from the parent and lists pods matching that label selector.
+func (h *WorkloadHandler) handleChildPods(w http.ResponseWriter, r *http.Request) {
+	gvr := gvrFromRequest(r)
+	ns := r.PathValue("namespace")
+	name := r.PathValue("name")
+
+	// 1. Get the parent resource via dynamic client.
+	parent, err := h.dynamic.Resource(gvr).Namespace(ns).Get(r.Context(), name, metav1.GetOptions{})
+	if err != nil {
+		http.Error(w, err.Error(), statusFromK8sErr(err))
+		return
+	}
+
+	// 2. Extract .spec.selector.matchLabels from the unstructured object.
+	matchLabels, found, err := unstructured.NestedStringMap(parent.Object, "spec", "selector", "matchLabels")
+	if err != nil || !found || len(matchLabels) == 0 {
+		// No selector — return empty list rather than an error.
+		writeJSON(w, map[string]any{"items": []any{}})
+		return
+	}
+
+	// 3. Build a label selector string ("key1=val1,key2=val2").
+	parts := make([]string, 0, len(matchLabels))
+	for k, v := range matchLabels {
+		parts = append(parts, k+"="+v)
+	}
+	sort.Strings(parts)
+	selector := strings.Join(parts, ",")
+
+	// 4. List pods in the same namespace with that selector.
+	podGVR := schema.GroupVersionResource{Group: "", Version: "v1", Resource: "pods"}
+	podList, err := h.dynamic.Resource(podGVR).Namespace(ns).List(r.Context(), metav1.ListOptions{
+		LabelSelector: selector,
+	})
+	if err != nil {
+		http.Error(w, err.Error(), statusFromK8sErr(err))
+		return
+	}
+
+	// 5. Return full pod objects so the frontend can read metadata, status, etc.
+	items := make([]map[string]any, 0, len(podList.Items))
+	for _, pod := range podList.Items {
+		items = append(items, pod.Object)
+	}
+
+	writeJSON(w, map[string]any{"items": items})
 }
 
 // --- Helpers -----------------------------------------------------------------
