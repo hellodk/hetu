@@ -1332,27 +1332,51 @@ func (a *Analyzer) buildHealthReport(events []types.TelemetryEvent, metrics []ty
 		},
 	}
 
-	// Extract scores from LLM response. Only allocate the Scores struct
-	// when the LLM actually returned a healthScores block — otherwise
-	// leave it as nil so the dashboard knows AI insights are unavailable.
+	// ================================================================
+	// SCORE CALCULATION: Rule-based engine blended with LLM (60/40).
+	// The rule engine uses data from the v7 scanners (security, pod
+	// health, optimizer, anomaly, correlator). The LLM provides an
+	// independent assessment. Blending makes scores deterministic and
+	// auditable while still benefiting from AI insights.
+	// ================================================================
+
+	// 1. Run rule-based scoring engine
+	scoreInput := a.BuildScoreInput()
+	ruleRel, ruleSec, ruleCost, ruleArch := CalculateScores(scoreInput)
+
+	// 2. Extract LLM scores (if available)
+	var llmRel, llmSec, llmCost, llmArch *int
 	if llmResponse != nil {
 		if rawScores, ok := llmResponse["healthScores"].(map[string]any); ok {
-			scores := &types.HealthScores{}
 			if v, ok := rawScores["reliability"].(float64); ok {
-				scores.Reliability = int(v)
+				iv := int(v); llmRel = &iv
 			}
 			if v, ok := rawScores["security"].(float64); ok {
-				scores.Security = int(v)
+				iv := int(v); llmSec = &iv
 			}
 			if v, ok := rawScores["cost"].(float64); ok {
-				scores.Cost = int(v)
+				iv := int(v); llmCost = &iv
 			}
 			if v, ok := rawScores["architecture"].(float64); ok {
-				scores.Architecture = int(v)
+				iv := int(v); llmArch = &iv
 			}
-			scores.Overall = types.CalculateOverallScore(*scores)
-			report.Scores = scores
 		}
+	}
+
+	// 3. Blend: 60% rule-based + 40% LLM (or 100% rule if no LLM)
+	scores := &types.HealthScores{
+		Reliability:  BlendWithLLM(ruleRel, llmRel),
+		Security:     BlendWithLLM(ruleSec, llmSec),
+		Cost:         BlendWithLLM(ruleCost, llmCost),
+		Architecture: BlendWithLLM(ruleArch, llmArch),
+	}
+	scores.Overall = types.CalculateOverallScore(*scores)
+	report.Scores = scores
+
+	// Scores are ALWAYS available now — rule engine doesn't need LLM.
+	// The dashboard will never see scores=nil in live mode.
+
+	if llmResponse != nil {
 
 		// Extract issues
 		if issues, ok := llmResponse["issues"].([]any); ok {
