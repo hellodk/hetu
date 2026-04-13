@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { getApiUrl } from '@/lib/api'
+import { getWsUrl } from '@/lib/api'
 import { Play, Pause, Trash2, Download, ArrowDown } from 'lucide-react'
 
 interface Props {
@@ -24,7 +24,7 @@ export function PodLogViewer({ namespace, podName, containers }: Props) {
       wsRef.current.close()
     }
 
-    const base = getApiUrl().replace(/^http/, 'ws')
+    const base = getWsUrl()
     const url = `${base}/api/v1/k8s/pods/${namespace}/${podName}/logs?container=${container}&follow=true&tail=200`
     const ws = new WebSocket(url)
 

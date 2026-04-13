@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { apiFetch, apiFetchText, getApiUrl } from '@/lib/api'
+import { apiFetch, apiFetchText, getWsUrl } from '@/lib/api'
 import { PodExecTerminal } from '@/components/PodExecTerminal'
 import { WorkloadActions } from '@/components/WorkloadActions'
 import clsx from 'clsx'
@@ -270,7 +270,7 @@ function EnhancedLogViewer({
     setConnected(false)
     lineIdRef.current = 0
 
-    const base = getApiUrl().replace(/^http/, 'ws')
+    const base = getWsUrl()
     const url = `${base}/api/v1/k8s/pods/${namespace}/${podName}/logs?container=${encodeURIComponent(container)}&follow=true&tail=${tailLines}`
     const ws = new WebSocket(url)
 

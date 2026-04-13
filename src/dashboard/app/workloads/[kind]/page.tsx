@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { apiFetch, getApiUrl } from '@/lib/api'
+import { apiFetch, getWsUrl } from '@/lib/api'
 import {
   Search, RefreshCw, ChevronLeft, ChevronRight,
   AlertCircle, CheckCircle, Clock, Loader2, X,
@@ -227,7 +227,7 @@ function LogStreamPanel({
     setConnected(false)
     lineIdRef.current = 0
 
-    const base = getApiUrl().replace(/^http/, 'ws') || `ws://${window.location.host}`
+    const base = getWsUrl()
     const isMulti = targetPods.length > 1
 
     targetPods.forEach(pod => {

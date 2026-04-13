@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { getApiUrl } from '@/lib/api'
+import { getWsUrl } from '@/lib/api'
 
 interface Props {
   namespace: string
@@ -55,7 +55,7 @@ export function PodExecTerminal({ namespace, podName, containers }: Props) {
     terminalRef.current = term
 
     // Connect WebSocket
-    const base = getApiUrl().replace(/^http/, 'ws')
+    const base = getWsUrl()
     const url = `${base}/api/v1/k8s/pods/${namespace}/${podName}/exec?container=${container}&command=${encodeURIComponent(command)}`
     const ws = new WebSocket(url)
     ws.binaryType = 'arraybuffer'

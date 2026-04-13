@@ -19,10 +19,10 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   // Browser-side API URL: empty string means use relative URLs (/api/v1/...)
-  // which are proxied server-side by Next.js rewrites in next.config.js
-  // to the analyzer service (ANALYZER_URL env var, default http://cluster-intel-analyzer:8081).
-  // This avoids CORS entirely — the browser only talks to the dashboard.
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || ''
+  // which are proxied server-side by Next.js route handlers.
+  // For WebSocket (logs, exec), the browser needs the direct analyzer URL
+  // since Next.js can't proxy WebSocket upgrades.
+  const apiUrl = process.env.ANALYZER_URL || process.env.NEXT_PUBLIC_API_URL || ''
 
   return (
     <html lang="en" className="dark">
