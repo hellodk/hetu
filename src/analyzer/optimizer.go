@@ -122,6 +122,13 @@ func (r *OptimizerRegistry) RunOne(name string) {
 	}
 
 	r.mu.Lock()
+	// Clear previous recommendations of the same type to avoid duplicates
+	// across scan cycles. Keep non-open (accepted/dismissed/applied) recs.
+	for id, existing := range r.recommendations {
+		if existing.Type == name && existing.Status == "open" {
+			delete(r.recommendations, id)
+		}
+	}
 	for i := range recs {
 		recs[i].ID = r.nextID
 		recs[i].CreatedAt = time.Now()
