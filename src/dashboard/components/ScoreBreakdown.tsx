@@ -1,10 +1,11 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import Link from 'next/link'
 import { apiFetch } from '@/lib/api'
 import {
   ChevronDown, ChevronUp, Activity, Shield, DollarSign, Boxes,
-  AlertTriangle, CheckCircle, TrendingDown, Loader2
+  AlertTriangle, CheckCircle, TrendingDown, Loader2, ExternalLink
 } from 'lucide-react'
 import clsx from 'clsx'
 
@@ -33,6 +34,22 @@ const dimensionConfig = {
   cost: { label: 'Cost Efficiency', icon: DollarSign, color: 'emerald' },
   architecture: { label: 'Architecture', icon: Boxes, color: 'amber' },
 } as const
+
+// Convert a resource string like "namespace/name" into a workload detail link.
+// Returns null for resources that don't map cleanly (e.g., ClusterRole names).
+function resourceToLink(resource: string): string | null {
+  const parts = resource.split('/')
+  if (parts.length === 2) {
+    const [ns, name] = parts
+    // If it looks like a pod name (has random suffix)
+    if (name.match(/-[a-z0-9]{5,}$/)) {
+      return `/workloads/pods/${ns}/${name}?group=core&version=v1`
+    }
+    // Generic — link to namespace-scoped view
+    return `/workloads/pods?group=core&version=v1`
+  }
+  return null
+}
 
 const severityColors: Record<string, string> = {
   critical: 'text-red-400 bg-red-500/10 border-red-500/20',
@@ -70,14 +87,47 @@ function FactorRow({ factor }: { factor: Factor }) {
       {expanded && hasResources && (
         <div className="px-3 pb-2 pt-1 border-t border-cluster-border bg-black/20">
           <div className="flex flex-wrap gap-1.5">
-            {factor.resources!.slice(0, 20).map((r, i) => (
-              <span key={i} className="text-xs font-mono text-slate-400 bg-cluster-border/50 rounded px-1.5 py-0.5">
-                {r}
-              </span>
-            ))}
+            {factor.resources!.slice(0, 20).map((r, i) => {
+              const link = resourceToLink(r)
+              if (link) {
+                return (
+                  <Link
+                    key={i}
+                    href={link}
+                    className="text-xs font-mono text-blue-400 bg-blue-500/10 border border-blue-500/20 rounded px-1.5 py-0.5 hover:bg-blue-500/20 transition-colors inline-flex items-center gap-1"
+                  >
+                    {r}
+                    <ExternalLink className="w-3 h-3" />
+                  </Link>
+                )
+              }
+              return (
+                <span key={i} className="text-xs font-mono text-slate-400 bg-cluster-border/50 rounded px-1.5 py-0.5">
+                  {r}
+                </span>
+              )
+            })}
             {factor.resources!.length > 20 && (
               <span className="text-xs text-slate-500">+{factor.resources!.length - 20} more</span>
             )}
+          </div>
+          {/* Level 3-4: related pages */}
+          <div className="flex gap-2 mt-2 pt-2 border-t border-cluster-border/50">
+            {factor.severity === 'critical' || factor.severity === 'high' ? (
+              <Link href="/incidents" className="text-[10px] text-blue-400 hover:underline">View related incidents</Link>
+            ) : null}
+            {factor.name?.includes('security') || factor.name?.includes('severity') ? (
+              <Link href="/security" className="text-[10px] text-blue-400 hover:underline">Security findings</Link>
+            ) : null}
+            {factor.name?.includes('rightsizing') || factor.name?.includes('opportunities') ? (
+              <Link href="/optimization" className="text-[10px] text-blue-400 hover:underline">Optimization details</Link>
+            ) : null}
+            {factor.name?.includes('pods') || factor.name?.includes('crashloop') || factor.name?.includes('pending') ? (
+              <Link href="/workloads/pods?group=core&version=v1" className="text-[10px] text-blue-400 hover:underline">Pod health</Link>
+            ) : null}
+            {factor.name?.includes('anomal') ? (
+              <Link href="/anomalies" className="text-[10px] text-blue-400 hover:underline">Anomaly details</Link>
+            ) : null}
           </div>
         </div>
       )}
