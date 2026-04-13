@@ -3,6 +3,7 @@ const nextConfig = {
   output: 'standalone',
   reactStrictMode: true,
   poweredByHeader: false,
+
   
   // Environment variables - empty string means use relative URLs (proxied via rewrites)
   env: {
