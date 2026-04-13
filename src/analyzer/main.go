@@ -2137,6 +2137,7 @@ func main() {
 		disc, _ := discovery.NewDiscoveryClientForConfig(restCfg)
 		if cs != nil && dyn != nil && disc != nil {
 			analyzer.workloadHandler = NewWorkloadHandler(cs, dyn, disc)
+			analyzer.workloadHandler.restConfig = restCfg
 			analyzer.securityScanner = NewSecurityScanner(cs)
 			analyzer.podHealthScanner = NewPodHealthScanner(cs)
 			analyzer.ingressScanner = NewIngressScanner(cs)
