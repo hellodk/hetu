@@ -190,6 +190,9 @@ export function ScoreCard({ title, score, icon, color, trend, subtitle, onClick 
           <p id={descId} className={clsx('text-xs sm:text-sm font-medium', getScoreColor(score))}>
             {getScoreLabel(score)}
           </p>
+          {onClick && (
+            <p className="text-[10px] text-blue-400/60 mt-1">Click to drill down</p>
+          )}
           {subtitle && (
             <p className="text-[10px] sm:text-xs text-slate-400 mt-1 truncate" title={subtitle}>
               {subtitle}

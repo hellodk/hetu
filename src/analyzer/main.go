@@ -2307,12 +2307,25 @@ func main() {
 	// available model if the configured one doesn't exist.
 	rcaLLMCfg.Model = AutoDetectModel(rcaLLMCfg.Provider, rcaLLMCfg.Endpoint, rcaLLMCfg.Model, rcaLLMCfg.APIKey)
 	analyzer.rcaEngine = NewRCAEngine(rcaLLMCfg, analyzer.correlator)
-	analyzer.correlator.onNewIncident = func(incidentID int64) {
-		if analyzer.rcaEngine != nil && analyzer.rcaEngine.llmClient != nil {
-			ctx := context.Background()
-			if _, err := analyzer.rcaEngine.Analyze(ctx, incidentID); err != nil {
-				log.Warn().Err(err).Int64("incident", incidentID).Msg("Auto-RCA failed")
+	// Rate-limited auto-RCA: only analyze 1 incident at a time to avoid
+	// overwhelming the LLM with hundreds of concurrent requests.
+	rcaQueue := make(chan int64, 100)
+	go func() {
+		for id := range rcaQueue {
+			if analyzer.rcaEngine != nil && analyzer.rcaEngine.llmClient != nil {
+				ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+				if _, err := analyzer.rcaEngine.Analyze(ctx, id); err != nil {
+					log.Warn().Err(err).Int64("incident", id).Msg("Auto-RCA failed")
+				}
+				cancel()
 			}
+		}
+	}()
+	analyzer.correlator.onNewIncident = func(incidentID int64) {
+		select {
+		case rcaQueue <- incidentID:
+		default:
+			// Queue full — skip this incident's RCA to prevent backpressure
 		}
 	}
 
