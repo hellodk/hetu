@@ -1871,7 +1871,7 @@ func (a *Analyzer) handleErrorsAnalyze(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Collect top 10 error groups by count
+	// Collect top error groups by count (limit kept small for fast LLM response)
 	a.errorAggregator.mu.RLock()
 	type kv struct {
 		fp string
@@ -1885,7 +1885,10 @@ func (a *Analyzer) handleErrorsAnalyze(w http.ResponseWriter, r *http.Request) {
 
 	sort.Slice(sorted, func(i, j int) bool { return sorted[i].g.Count > sorted[j].g.Count })
 	if len(sorted) > 10 {
-		sorted = sorted[:10]
+	maxAnalyze := getEnvIntOrDefault("LLM_MAX_ERROR_GROUPS", 5)
+	if len(sorted) > maxAnalyze {
+		sorted = sorted[:maxAnalyze]
+	}
 	}
 
 	if len(sorted) == 0 {
