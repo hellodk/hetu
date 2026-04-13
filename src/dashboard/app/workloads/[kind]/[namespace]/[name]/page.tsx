@@ -341,23 +341,35 @@ function EnhancedLogViewer({
     return () => clearInterval(id)
   }, [lastReceived, lastHeartbeat])
 
+  // Auto-scroll: anchor at the MIDDLE of the viewport, not the bottom.
+  // New lines appear below midpoint, older lines scroll up above it.
+  // This gives the user a stable reading zone in the upper half while
+  // the log continues flowing below — like a teleprompter.
   useEffect(() => {
-    if (following && bottomRef.current) {
-      bottomRef.current.scrollIntoView({ behavior: 'auto' })
+    if (following && containerRef.current) {
+      const el = containerRef.current
+      // Scroll so the latest content is at ~50% of the viewport height
+      const targetScroll = el.scrollHeight - el.clientHeight * 0.5
+      el.scrollTop = Math.max(0, targetScroll)
     }
   }, [lines, following])
 
   const handleScroll = useCallback(() => {
     if (!containerRef.current) return
     const { scrollTop, scrollHeight, clientHeight } = containerRef.current
-    if (scrollHeight - scrollTop - clientHeight > 80) {
+    // User scrolled up significantly from the follow position — pause
+    const followPosition = scrollHeight - clientHeight * 0.5
+    if (followPosition - scrollTop > clientHeight * 0.3) {
       setFollowing(false)
     }
   }, [])
 
-  const scrollToBottom = () => {
+  const scrollToFollow = () => {
     setFollowing(true)
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (containerRef.current) {
+      const el = containerRef.current
+      el.scrollTop = el.scrollHeight - el.clientHeight * 0.5
+    }
   }
 
   const downloadLogs = () => {
@@ -583,7 +595,7 @@ function EnhancedLogViewer({
         {/* Follow toggle */}
         {!following && (
           <button
-            onClick={scrollToBottom}
+            onClick={scrollToFollow}
             className="flex items-center gap-1 px-2 py-1.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-500"
           >
             <ArrowDown className="w-3 h-3" /> Follow

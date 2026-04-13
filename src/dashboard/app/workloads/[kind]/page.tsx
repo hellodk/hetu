@@ -277,16 +277,20 @@ function LogStreamPanel({
     }
   }, [connectAll])
 
+  // Anchor scroll at viewport midpoint, not bottom — gives user a
+  // stable reading zone above while new lines flow below.
   useEffect(() => {
-    if (following && bottomRef.current) {
-      bottomRef.current.scrollIntoView({ behavior: 'auto' })
+    if (following && containerRef.current) {
+      const el = containerRef.current
+      el.scrollTop = Math.max(0, el.scrollHeight - el.clientHeight * 0.5)
     }
   }, [lines, following])
 
   const handleScroll = useCallback(() => {
     if (!containerRef.current) return
     const { scrollTop, scrollHeight, clientHeight } = containerRef.current
-    if (scrollHeight - scrollTop - clientHeight > 80) {
+    const followPos = scrollHeight - clientHeight * 0.5
+    if (followPos - scrollTop > clientHeight * 0.3) {
       setFollowing(false)
     }
   }, [])
@@ -429,7 +433,7 @@ function LogStreamPanel({
         </button>
         {!following && (
           <button
-            onClick={() => { setFollowing(true); bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }}
+            onClick={() => { setFollowing(true); if (containerRef.current) { containerRef.current.scrollTop = containerRef.current.scrollHeight - containerRef.current.clientHeight * 0.5 } }}
             className="flex items-center gap-0.5 px-1.5 py-0.5 bg-blue-600 text-white rounded text-xs"
           >
             <ArrowDown className="w-3 h-3" /> Follow
