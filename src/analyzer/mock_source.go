@@ -426,12 +426,12 @@ func (m *mockSource) populateAllHandlers() {
 		now := time.Now()
 		urls := []string{"/api/v1/users", "/api/v1/orders", "/api/v1/products", "/healthz", "/api/v1/search", "/api/v1/auth/login", "/static/app.js", "/api/v1/payments"}
 		methods := []string{"GET", "POST", "GET", "GET", "GET", "POST", "GET", "POST"}
+		clientIPs := []string{"10.0.1.15", "10.0.2.22", "10.0.1.8", "10.0.3.50", "192.168.1.100", "10.0.2.33", "10.0.1.42", "172.16.0.5"}
 		for i := 0; i < 500; i++ {
 			idx := i % len(urls)
 			status := 200
 			targetStatus := 200
 			latency := 15.0 + float64(m.rng.IntN(100))
-			// Inject some errors
 			if i%50 == 0 {
 				status = 502
 				targetStatus = 500
@@ -444,14 +444,14 @@ func (m *mockSource) populateAllHandlers() {
 				status = 404
 				targetStatus = 404
 			}
-			a.lbLogAggregator.Ingest(
+			a.lbLogAggregator.IngestWithClient(
 				"app-alb", "ALB",
 				urls[idx], methods[idx], "tg-app-prod",
+				clientIPs[i%len(clientIPs)],
 				status, targetStatus, latency,
 				now.Add(-time.Duration(i)*3*time.Second),
 			)
 		}
-		// Second LB
 		for i := 0; i < 200; i++ {
 			status := 200
 			latency := 5.0 + float64(m.rng.IntN(30))
@@ -459,13 +459,58 @@ func (m *mockSource) populateAllHandlers() {
 				status = 503
 				latency = 5000
 			}
-			a.lbLogAggregator.Ingest(
+			a.lbLogAggregator.IngestWithClient(
 				"internal-nlb", "NLB",
 				"/grpc.health.v1.Health/Check", "POST", "tg-internal",
+				clientIPs[i%len(clientIPs)],
 				status, status, latency,
 				now.Add(-time.Duration(i)*5*time.Second),
 			)
 		}
+	}
+
+	// --- Ingress (mock K8s Ingress resources) ---
+	if a.ingressScanner != nil {
+		a.ingressScanner.mu.Lock()
+		a.ingressScanner.ingresses = []IngressInfo{
+			{
+				Namespace: "default", Name: "api-ingress", Class: "alb",
+				Hosts: []string{"api.example.com"},
+				Rules: []IngressRule{
+					{Host: "api.example.com", Paths: []IngressPath{
+						{Path: "/api/v1/*", PathType: "Prefix", ServiceName: "api-gateway", ServicePort: 8080},
+						{Path: "/healthz", PathType: "Exact", ServiceName: "api-gateway", ServicePort: 8080},
+					}},
+				},
+				TLS: true, LoadBalancer: "app-alb-123456.us-east-1.elb.amazonaws.com",
+				CreatedAt: now.Add(-72 * time.Hour),
+			},
+			{
+				Namespace: "default", Name: "frontend-ingress", Class: "alb",
+				Hosts: []string{"app.example.com", "www.example.com"},
+				Rules: []IngressRule{
+					{Host: "app.example.com", Paths: []IngressPath{
+						{Path: "/", PathType: "Prefix", ServiceName: "frontend", ServicePort: 3000},
+					}},
+					{Host: "www.example.com", Paths: []IngressPath{
+						{Path: "/", PathType: "Prefix", ServiceName: "frontend", ServicePort: 3000},
+					}},
+				},
+				TLS: true, LoadBalancer: "app-alb-123456.us-east-1.elb.amazonaws.com",
+				CreatedAt: now.Add(-48 * time.Hour),
+			},
+			{
+				Namespace: "monitoring", Name: "grafana-ingress", Class: "nginx",
+				Hosts: []string{"grafana.internal"},
+				Rules: []IngressRule{
+					{Host: "grafana.internal", Paths: []IngressPath{
+						{Path: "/", PathType: "Prefix", ServiceName: "grafana", ServicePort: 80},
+					}},
+				},
+				TLS: false, CreatedAt: now.Add(-168 * time.Hour),
+			},
+		}
+		a.ingressScanner.mu.Unlock()
 	}
 
 	log.Info().Msg("Mock data populated for all dashboard pages")
@@ -508,6 +553,11 @@ func (m *mockSource) clearAllHandlers() {
 		a.lbLogAggregator.requests = make(map[string][]lbReqSummary)
 		a.lbLogAggregator.configs = nil
 		a.lbLogAggregator.mu.Unlock()
+	}
+	if a.ingressScanner != nil {
+		a.ingressScanner.mu.Lock()
+		a.ingressScanner.ingresses = nil
+		a.ingressScanner.mu.Unlock()
 	}
 	log.Info().Msg("Mock data cleared from all handlers")
 }

@@ -62,6 +62,31 @@ func (a *LBLogAggregator) Ingest(lbName, lbType, urlPattern, httpMethod, targetG
 		a.configs = append(a.configs, lbInfo{Name: lbName, Type: lbType})
 	}
 
+	a.ingestLocked(lbName, urlPattern, httpMethod, targetGroup, "", elbStatus, targetStatus, targetMs, ts)
+}
+
+// IngestWithClient is like Ingest but also records the client IP.
+func (a *LBLogAggregator) IngestWithClient(lbName, lbType, urlPattern, httpMethod, targetGroup, clientIP string,
+	elbStatus, targetStatus int, targetMs float64, ts time.Time) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	found := false
+	for _, c := range a.configs {
+		if c.Name == lbName {
+			found = true
+			break
+		}
+	}
+	if !found {
+		a.configs = append(a.configs, lbInfo{Name: lbName, Type: lbType})
+	}
+
+	a.ingestLocked(lbName, urlPattern, httpMethod, targetGroup, clientIP, elbStatus, targetStatus, targetMs, ts)
+}
+
+func (a *LBLogAggregator) ingestLocked(lbName, urlPattern, httpMethod, targetGroup, clientIP string,
+	elbStatus, targetStatus int, targetMs float64, ts time.Time) {
 	reqs := a.requests[lbName]
 	reqs = append(reqs, lbReqSummary{
 		Timestamp:    ts,
@@ -71,6 +96,7 @@ func (a *LBLogAggregator) Ingest(lbName, lbType, urlPattern, httpMethod, targetG
 		TargetStatus: targetStatus,
 		TargetMs:     targetMs,
 		TargetGroup:  targetGroup,
+		ClientIP:     clientIP,
 	})
 	if len(reqs) > a.maxPerLB {
 		reqs = reqs[len(reqs)-a.maxPerLB:]
