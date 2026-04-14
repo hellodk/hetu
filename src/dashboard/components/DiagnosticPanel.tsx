@@ -43,7 +43,6 @@ export interface ReportStatus {
 interface DiagnosticPanelProps {
   status?: ReportStatus
   onRetry: () => void
-  onSwitchToDemo: () => void
 }
 
 // formatRelative turns an ISO timestamp into something human-friendly
@@ -104,7 +103,7 @@ function CheckRow({
   )
 }
 
-export function DiagnosticPanel({ status, onRetry, onSwitchToDemo }: DiagnosticPanelProps) {
+export function DiagnosticPanel({ status, onRetry }: DiagnosticPanelProps) {
   // Defensive defaults so the panel renders even if the API returns an
   // unexpectedly partial status block.
   const state = status?.state ?? 'awaiting'
@@ -181,16 +180,9 @@ export function DiagnosticPanel({ status, onRetry, onSwitchToDemo }: DiagnosticP
               <RefreshCw className="w-4 h-4" aria-hidden="true" />
               Retry now
             </button>
-            <button
-              onClick={onSwitchToDemo}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/40 rounded-lg font-medium transition-colors"
-            >
-              <PlayCircle className="w-4 h-4" aria-hidden="true" />
-              Switch to demo mode
-            </button>
           </div>
           <p className="mt-3 text-xs text-slate-500">
-            Demo mode shows synthetic data for presentations — no real cluster is analyzed.
+            Prefer a dry-run with synthetic data? Open Settings to enable demo mode.
           </p>
         </div>
       </div>

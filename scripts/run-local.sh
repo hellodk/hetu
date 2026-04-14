@@ -16,7 +16,8 @@
 #   dashboard -> :3003 (next dev; proxies /api/v1/* to analyzer)
 #
 # Env overrides:
-#   ANALYZER_PORT, DASHBOARD_PORT, PROFILE, LLM_ENDPOINT, LLM_MODEL, LOG_DIR
+#   ANALYZER_PORT, DASHBOARD_PORT, PROFILE, LLM_PROVIDER, LLM_ENDPOINT,
+#   LLM_MODEL, LOG_DIR
 
 set -euo pipefail
 
@@ -24,8 +25,12 @@ ANALYZER_PORT="${ANALYZER_PORT:-18081}"
 METRICS_PORT="${METRICS_PORT:-19091}"
 DASHBOARD_PORT="${DASHBOARD_PORT:-3003}"
 PROFILE="${PROFILE:-mock}"
-LLM_ENDPOINT="${LLM_ENDPOINT:-http://100.89.50.27:11434}"
-LLM_MODEL="${LLM_MODEL:-qwen2.5:7b-instruct}"
+# LLM_PROVIDER is the canonical name (ollama / openai / anthropic / vllm /
+# llamacpp / azure / bedrock / none). The analyzer also accepts LLM_BACKEND
+# as a backward-compat alias.
+LLM_PROVIDER="${LLM_PROVIDER:-ollama}"
+LLM_ENDPOINT="${LLM_ENDPOINT:-http://192.168.1.24:21434}"
+LLM_MODEL="${LLM_MODEL:-DeepSeek-Coder-V2-Lite-Instruct-Q4_K_M.gguf}"
 MOCK_INTERVAL="${MOCK_INTERVAL:-20s}"
 ANALYSIS_INTERVAL="${ANALYSIS_INTERVAL:-30s}"
 EVICT_INTERVAL="${EVICT_INTERVAL:-30s}"
@@ -52,11 +57,11 @@ cmd_start() {
     cmd_build
   fi
 
-  echo "Starting analyzer on :$ANALYZER_PORT (profile=$PROFILE, llm=$LLM_MODEL)..."
+  echo "Starting analyzer on :$ANALYZER_PORT (profile=$PROFILE, provider=$LLM_PROVIDER, llm=$LLM_MODEL)..."
   API_PORT="$ANALYZER_PORT" \
     METRICS_PORT="$METRICS_PORT" \
     PROFILE="$PROFILE" \
-    LLM_BACKEND=ollama \
+    LLM_PROVIDER="$LLM_PROVIDER" \
     LLM_ENDPOINT="$LLM_ENDPOINT" \
     LLM_MODEL="$LLM_MODEL" \
     MOCK_INTERVAL="$MOCK_INTERVAL" \

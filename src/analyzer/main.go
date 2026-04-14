@@ -2510,7 +2510,10 @@ func main() {
 	config := Config{
 		ClusterID:        coalesce(getEnvOrDefault("CLUSTER_ID", ""), ucfg.Cluster.ID, "default"),
 		CollectorURL:     getEnvOrDefault("COLLECTOR_URL", "http://collector:8080"),
-		LLMBackend:       coalesce(getEnvOrDefault("LLM_BACKEND", ""), ucfg.LLM.Provider, "openai"),
+		// LLM_PROVIDER is the canonical env var (matches the config field
+		// name and how the rest of the codebase refers to it). LLM_BACKEND
+		// is accepted as a backward-compat alias.
+		LLMBackend:       coalesce(getEnvOrDefault("LLM_PROVIDER", ""), getEnvOrDefault("LLM_BACKEND", ""), ucfg.LLM.Provider, "openai"),
 		LLMEndpoint:      coalesce(getEnvOrDefault("LLM_ENDPOINT", ""), ucfg.LLM.Endpoint, "https://api.openai.com/v1"),
 		LLMModel:         coalesce(getEnvOrDefault("LLM_MODEL", ""), ucfg.LLM.Model, "gpt-4-turbo"),
 		LLMAPIKey:        coalesce(os.Getenv("LLM_API_KEY"), ucfg.LLM.APIKey),

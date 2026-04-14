@@ -384,8 +384,9 @@ export default function Dashboard() {
   }, [fetchReport])
 
   // Switch the analyzer profile (live | mock) via POST /api/v1/profile.
-  // Used by both the DiagnosticPanel "Switch to demo mode" button and the
-  // Settings modal.
+  // Only invoked from the Settings modal — the dashboard itself no longer
+  // exposes a "Switch to demo" button (that convenience made demo-vs-live
+  // confusion too easy; the toggle now lives in one canonical place).
   const handleSwitchProfile = useCallback(
     async (newProfile: 'live' | 'mock') => {
       try {
@@ -674,7 +675,6 @@ export default function Dashboard() {
           <DiagnosticPanel
             status={displayReport.status}
             onRetry={handleRefresh}
-            onSwitchToDemo={() => handleSwitchProfile('mock')}
           />
         )}
 
