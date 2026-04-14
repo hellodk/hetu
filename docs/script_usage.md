@@ -46,10 +46,10 @@ make status              # = scripts/run-local.sh status
 
 | Command | What it does |
 |---|---|
-| `start` | Load env file → prompt for every config item → validate → start analyzer + dashboard → `wait_for_http` until both respond |
-| `stop` | Kill via pidfile, clean up `/tmp/cluster-intel-logs/*.pid` |
+| `start` | Load env file → prompt for every config item → validate → start analyzer + dashboard → `wait_for_http` until both respond. In `DASHBOARD_MODE=prod` runs `npm run build` synchronously first so build failures abort `start` cleanly. |
+| `stop` | Kill via pidfile + tear down the whole process group (`setsid` leader + `pgrep -P` tree walk) so re-parented children like `next-server` don't survive. SIGTERM, then SIGKILL after 1s. Cleans `/tmp/cluster-intel-logs/*.pid`. |
 | `status` | Tabular: `SERVICE / PIDFILE / PID / HTTP / URL` |
-| `restart` | `stop` then `start` |
+| `restart` | `stop` then `start` — relies on `stop` truly releasing the ports |
 | `logs [name]` | `tail -F` `analyzer`, `dashboard`, `collector`, or `all` (default) |
 | `build` | Rebuild the analyzer binary if the source is newer |
 | `setup` | Interactive wizard → write `env/<env>.env` (asks before overwriting) |
@@ -104,11 +104,23 @@ Loaded from `env/<ENVIRONMENT>.env`. Provided in-repo:
 | `env/uat.env` | yes | Staging-like (live profile, real LLM provider) |
 | `env/prod.env.example` | yes | Template — copy to `env/prod.env` (gitignored) |
 
-The script source-loads with `set -a` so children inherit. **CLI-level
-env vars override file-level**, e.g.:
+### Precedence
+
+```
+CLI / parent env  >  env-file value  >  built-in default
+```
+
+The script snapshots every relevant variable **before** sourcing the
+env file and restores those values **after**, so what you set on the
+command line always wins:
 
 ```bash
-LLM_PROVIDER=openai LLM_MODEL=gpt-4 scripts/run-local.sh start --yes
+PROFILE=mock scripts/run-local.sh start --yes -e dev
+# → uses PROFILE=mock even though env/dev.env has PROFILE=live
+
+LLM_PROVIDER=openai LLM_MODEL=gpt-4 LLM_API_KEY=sk-… \
+  scripts/run-local.sh start --yes -e uat
+# → uses CLI-supplied LLM trio, ignores env-file LLM_*
 ```
 
 Override the file path entirely:
@@ -311,6 +323,24 @@ Default location: `/tmp/cluster-intel-logs/` (override with `--log-dir`).
 `stop` removes the pidfiles. `status` reports `(stale)` for pidfiles
 whose PID is no longer running.
 
+### How `stop` finds and kills child processes
+
+`npx next dev` forks a chain (`npx → node → next-server`). Once the
+immediate child exits, `next-server` gets re-parented to init and would
+survive a naive `kill <wrapper-pid>`. The script handles this two ways:
+
+1. **Process group**: dashboard is launched via `setsid` so it becomes
+   its own process-group leader. `stop` sends `kill -TERM -- -<pgid>`
+   which signals the entire group, catching `next-server` regardless of
+   re-parenting.
+2. **Tree walk**: belt-and-braces, `kill_tree` recurses through
+   `pgrep -P <pid>` and signals every descendant before the leader.
+3. **Escalation**: if anything is still alive 1 second after `SIGTERM`,
+   `SIGKILL` follows.
+
+The end state is verifiable: after `stop`, `ss -tlnp | grep -E ':3003|:18081'`
+returns nothing.
+
 ---
 
 ## What it does NOT do
@@ -347,6 +377,32 @@ breaks `read`. All four respect `YES` (silent default) and
 
 Validators follow the convention `validate_<thing> "VAR_NAME" "value" [args…]`,
 return 0 on pass, non-zero on fail, and print `[error]` on fail.
+
+---
+
+## Sub-command verification matrix
+
+Last verified end-to-end at commit `54649fb2`. Each sub-command was run
+against a clean state on a 3-node K8s cluster (`cylon`, `raspberrypi`,
+`typhoon`):
+
+| Command | What was checked | Result |
+|---|---|---|
+| `help` | usage prints | ✓ |
+| `version` | git SHA + chart version | ✓ |
+| `status` (clean) | table shows `-` for everything | ✓ |
+| `status` (running) | table shows real PIDs + `200` | ✓ |
+| `doctor` | flags port collisions when services running | ✓ |
+| `lint -e dev` | passes; warns on empty `COLLECTOR_URL` | ✓ |
+| `lint -e uat` | passes silently | ✓ |
+| `build` | rebuilds analyzer | ✓ |
+| `start --yes -e dev` | both services reach `200` from `127.0.0.1` and `192.168.1.10` | ✓ |
+| `stop` | **all ports released** (verified via `ss -tlnp`) | ✓ |
+| `restart` | works because stop is correct | ✓ |
+| `logs` | `tail -F` all three log files | ✓ |
+| `nopesuch` | clean `Unknown command:` error + usage | ✓ |
+| `--non-interactive` | fatals cleanly when required value missing | ✓ |
+| `PROFILE=mock ./run-local.sh start --yes` | **CLI overrides env-file** (was `profile=live` before fix) | ✓ |
 
 ---
 
