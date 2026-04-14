@@ -127,3 +127,6 @@ benchmark-*.txt
 demo.webm
 demo.mp4
 *.mov
+
+# ---- Personal session scratch (not intended for git) ---------------------
+requests.md
