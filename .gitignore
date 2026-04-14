@@ -108,8 +108,12 @@ __pycache__/
 .ruff_cache/
 
 # ---- Helm / Kustomize build output ---------------------------------------
+# NOTE: we DO track the bundled Helm sub-chart tarballs under
+# deploy/helm/cluster-intel/charts/ because they're the vendored chart
+# dependencies required by `make helm-deploy` — re-adding them means an
+# operator doesn't have to run `helm dependency build` first.
 charts/*.tgz
-deploy/helm/*/charts/*.tgz
+!deploy/helm/cluster-intel/charts/*.tgz
 helm-rendered.yaml
 
 # ---- Monitoring stack build output ---------------------------------------
