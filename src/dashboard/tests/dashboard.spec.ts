@@ -12,8 +12,10 @@ test.describe('Cluster Intelligence Dashboard', () => {
   });
 
   test('should load the dashboard and show health scores', async ({ page }) => {
-    // Check for the main title or heading
-    await expect(page.getByRole('heading', { name: /Cluster Intelligence/i })).toBeVisible();
+    // On desktop the heading reads "K8s Cluster Intelligence"; on mobile
+    // it collapses to "K8s Health" (page.tsx:527-528). Accept either so
+    // the chromium + mobile-chrome projects both pass.
+    await expect(page.getByRole('heading', { name: /K8s (Cluster Intelligence|Health)/i })).toBeVisible();
 
     // Check for health scores section
     const scoresHeading = page.locator('#scores-heading');
