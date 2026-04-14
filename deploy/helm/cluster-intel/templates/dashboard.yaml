@@ -22,10 +22,20 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- with (default .Values.affinity .Values.dashboard.affinity) }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with (default .Values.topologySpreadConstraints .Values.dashboard.topologySpreadConstraints) }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: dashboard
           image: "{{ .Values.dashboard.image.repository }}:{{ .Values.dashboard.image.tag }}"
           imagePullPolicy: {{ .Values.dashboard.image.pullPolicy }}
+          securityContext:
+            {{- include "cluster-intel.securityContext" (dict "top" .Values.securityContext "override" .Values.dashboard.securityContext) | nindent 12 }}
           env:
             - name: NEXT_PUBLIC_API_URL
               value: "http://{{ include "cluster-intel.fullname" . }}-analyzer:8081"

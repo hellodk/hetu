@@ -1,0 +1,144 @@
+{{- if and .Values.monitoring.enabled .Values.monitoring.otel.enabled }}
+{{/*
+OpenTelemetry Collector — routes OTLP traces to Tempo, re-exposes metrics
+for Prometheus. Mirrors manifests/monitoring/tempo/otel-collector.yaml.
+*/}}
+{{- $ns := include "cluster-intel.monitoringNamespace" . }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-collector-config
+  namespace: {{ $ns }}
+  labels:
+    {{- include "cluster-intel.labels" . | nindent 4 }}
+    app: otel-collector
+data:
+  config.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc: { endpoint: 0.0.0.0:4317 }
+          http: { endpoint: 0.0.0.0:4318 }
+      prometheus:
+        config:
+          scrape_configs:
+            - job_name: otel-collector
+              scrape_interval: 15s
+              static_configs:
+                - targets: ['localhost:8888']
+
+    processors:
+      batch:
+        timeout: 1s
+        send_batch_size: 1024
+      memory_limiter:
+        check_interval: 1s
+        limit_mib: {{ .Values.monitoring.otel.memoryLimit | trimSuffix "Mi" | int }}
+        spike_limit_mib: 128
+      resource:
+        attributes:
+          - { key: environment,       value: production,     action: upsert }
+          - { key: service.namespace, value: cluster-intel,  action: upsert }
+      filter:
+        spans:
+          exclude:
+            match_type: regexp
+            span_names: ["health.*", "readyz", "livez"]
+
+    exporters:
+      otlp/tempo:
+        endpoint: tempo.{{ $ns }}.svc:4317
+        tls: { insecure: true }
+      prometheus:
+        endpoint: "0.0.0.0:8889"
+        namespace: otel
+        send_timestamps: true
+        metric_expiration: 5m
+      logging:
+        loglevel: info
+
+    extensions:
+      health_check: { endpoint: 0.0.0.0:13133 }
+      pprof:        { endpoint: 0.0.0.0:1777 }
+      zpages:       { endpoint: 0.0.0.0:55679 }
+
+    service:
+      extensions: [health_check, pprof, zpages]
+      pipelines:
+        traces:
+          receivers:  [otlp]
+          processors: [memory_limiter, batch, resource, filter]
+          exporters:  [otlp/tempo, logging]
+        metrics:
+          receivers:  [otlp, prometheus]
+          processors: [memory_limiter, batch]
+          exporters:  [prometheus]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: otel-collector
+  namespace: {{ $ns }}
+  labels:
+    {{- include "cluster-intel.labels" . | nindent 4 }}
+    app: otel-collector
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: otel-collector
+  template:
+    metadata:
+      labels:
+        app: otel-collector
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8889"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+        - name: otel-collector
+          image: "{{ .Values.monitoring.otel.image.repository }}:{{ .Values.monitoring.otel.image.tag }}"
+          args: ["--config=/etc/otel/config.yaml"]
+          ports:
+            - { name: otlp-grpc,  containerPort: 4317 }
+            - { name: otlp-http,  containerPort: 4318 }
+            - { name: prometheus, containerPort: 8889 }
+            - { name: health,     containerPort: 13133 }
+            - { name: pprof,      containerPort: 1777 }
+            - { name: zpages,     containerPort: 55679 }
+          resources:
+            {{- toYaml .Values.monitoring.otel.resources | nindent 12 }}
+          volumeMounts:
+            - { name: config, mountPath: /etc/otel }
+          readinessProbe:
+            httpGet: { path: /, port: health }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /, port: health }
+            initialDelaySeconds: 15
+            periodSeconds: 20
+      volumes:
+        - name: config
+          configMap: { name: otel-collector-config }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: otel-collector
+  namespace: {{ $ns }}
+  labels:
+    {{- include "cluster-intel.labels" . | nindent 4 }}
+    app: otel-collector
+spec:
+  type: ClusterIP
+  selector:
+    app: otel-collector
+  ports:
+    - { name: otlp-grpc,  port: 4317,  targetPort: otlp-grpc }
+    - { name: otlp-http,  port: 4318,  targetPort: otlp-http }
+    - { name: prometheus, port: 8889,  targetPort: prometheus }
+    - { name: health,     port: 13133, targetPort: health }
+{{- end }}

@@ -1,0 +1,233 @@
+{{- if .Values.networkPolicy.enabled }}
+{{/*
+NetworkPolicy — zero-trust default-deny plus per-component ingress/egress
+allowlists. Ported from manifests/base/network-policies.yaml with peer
+namespaces parameterised.
+
+Requires a CNI that enforces NetworkPolicy (Calico, Cilium, Antrea, etc.).
+If your CNI doesn't enforce them, these resources install but have no
+effect.
+*/}}
+---
+# Default deny all ingress and egress in the release namespace.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "cluster-intel.fullname" . }}-default-deny
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "cluster-intel.labels" . | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+---
+# Collector egress: K8s API (443, 6443), Prometheus, DNS.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "cluster-intel.fullname" . }}-collector-egress
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "cluster-intel.labels" . | nindent 4 }}
+    app.kubernetes.io/component: collector
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "cluster-intel.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: collector
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - { protocol: TCP, port: 443 }
+        - { protocol: TCP, port: 6443 }
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.monitoringNamespace }}
+      ports:
+        - { protocol: TCP, port: 9090 }
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 53 }
+---
+# Collector ingress: analyzer (8080), Prometheus scrape (9090).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "cluster-intel.fullname" . }}-collector-ingress
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "cluster-intel.labels" . | nindent 4 }}
+    app.kubernetes.io/component: collector
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "cluster-intel.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: collector
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "cluster-intel.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: analyzer
+      ports:
+        - { protocol: TCP, port: 8080 }
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.monitoringNamespace }}
+      ports:
+        - { protocol: TCP, port: 9090 }
+---
+# Analyzer egress: collector, external LLM (optionally gated by CIDR), DNS.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "cluster-intel.fullname" . }}-analyzer-egress
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "cluster-intel.labels" . | nindent 4 }}
+    app.kubernetes.io/component: analyzer
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "cluster-intel.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: analyzer
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "cluster-intel.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: collector
+      ports:
+        - { protocol: TCP, port: 8080 }
+    # External LLM API over HTTPS (except private ranges).
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
+        - { protocol: TCP, port: 443 }
+    {{- if .Values.networkPolicy.llmEgressCIDR }}
+    # Self-hosted LLM (Ollama etc.) at an explicit CIDR:port.
+    - to:
+        - ipBlock:
+            cidr: {{ .Values.networkPolicy.llmEgressCIDR }}
+      ports:
+        - { protocol: TCP, port: {{ .Values.networkPolicy.llmEgressPort }} }
+    {{- end }}
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 53 }
+---
+# Analyzer ingress: dashboard, ingress controller, Prometheus.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "cluster-intel.fullname" . }}-analyzer-ingress
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "cluster-intel.labels" . | nindent 4 }}
+    app.kubernetes.io/component: analyzer
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "cluster-intel.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: analyzer
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "cluster-intel.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: dashboard
+      ports:
+        - { protocol: TCP, port: 8081 }
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.ingressNamespace }}
+      ports:
+        - { protocol: TCP, port: 8081 }
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.monitoringNamespace }}
+      ports:
+        - { protocol: TCP, port: 9091 }
+---
+# Dashboard egress: analyzer (8081), DNS.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "cluster-intel.fullname" . }}-dashboard-egress
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "cluster-intel.labels" . | nindent 4 }}
+    app.kubernetes.io/component: dashboard
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "cluster-intel.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: dashboard
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "cluster-intel.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: analyzer
+      ports:
+        - { protocol: TCP, port: 8081 }
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 53 }
+---
+# Dashboard ingress: ingress controller.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "cluster-intel.fullname" . }}-dashboard-ingress
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "cluster-intel.labels" . | nindent 4 }}
+    app.kubernetes.io/component: dashboard
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "cluster-intel.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: dashboard
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.ingressNamespace }}
+      ports:
+        - { protocol: TCP, port: 3000 }
+{{- end }}

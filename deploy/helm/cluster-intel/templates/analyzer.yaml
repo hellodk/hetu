@@ -25,6 +25,14 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- with (default .Values.affinity .Values.analyzer.affinity) }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with (default .Values.topologySpreadConstraints .Values.analyzer.topologySpreadConstraints) }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       # TODO: add init container for DB migration runner
       # initContainers:
       #   - name: migrate
@@ -38,6 +46,8 @@ spec:
         - name: analyzer
           image: "{{ .Values.analyzer.image.repository }}:{{ .Values.analyzer.image.tag }}"
           imagePullPolicy: {{ .Values.analyzer.image.pullPolicy }}
+          securityContext:
+            {{- include "cluster-intel.securityContext" (dict "top" .Values.securityContext "override" .Values.analyzer.securityContext) | nindent 12 }}
           env:
             - name: CI_CONFIG
               value: /etc/cluster-intel/config.yaml

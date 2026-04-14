@@ -25,10 +25,20 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- with (default .Values.affinity .Values.collector.affinity) }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with (default .Values.topologySpreadConstraints .Values.collector.topologySpreadConstraints) }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: collector
           image: "{{ .Values.collector.image.repository }}:{{ .Values.collector.image.tag }}"
           imagePullPolicy: {{ .Values.collector.image.pullPolicy }}
+          securityContext:
+            {{- include "cluster-intel.securityContext" (dict "top" .Values.securityContext "override" .Values.collector.securityContext) | nindent 12 }}
           env:
             - name: CI_CONFIG
               value: /etc/cluster-intel/config.yaml

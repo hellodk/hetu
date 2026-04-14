@@ -1,0 +1,30 @@
+{{/*
+PodDisruptionBudgets for collector, analyzer, dashboard.
+
+Each component has its own toggle:
+  <component>.pdb.enabled     (default: false)
+  <component>.pdb.minAvailable (default: 1)
+
+Emitting a PDB when replicas == 1 can block drain operations entirely,
+which is why this is opt-in and typically paired with replicas >= 2.
+*/}}
+{{- range $component := list "collector" "analyzer" "dashboard" }}
+{{- $cfg := index $.Values $component }}
+{{- if $cfg.pdb.enabled }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "cluster-intel.fullname" $ }}-{{ $component }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "cluster-intel.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $component }}
+spec:
+  minAvailable: {{ $cfg.pdb.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "cluster-intel.selectorLabels" $ | nindent 6 }}
+      app.kubernetes.io/component: {{ $component }}
+{{- end }}
+{{- end }}

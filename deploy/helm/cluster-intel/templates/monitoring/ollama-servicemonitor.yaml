@@ -1,0 +1,73 @@
+{{- if and .Values.monitoring.enabled .Values.monitoring.ollama.enabled }}
+{{- if not .Values.monitoring.ollama.externalIP }}
+{{- fail "monitoring.ollama.enabled=true requires monitoring.ollama.externalIP to be set" }}
+{{- end }}
+{{/*
+Ollama ServiceMonitor + ExternalName Service shim for an out-of-cluster
+Ollama. Ported from manifests/monitoring/ollama/servicemonitor.yaml with
+the IP and port parameterised.
+*/}}
+{{- $ns := .Values.monitoring.ollama.namespace }}
+{{- $monNs := include "cluster-intel.monitoringNamespace" . }}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ $ns }}
+  labels:
+    kubernetes.io/metadata.name: {{ $ns }}
+    {{- include "cluster-intel.labels" . | nindent 4 }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: ollama
+  namespace: {{ $monNs }}
+  labels:
+    {{- include "cluster-intel.labels" . | nindent 4 }}
+    app: ollama
+    component: llm
+spec:
+  selector:
+    matchLabels:
+      app: ollama
+  namespaceSelector:
+    matchNames: [{{ $ns }}]
+  endpoints:
+    - port: http
+      interval: 15s
+      path: /metrics
+      scrapeTimeout: 10s
+---
+# Manual Endpoints for the out-of-cluster Ollama instance.
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: ollama
+  namespace: {{ $ns }}
+  labels:
+    {{- include "cluster-intel.labels" . | nindent 4 }}
+    app: ollama
+subsets:
+  - addresses:
+      - ip: {{ .Values.monitoring.ollama.externalIP | quote }}
+    ports:
+      - name: http
+        port: {{ .Values.monitoring.ollama.port }}
+        protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ollama
+  namespace: {{ $ns }}
+  labels:
+    {{- include "cluster-intel.labels" . | nindent 4 }}
+    app: ollama
+spec:
+  ports:
+    - name: http
+      port: {{ .Values.monitoring.ollama.port }}
+      targetPort: {{ .Values.monitoring.ollama.port }}
+      protocol: TCP
+{{- end }}

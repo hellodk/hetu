@@ -1,6 +1,10 @@
-# Cluster Intel — Production deployment
-# Reuses Postgres + ClickHouse from avika namespace
-# Bundles Redis + NATS (no existing instances)
+# Cluster Intel — Production deployment override
+# Reuses external Postgres from the avika namespace, bundles Redis + NATS.
+#
+# Usage:
+#   helm upgrade --install cluster-intel deploy/helm/cluster-intel/ \
+#     --namespace cluster-intel --create-namespace \
+#     -f values-deploy.yaml
 
 cluster:
   id: "cylon"
@@ -39,16 +43,8 @@ stores:
       existingSecretPasswordKey: password
     sslMode: disable
 
-  # External ClickHouse (avika namespace)
-  clickhouse:
-    bundled: false
-    external:
-      hosts:
-        - avika-clickhouse.avika.svc.cluster.local
-      port: 9000
-      db: cluster_intel
-      user: default
-      existingSecret: cluster-intel-clickhouse
+  # ClickHouse was removed from the chart in 0.2.0 — not wired to any
+  # template. Re-add here when the first CH-backed feature ships.
 
   # Bundled Redis (no existing instance)
   redis:

@@ -97,3 +97,46 @@ nats://{{ .Release.Name }}-nats.{{ .Release.Namespace }}.svc.cluster.local:4222
 {{ .Values.bus.nats.external.url }}
 {{- end -}}
 {{- end }}
+
+{{/* ===================================================================
+     Pod/container helpers shared across deployments
+     =================================================================== */}}
+
+{{/*
+Merged container securityContext: top-level defaults, deep-merged with
+per-component overrides. Usage:
+  securityContext:
+    {{- include "cluster-intel.securityContext" (dict "top" .Values.securityContext "override" .Values.collector.securityContext) | nindent 12 }}
+*/}}
+{{- define "cluster-intel.securityContext" -}}
+{{- $merged := mustMergeOverwrite (deepCopy .top) .override -}}
+{{- toYaml $merged -}}
+{{- end }}
+
+{{/*
+Affinity block — uses component override if non-empty, otherwise the
+top-level affinity.
+*/}}
+{{- define "cluster-intel.affinity" -}}
+{{- if . -}}
+{{- toYaml . -}}
+{{- end -}}
+{{- end }}
+
+{{/*
+Namespace the monitoring stack deploys into. Defaults to
+`monitoring.namespace` (from values.yaml), falls back to the release
+namespace.
+*/}}
+{{- define "cluster-intel.monitoringNamespace" -}}
+{{- default .Release.Namespace .Values.monitoring.namespace -}}
+{{- end }}
+
+{{/*
+Component selector labels — selectorLabels plus component tag. Used by
+NetworkPolicy peer selectors.
+*/}}
+{{- define "cluster-intel.componentSelectorLabels" -}}
+{{ include "cluster-intel.selectorLabels" . }}
+app.kubernetes.io/component: {{ .component }}
+{{- end }}

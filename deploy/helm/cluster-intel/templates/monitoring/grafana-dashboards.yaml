@@ -1,0 +1,56 @@
+{{- if .Values.monitoring.enabled }}
+{{/*
+Grafana dashboard ConfigMaps. Requires Grafana's sidecar to auto-
+provision ConfigMaps with `grafana_dashboard: "1"`.
+
+The JSON blobs are loaded from files bundled with the chart at
+dashboards/*.json. Each one is gated by its own toggle.
+*/}}
+{{- $ns := include "cluster-intel.monitoringNamespace" . }}
+
+{{- if .Values.monitoring.grafana.dashboards.clusterIntel }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-cluster-intel
+  namespace: {{ $ns }}
+  labels:
+    {{- include "cluster-intel.labels" . | nindent 4 }}
+    grafana_dashboard: "1"
+data:
+  cluster-intel.json: |-
+    {{- .Files.Get "dashboards/cluster-intel.json" | nindent 4 }}
+{{- end }}
+
+{{- if .Values.monitoring.grafana.dashboards.ollama }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-ollama
+  namespace: {{ $ns }}
+  labels:
+    {{- include "cluster-intel.labels" . | nindent 4 }}
+    grafana_dashboard: "1"
+data:
+  ollama.json: |-
+    {{- .Files.Get "dashboards/ollama.json" | nindent 4 }}
+{{- end }}
+
+{{- if .Values.monitoring.grafana.dashboards.llmTraces }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-llm-traces
+  namespace: {{ $ns }}
+  labels:
+    {{- include "cluster-intel.labels" . | nindent 4 }}
+    grafana_dashboard: "1"
+data:
+  llm-traces.json: |-
+    {{- .Files.Get "dashboards/llm-traces.json" | nindent 4 }}
+{{- end }}
+
+{{- end }}

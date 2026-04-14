@@ -1,17 +1,82 @@
-# -- Global settings
+# =============================================================================
+# cluster-intel — default values
+# =============================================================================
+# This chart is the single source of deployment truth. There is no
+# kustomize/manifests flow anymore; everything is configurable here.
+#
+# Override convention:
+#   values.yaml          — upstream defaults (this file)
+#   values-deploy.yaml   — per-cluster production override, passed via -f
+#   --set foo.bar=baz    — ad-hoc overrides
+# =============================================================================
+
+# -- Global settings -----------------------------------------------------------
 global:
   namespace: cluster-intel
   createNamespace: true
   imagePullSecrets: []
 
-# -- Cluster identity
+# -- Cluster identity ---------------------------------------------------------
 cluster:
   id: "default"
   displayName: "default"
 
-# ---------------------------------------------------------------------------
+# =============================================================================
+# Default container securityContext
+# =============================================================================
+# Applied to every container in the chart. Individual components can override
+# specific fields under <component>.securityContext. The defaults match the
+# hardened pod spec that lived in the legacy manifests/base/*.yaml files.
+#
+# Override example (values-override.yaml):
+#   dashboard:
+#     securityContext:
+#       readOnlyRootFilesystem: false   # dashboard needs to write .next/cache
+#
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 65534
+  runAsGroup: 65534
+  fsGroup: 65534
+  seccompProfile:
+    type: RuntimeDefault
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: ["ALL"]
+
+# =============================================================================
+# Scheduling defaults (affinity / topology spread)
+# =============================================================================
+# Applied to all three component Deployments. Per-component overrides
+# under <component>.affinity / <component>.topologySpreadConstraints.
+#
+# podAntiAffinity is preferredDuringScheduling so single-node / kind clusters
+# still schedule. topologySpreadConstraints spread replicas across zones when
+# more than one exists.
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          topologyKey: kubernetes.io/hostname
+          labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values: [cluster-intel]
+
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: topology.kubernetes.io/zone
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/name: cluster-intel
+
+# =============================================================================
 # Collector (Go binary — reads Kubernetes API + Prometheus)
-# ---------------------------------------------------------------------------
+# =============================================================================
 collector:
   image:
     repository: cluster-intel-collector
@@ -27,12 +92,20 @@ collector:
       memory: 256Mi
   prometheusUrl: "http://prometheus-server.monitoring.svc.cluster.local:9090"
   env: []
-  # - name: EXTRA_VAR
-  #   value: "something"
+  # Per-component override of top-level securityContext. Empty ⇒ inherit.
+  securityContext: {}
+  # Per-component override of top-level affinity / topologySpreadConstraints.
+  # Empty ⇒ inherit.
+  affinity: {}
+  topologySpreadConstraints: []
+  # PodDisruptionBudget
+  pdb:
+    enabled: false
+    minAvailable: 1
 
-# ---------------------------------------------------------------------------
-# Analyzer (Go binary — LLM-powered analysis engine)
-# ---------------------------------------------------------------------------
+# =============================================================================
+# Analyzer (Go binary — scoring, correlation, RCA, drill-down)
+# =============================================================================
 analyzer:
   image:
     repository: cluster-intel-analyzer
@@ -47,10 +120,16 @@ analyzer:
       cpu: "1"
       memory: 512Mi
   env: []
+  securityContext: {}
+  affinity: {}
+  topologySpreadConstraints: []
+  pdb:
+    enabled: false
+    minAvailable: 1
 
-# ---------------------------------------------------------------------------
+# =============================================================================
 # Dashboard (Next.js)
-# ---------------------------------------------------------------------------
+# =============================================================================
 dashboard:
   image:
     repository: cluster-intel-dashboard
@@ -65,10 +144,24 @@ dashboard:
       cpu: 500m
       memory: 256Mi
   env: []
+  # Dashboard needs a writable FS for Next.js .next/cache and tmp.
+  # Override ONLY the fields that differ from top-level securityContext.
+  securityContext:
+    readOnlyRootFilesystem: false
+    runAsUser: 1001
+    runAsGroup: 1001
+    fsGroup: 1001
+  affinity: {}
+  topologySpreadConstraints: []
+  pdb:
+    enabled: false
+    minAvailable: 1
 
-# ---------------------------------------------------------------------------
+# =============================================================================
 # Persistent stores
-# ---------------------------------------------------------------------------
+# =============================================================================
+# Bundled sub-charts install Postgres / Redis out of the box. Flip `bundled:
+# false` and populate `external.*` to point at an existing managed instance.
 stores:
   postgres:
     bundled: true
@@ -81,24 +174,15 @@ stores:
       existingSecretPasswordKey: password
     sslMode: disable
 
-  clickhouse:
-    bundled: false
-    external:
-      hosts: []
-      port: 9000
-      db: cluster_intel
-      user: default
-      existingSecret: ""
-
   redis:
     bundled: true
     external:
       addr: ""
       existingSecret: ""
 
-# ---------------------------------------------------------------------------
+# =============================================================================
 # Message bus
-# ---------------------------------------------------------------------------
+# =============================================================================
 bus:
   nats:
     bundled: true
@@ -106,9 +190,9 @@ bus:
       url: ""
       existingSecret: ""
 
-# ---------------------------------------------------------------------------
-# LLM configuration (used by analyzer)
-# ---------------------------------------------------------------------------
+# =============================================================================
+# LLM configuration
+# =============================================================================
 llm:
   provider: anthropic
   endpoint: ""
@@ -120,9 +204,9 @@ llm:
   temperature: 0.2
   dailyTokenBudget: 1000000
 
-# ---------------------------------------------------------------------------
-# Safety rails
-# ---------------------------------------------------------------------------
+# =============================================================================
+# Safety rails (control RBAC width and exec)
+# =============================================================================
 writeActions:
   enabled: false
 
@@ -134,9 +218,9 @@ protectedNamespaces:
   - kube-public
   - kube-node-lease
 
-# ---------------------------------------------------------------------------
+# =============================================================================
 # Ingress
-# ---------------------------------------------------------------------------
+# =============================================================================
 ingress:
   enabled: false
   className: ""
@@ -147,15 +231,128 @@ ingress:
   #   hosts:
   #     - cluster-intel.example.com
 
-# ---------------------------------------------------------------------------
-# Prometheus ServiceMonitor
-# ---------------------------------------------------------------------------
+# =============================================================================
+# Prometheus ServiceMonitor (for the app's own metrics)
+# =============================================================================
 serviceMonitor:
   enabled: false
 
-# ---------------------------------------------------------------------------
+# =============================================================================
+# NetworkPolicy (opt-in)
+# =============================================================================
+# Zero-trust default-deny + per-component ingress/egress rules. Matches the
+# policies that used to live at manifests/base/network-policies.yaml.
+# Requires a CNI that enforces NetworkPolicy (Calico, Cilium, etc.).
+#
+# Out of the box: DISABLED so the chart installs on any cluster.
+# To enable: --set networkPolicy.enabled=true
+networkPolicy:
+  enabled: false
+  # Namespaces that peers live in. The namespace-selector labels below MUST
+  # match kubernetes.io/metadata.name (the NamespaceDefaultLabelName feature,
+  # GA since k8s 1.22).
+  monitoringNamespace: monitoring
+  ingressNamespace: ingress-nginx
+  # CIDR for external LLM endpoint (e.g. a self-hosted Ollama outside the
+  # cluster). Leave empty to allow general-internet egress on port 443 only.
+  llmEgressCIDR: ""
+  llmEgressPort: 11434
+
+# =============================================================================
 # Logging
-# ---------------------------------------------------------------------------
+# =============================================================================
 logging:
   level: info
   format: json
+
+# =============================================================================
+# Observability stack (opt-in)
+# =============================================================================
+# Tempo (tracing backend), OpenTelemetry Collector, Ollama ServiceMonitor +
+# PrometheusRule alerts, AlertManager Slack routing, and Grafana dashboards.
+#
+# Everything here is gated by `monitoring.enabled`. Each sub-block has its
+# own toggle so operators can enable just the pieces they need.
+#
+# Typical production setup:
+#   monitoring:
+#     enabled: true
+#     ollama: { externalIP: "10.0.0.50" }
+#     alertmanager:
+#       enabled: true
+#       slackWebhookSecret: { name: alertmanager-slack }
+#
+monitoring:
+  enabled: false
+  # Namespace where the observability backends run. Usually 'monitoring' to
+  # live alongside Prometheus.
+  namespace: monitoring
+
+  tempo:
+    enabled: true
+    image:
+      repository: grafana/tempo
+      tag: "2.3.1"
+    retention: 48h
+    persistence:
+      enabled: false
+      size: 10Gi
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+
+  otel:
+    enabled: true
+    image:
+      repository: otel/opentelemetry-collector-contrib
+      tag: "0.92.0"
+    memoryLimit: 512Mi
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+  ollama:
+    # Ollama ServiceMonitor + external-endpoint shim. Leave enabled=false if
+    # your Ollama is already a proper in-cluster Service with its own
+    # ServiceMonitor.
+    enabled: true
+    externalIP: ""          # REQUIRED when enabled: e.g. "10.0.0.50"
+    port: 11434
+    namespace: ai-system
+
+  alerts:
+    # PrometheusRule with ~18 rules covering Ollama liveness, latency, VRAM,
+    # queue depth, error rates, and application-level LLM metrics.
+    enabled: true
+    extraRules: []          # appended as an extra rule group
+
+  alertmanager:
+    # Slack routing rules. Off by default because it requires a webhook
+    # secret.
+    enabled: false
+    slackWebhookSecret:
+      name: ""              # must exist; we mount it, don't create it
+      key: slack-webhook-url
+    channels:
+      critical: "#k8s-critical"
+      warning:  "#k8s-alerts"
+      ollama:   "#ollama-alerts"
+      llm:      "#llm-alerts"
+
+  grafana:
+    # Grafana dashboard ConfigMaps. Requires Grafana's sidecar to auto-
+    # provision ConfigMaps with the `grafana_dashboard: "1"` label.
+    dashboards:
+      clusterIntel: true    # Cluster Intelligence health scores
+      ollama:       true
+      llmTraces:    true    # requires Tempo
+    tempoDatasourceUid: tempo
+    prometheusDatasourceUid: prometheus
