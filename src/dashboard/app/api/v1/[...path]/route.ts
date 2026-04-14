@@ -4,10 +4,20 @@ import { NextRequest, NextResponse } from 'next/server'
 // Runs server-side inside the dashboard pod — uses K8s DNS, no CORS.
 
 function getAnalyzerUrl(): string {
+  // Primary: ANALYZER_URL (explicit override)
   if (process.env.ANALYZER_URL) return process.env.ANALYZER_URL
+  // Convenience: accept NEXT_PUBLIC_ANALYZER_URL too. The NEXT_PUBLIC_ prefix
+  // is Next.js convention for client-accessible vars, but for a tiny dev
+  // project it's common for people to set either name. Accepting both here
+  // avoids a silent 502 when the proxy falls back to the K8s DNS default.
+  if (process.env.NEXT_PUBLIC_ANALYZER_URL) return process.env.NEXT_PUBLIC_ANALYZER_URL
+  // K8s service discovery env vars (injected by the scheduler when the
+  // dashboard pod and the cluster-intel-analyzer Service are in the same ns)
   const host = process.env.CLUSTER_INTEL_ANALYZER_SERVICE_HOST
   const port = process.env.CLUSTER_INTEL_ANALYZER_SERVICE_PORT_HTTP || process.env.CLUSTER_INTEL_ANALYZER_SERVICE_PORT || '8081'
   if (host) return `http://${host}:${port}`
+  // Last resort: K8s DNS by service name (works inside the cluster,
+  // fails locally — which is why the explicit env vars exist).
   return 'http://cluster-intel-analyzer:8081'
 }
 
