@@ -242,14 +242,43 @@ resolve_env_file() {
   fi
 }
 
+# Vars whose CLI/parent-env value should win over any env-file value.
+# Snapshot before sourcing, restore after, so precedence is:
+#   CLI env  >  env file  >  built-in default
+ENV_FILE_VARS=(
+  PROFILE BIND_ADDRESS NEXT_HOSTNAME DASHBOARD_MODE
+  ANALYZER_PORT METRICS_PORT DASHBOARD_PORT COLLECTOR_PORT COLLECTOR_METRICS_PORT
+  COLLECTOR_URL
+  LLM_PROVIDER LLM_ENDPOINT LLM_MODEL LLM_API_KEY
+  MOCK_INTERVAL ANALYSIS_INTERVAL EVICT_INTERVAL
+  KUBECONFIG
+)
+
 load_env_file() {
-  if [[ -n "$ENV_FILE" ]]; then
-    info "Loading env file: $ENV_FILE"
-    set -a
-    # shellcheck disable=SC1090
-    . "$ENV_FILE"
-    set +a
-  fi
+  if [[ -z "$ENV_FILE" ]]; then return; fi
+  info "Loading env file: $ENV_FILE"
+
+  # Snapshot which vars were already set by the parent process / CLI.
+  # We do this BEFORE sourcing so we can restore them after — env-file
+  # values must NEVER override values the operator explicitly set.
+  declare -A __preset
+  local v
+  for v in "${ENV_FILE_VARS[@]}"; do
+    if [[ -n "${!v+set}" ]]; then
+      __preset[$v]="${!v}"
+    fi
+  done
+
+  set -a
+  # shellcheck disable=SC1090
+  . "$ENV_FILE"
+  set +a
+
+  # Restore parent-set values, overriding whatever the file just set.
+  for v in "${!__preset[@]}"; do
+    printf -v "$v" '%s' "${__preset[$v]}"
+    export "$v"
+  done
 }
 
 # ── Built-in defaults (used when env file is absent or a key is unset) ───────
@@ -512,42 +541,84 @@ start_dashboard() {
     fatal "Dashboard already running (PID $(cat "$DASHBOARD_PIDFILE"))."
   fi
   info "Starting dashboard on $NEXT_HOSTNAME:$DASHBOARD_PORT ($DASHBOARD_MODE mode)..."
+
+  # In prod mode build first (synchronously, no PID racing).
+  if [[ "$DASHBOARD_MODE" == "prod" ]]; then
+    info "Building dashboard (next build)…"
+    (cd "$REPO_ROOT/src/dashboard" && npm run build >/dev/null) || fatal "next build failed"
+  fi
+
+  # Run next under setsid so it gets its own process group; we record the
+  # group leader PID and tear the whole group down on stop. Without this,
+  # `npx next dev` forks node → next-server which gets re-parented to init
+  # and survives a plain `kill <wrapper-pid>`.
+  local next_cmd
+  if [[ "$DASHBOARD_MODE" == "prod" ]]; then
+    next_cmd=(npx next start -H "$NEXT_HOSTNAME" -p "$DASHBOARD_PORT")
+  else
+    next_cmd=(npx next dev --hostname "$NEXT_HOSTNAME" -p "$DASHBOARD_PORT")
+  fi
+
   (
-    cd "$REPO_ROOT/src/dashboard" && \
-    ANALYZER_URL="http://localhost:$ANALYZER_PORT" \
-    PORT="$DASHBOARD_PORT" \
-    DASHBOARD_MODE="$DASHBOARD_MODE" \
-    NEXT_HOSTNAME="$NEXT_HOSTNAME" \
-    bash -lc '
-      set -euo pipefail
-      if [[ "${DASHBOARD_MODE}" == "prod" ]]; then
-        npm run build >/dev/null
-        exec npx next start -H "'"$NEXT_HOSTNAME"'" -p "'"$DASHBOARD_PORT"'"
-      fi
-      exec npx next dev --hostname "'"$NEXT_HOSTNAME"'" -p "'"$DASHBOARD_PORT"'"
-    '
+    cd "$REPO_ROOT/src/dashboard"
+    export ANALYZER_URL="http://localhost:$ANALYZER_PORT"
+    export PORT="$DASHBOARD_PORT"
+    export NEXT_HOSTNAME="$NEXT_HOSTNAME"
+    export DASHBOARD_MODE="$DASHBOARD_MODE"
+    exec setsid "${next_cmd[@]}"
   ) > "$LOG_DIR/dashboard.log" 2>&1 &
-  echo $! > "$DASHBOARD_PIDFILE"
+  local pid=$!
+  echo "$pid" > "$DASHBOARD_PIDFILE"
 
   if ! wait_for_http "http://localhost:$DASHBOARD_PORT/" "dashboard" 60; then
     error "Dashboard failed to become reachable. Last log lines:"
     tail -20 "$LOG_DIR/dashboard.log" >&2 || true
     fatal "abort"
   fi
-  success "Dashboard ready (PID $(cat "$DASHBOARD_PIDFILE"))"
+  success "Dashboard ready (PID $pid, group leader)"
+}
+
+# Kill PID and every descendant (process tree). Used so we don't orphan
+# child processes (npx → node → next-server) that have been re-parented
+# to init when the immediate child exits.
+kill_tree() {
+  local pid="$1" sig="${2:-TERM}"
+  # Recurse into children FIRST, then kill the parent.
+  local children
+  children="$(pgrep -P "$pid" 2>/dev/null || true)"
+  local c
+  for c in $children; do
+    kill_tree "$c" "$sig"
+  done
+  kill -"$sig" "$pid" 2>/dev/null || true
 }
 
 stop_pidfile() {
   local pidfile="$1" label="$2"
-  if [[ -f "$pidfile" ]]; then
-    local pid; pid="$(cat "$pidfile")"
-    if kill -0 "$pid" 2>/dev/null; then
-      info "Stopping $label (PID $pid)"
-      kill "$pid" 2>/dev/null || true
-      sleep 1
-      kill -9 "$pid" 2>/dev/null || true
-    fi
-    rm -f "$pidfile"
+  if [[ ! -f "$pidfile" ]]; then return; fi
+  local pid
+  pid="$(cat "$pidfile")"
+  rm -f "$pidfile"
+
+  if ! kill -0 "$pid" 2>/dev/null; then
+    info "$label PID $pid already gone"
+    return
+  fi
+
+  info "Stopping $label (PID $pid + descendants)"
+  # 1) Try to nuke the whole process group (setsid'd processes — dashboard).
+  #    A negative pid in `kill` means "process group". We send SIGTERM, wait,
+  #    then SIGKILL anything still alive.
+  kill -TERM -- -"$pid" 2>/dev/null || true
+  # 2) Belt-and-braces: also walk the process tree (analyzer, which is not
+  #    in its own session, has no group of its own).
+  kill_tree "$pid" TERM
+  sleep 1
+
+  if kill -0 "$pid" 2>/dev/null; then
+    warn "$label PID $pid did not exit on TERM, sending KILL"
+    kill -KILL -- -"$pid" 2>/dev/null || true
+    kill_tree "$pid" KILL
   fi
 }
 
