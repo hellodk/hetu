@@ -259,8 +259,10 @@ discover_models() {
   esac
 
   [[ -z "$body" ]] && return 0
-  # Parse with python3 (already required by the Next.js dashboard build);
-  # tolerate either schema (Ollama .models[].name OR OpenAI .data[].id).
+  # Parse with python3 (already required by the Next.js dashboard build).
+  # Tolerate either schema (Ollama .models[].name OR OpenAI .data[].id);
+  # deduplicate so an endpoint that returns the same model under both
+  # keys (some llama.cpp builds do) doesn't emit it twice.
   if command -v python3 >/dev/null 2>&1; then
     python3 - <<PY 2>/dev/null
 import json, sys
@@ -268,15 +270,16 @@ try:
     d = json.loads(${body@Q})
 except Exception:
     sys.exit(0)
-out = []
+names, seen = [], set()
+def add(n):
+    if n and n not in seen:
+        seen.add(n); names.append(n)
 if isinstance(d, dict):
-    for entry in d.get("models", []):
-        n = entry.get("name") or entry.get("model")
-        if n: out.append(n)
-    for entry in d.get("data", []):
-        n = entry.get("id") or entry.get("name")
-        if n: out.append(n)
-print("\n".join(out))
+    for entry in d.get("models", []) or []:
+        add(entry.get("name") or entry.get("model"))
+    for entry in d.get("data", []) or []:
+        add(entry.get("id") or entry.get("name"))
+print("\n".join(names))
 PY
   fi
 }
@@ -537,16 +540,33 @@ collect_llm() {
   fi
 
   if [[ -n "$discovered" ]]; then
-    # Build option list with the current value first (so it stays the default).
+    # Build the option list from discovered models ONLY — do not mix in
+    # a stale env-file LLM_MODEL that the endpoint doesn't actually
+    # host. If the configured model is missing, warn and fall back to
+    # the first discovered model as the default.
     local options=()
-    if [[ -n "$LLM_MODEL" ]]; then options+=("$LLM_MODEL"); fi
     while IFS= read -r m; do
       [[ -z "$m" ]] && continue
-      [[ "$m" == "$LLM_MODEL" ]] && continue   # already first
       options+=("$m")
     done <<< "$discovered"
 
-    local default_model="${LLM_MODEL:-${options[0]:-}}"
+    local default_model=""
+    if [[ -n "$LLM_MODEL" ]]; then
+      local m
+      for m in "${options[@]}"; do
+        if [[ "$m" == "$LLM_MODEL" ]]; then
+          default_model="$LLM_MODEL"
+          break
+        fi
+      done
+    fi
+    if [[ -z "$default_model" ]]; then
+      default_model="${options[0]:-}"
+      if [[ -n "$LLM_MODEL" ]]; then
+        warn "Configured LLM_MODEL '$LLM_MODEL' not present at endpoint — defaulting to '$default_model'"
+      fi
+    fi
+
     success "Found ${#options[@]} model(s) at endpoint"
     _prompt_select "LLM_MODEL" "$default_model" "${options[@]}"
     LLM_MODEL="$PROMPT_RESULT"
