@@ -1,10 +1,13 @@
-.PHONY: build test test-e2e tidy docker-build docker-push helm-deploy helm-template e2e-phase0
+.PHONY: build test test-e2e tidy docker-build docker-push helm-deploy helm-template e2e-phase0 run stop status doctor
 
 # --- Configuration ---
 REGISTRY   ?= ghcr.io/your-org
 VERSION    ?= 7.0.0
 SERVICES   := collector analyzer collector-podlogs collector-lblogs
 DASHBOARD  := dashboard
+ENV        ?= dev
+NAMESPACE  ?= cluster-intel
+VALUES     ?= values-$(ENV).yaml
 
 # --- Go builds ---
 build:
@@ -53,11 +56,12 @@ helm-deps:
 	helm dependency build deploy/helm/cluster-intel/
 
 helm-template:
-	helm template cluster-intel deploy/helm/cluster-intel/ --namespace cluster-intel
+	helm template cluster-intel deploy/helm/cluster-intel/ --namespace $(NAMESPACE)
 
 helm-deploy:
 	helm upgrade --install cluster-intel deploy/helm/cluster-intel/ \
-		--namespace cluster-intel --create-namespace \
+		--namespace $(NAMESPACE) --create-namespace \
+		$(if $(wildcard $(VALUES)),-f $(VALUES),) \
 		--set collector.image.repository=$(REGISTRY)/cluster-intel-collector \
 		--set collector.image.tag=$(VERSION) \
 		--set analyzer.image.repository=$(REGISTRY)/cluster-intel-analyzer \
@@ -65,6 +69,21 @@ helm-deploy:
 		--set dashboard.image.repository=$(REGISTRY)/cluster-intel-dashboard \
 		--set dashboard.image.tag=$(VERSION) \
 		--wait --timeout 5m
+
+# --- Local dev orchestration (delegates to scripts/run-local.sh) ---
+# Uses --yes so all env-file values are accepted silently. Run the script
+# directly (without --yes) for the interactive prompt-and-validate flow.
+run:
+	./scripts/run-local.sh start --yes -e $(ENV)
+
+stop:
+	./scripts/run-local.sh stop
+
+status:
+	./scripts/run-local.sh status
+
+doctor:
+	./scripts/run-local.sh doctor
 
 # --- E2E ---
 e2e-phase0:

@@ -105,6 +105,28 @@ helm upgrade --install cluster-intel deploy/helm/cluster-intel/ \
   -f values-deploy.yaml
 ```
 
+### Environments (dev / uat / prod)
+
+This repo supports environment-specific Helm values:
+
+- `values-dev.yaml`
+- `values-uat.yaml`
+- `values-prod.yaml` (create locally from `values-prod.yaml.example`)
+
+Deploy with:
+
+```bash
+make helm-deploy ENV=dev
+make helm-deploy ENV=uat
+make helm-deploy ENV=prod   # expects values-prod.yaml
+```
+
+You can also override the namespace:
+
+```bash
+make helm-deploy ENV=uat NAMESPACE=cluster-intel-uat
+```
+
 ### Optional hardening / observability
 
 ```bash
@@ -126,6 +148,59 @@ kubectl port-forward svc/cluster-intel-dashboard 3000:3000 \
   -n cluster-intel
 # → http://localhost:3000
 ```
+
+## Environments (dev / uat / prod)
+
+`scripts/run-local.sh` is the operator-facing tool for **everything
+local**. It loads `env/<ENVIRONMENT>.env`, **prompts for every
+configurable value** (showing the env-file default in `[brackets]`),
+**validates each one** (port collisions, URL syntax, kubeconfig
+reachability, Go duration syntax, LLM provider whitelist), and only
+then starts the services.
+
+### Sub-commands
+
+```bash
+scripts/run-local.sh                       # interactive menu
+scripts/run-local.sh start                 # interactive: prompt + validate + start
+scripts/run-local.sh start --yes -e dev    # accept env-file defaults silently
+scripts/run-local.sh start --non-interactive --yes -e prod   # CI: zero prompts
+scripts/run-local.sh stop                  # kill via pidfile
+scripts/run-local.sh status                # tabular health
+scripts/run-local.sh restart -e uat
+scripts/run-local.sh logs [analyzer|dashboard|collector|all]
+scripts/run-local.sh build                 # rebuild the analyzer binary
+scripts/run-local.sh setup -e dev          # wizard: write env/dev.env
+scripts/run-local.sh doctor                # pre-flight (tools, ports, kubeconfig) — never mutates
+scripts/run-local.sh lint                  # validate the env file only
+scripts/run-local.sh version
+```
+
+### Convenience targets
+
+```bash
+make doctor                                # delegate
+make run    ENV=dev                        # = scripts/run-local.sh start --yes -e dev
+make stop
+make status
+```
+
+### Flags
+
+| Flag | Purpose |
+|---|---|
+| `-e ENV`, `--env ENV` | Pick `env/<ENV>.env` (defaults to `dev`) |
+| `-y`, `--yes` | Accept all defaults silently — no prompts |
+| `--non-interactive` | Hard-fail on any required value missing — for CI |
+| `--env-file PATH` | Override env-file path |
+| `--log-dir PATH` | Override log directory |
+
+### Validation policy
+
+| Severity | What it catches |
+|---|---|
+| **Hard-fail** | Port already bound, missing kubeconfig (live mode), bad LLM provider, port not in 1..65535, missing required value in `--non-interactive` |
+| **Warn** | URL not reachable (network may be transient), empty `COLLECTOR_URL` in live mode |
 
 ## Configuration
 
