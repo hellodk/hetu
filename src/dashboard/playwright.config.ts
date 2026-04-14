@@ -2,30 +2,34 @@ import { defineConfig, devices } from '@playwright/test';
 
 /**
  * See https://playwright.dev/docs/test-configuration.
+ *
+ * BASE_URL env var selects the target. Defaults to the local Next.js dev
+ * server on :3003 (matching the local-run convention). CI or K8s smoke
+ * tests can override with BASE_URL=http://localhost:8080 or similar.
  */
+const BASE_URL = process.env.BASE_URL || 'http://localhost:3003';
+
 export default defineConfig({
   testDir: './tests',
-  /* Run tests in files in parallel */
   fullyParallel: true,
-  /* Fail the build on CI if you accidentally left test.only in the source code. */
   forbidOnly: !!process.env.CI,
-  /* Retry on CI only */
   retries: process.env.CI ? 2 : 0,
-  /* Opt out of parallel tests on CI. */
   workers: process.env.CI ? 1 : undefined,
-  /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   reporter: 'html',
-  /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
-    /* Base URL to use in actions like `await page.goto('/')`. */
-    baseURL: 'http://localhost:8080',
-
-    /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
+    baseURL: BASE_URL,
     trace: 'on-first-retry',
     viewport: { width: 1280, height: 720 },
   },
-
-  /* Configure projects for major browsers */
+  // Only auto-start the dev server when pointing at the local default.
+  // If the user sets BASE_URL (e.g. pointing at a K8s ingress) we assume
+  // they already have something running there.
+  webServer: process.env.BASE_URL ? undefined : {
+    command: 'npx next dev -p 3003',
+    url: 'http://localhost:3003',
+    reuseExistingServer: !process.env.CI,
+    timeout: 60_000,
+  },
   projects: [
     {
       name: 'chromium',

@@ -1,4 +1,4 @@
-.PHONY: build test tidy docker-build docker-push helm-deploy helm-template e2e-phase0
+.PHONY: build test test-e2e tidy docker-build docker-push helm-deploy helm-template e2e-phase0
 
 # --- Configuration ---
 REGISTRY   ?= ghcr.io/your-org
@@ -19,6 +19,10 @@ test:
 		echo "Testing $$d..."; \
 		(cd $$d && go test ./...); \
 	done
+
+test-e2e:
+	@echo "Running Playwright dashboard tests..."
+	@cd src/dashboard && npm run test:e2e
 
 tidy:
 	@for d in pkg/config pkg/store pkg/bus pkg/kube pkg/llm pkg/types pkg/middleware \

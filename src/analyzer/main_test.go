@@ -531,9 +531,17 @@ func TestBuildHealthReport_Empty(t *testing.T) {
 	if report.Timestamp.IsZero() {
 		t.Error("Expected non-zero timestamp")
 	}
-	// No LLM response → Scores MUST be nil (no hardcoded defaults).
-	if report.Scores != nil {
-		t.Errorf("Expected Scores to be nil when no LLM response, got %+v", report.Scores)
+	// Post-rule-engine (commit a5dd4347): scores are ALWAYS populated.
+	// With an empty cluster (no pods, no findings, etc.) the rule engine
+	// produces 100 across all dimensions.
+	if report.Scores == nil {
+		t.Fatal("Expected Scores to be populated by rule engine, got nil")
+	}
+	if report.Scores.Reliability != 100 {
+		t.Errorf("Expected reliability 100 on empty input, got %d", report.Scores.Reliability)
+	}
+	if report.Scores.Security != 100 {
+		t.Errorf("Expected security 100 on empty input, got %d", report.Scores.Security)
 	}
 	if report.Summary.TotalPods != 0 {
 		t.Errorf("Expected 0 pods, got %d", report.Summary.TotalPods)
@@ -685,17 +693,26 @@ func TestBuildHealthReport_WithLLMResponse(t *testing.T) {
 	if report.Scores == nil {
 		t.Fatal("Expected Scores to be populated when LLM returns healthScores, got nil")
 	}
-	if report.Scores.Reliability != 80 {
-		t.Errorf("Expected reliability 80, got %d", report.Scores.Reliability)
+	// Post-rule-engine: final scores are 60% rule-based + 40% LLM.
+	// With an empty cluster, rule scores are 100; LLM scores below get
+	// blended at 40% weight. Check the documented blend formula rather
+	// than the raw LLM values.
+	rel80, sec70, cost60, arch90 := 80, 70, 60, 90
+	wantRel := BlendWithLLM(ScoreResult{Score: 100}, &rel80)
+	if report.Scores.Reliability != wantRel {
+		t.Errorf("Expected blended reliability %d, got %d", wantRel, report.Scores.Reliability)
 	}
-	if report.Scores.Security != 70 {
-		t.Errorf("Expected security 70, got %d", report.Scores.Security)
+	wantSec := BlendWithLLM(ScoreResult{Score: 100}, &sec70)
+	if report.Scores.Security != wantSec {
+		t.Errorf("Expected blended security %d, got %d", wantSec, report.Scores.Security)
 	}
-	if report.Scores.Cost != 60 {
-		t.Errorf("Expected cost 60, got %d", report.Scores.Cost)
+	wantCost := BlendWithLLM(ScoreResult{Score: 100}, &cost60)
+	if report.Scores.Cost != wantCost {
+		t.Errorf("Expected blended cost %d, got %d", wantCost, report.Scores.Cost)
 	}
-	if report.Scores.Architecture != 90 {
-		t.Errorf("Expected architecture 90, got %d", report.Scores.Architecture)
+	wantArch := BlendWithLLM(ScoreResult{Score: 100}, &arch90)
+	if report.Scores.Architecture != wantArch {
+		t.Errorf("Expected blended architecture %d, got %d", wantArch, report.Scores.Architecture)
 	}
 
 	// Overall should be calculated via CalculateOverallScore
