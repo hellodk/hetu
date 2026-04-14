@@ -247,6 +247,8 @@ function LogStreamPanel({
       ws.onerror = () => {}
       ws.onmessage = (e) => {
         const text = e.data as string
+        // Filter out backend heartbeats — they keep the WS alive but aren't log lines
+        if (text.startsWith('{"type":"heartbeat"')) return
         const level = detectLogLevel(text)
         const tsMatch = text.match(/^(\d{4}-\d{2}-\d{2}T[\d:.]+Z?)\s/)
         const logLine: LogLine = {
@@ -277,20 +279,36 @@ function LogStreamPanel({
     }
   }, [connectAll])
 
-  // Anchor scroll at viewport midpoint, not bottom — gives user a
-  // stable reading zone above while new lines flow below.
+  // Teleprompter scroll: newest log line sits at the viewport midpoint.
+  // A spacer div (50% of container height) below the log lines creates
+  // room so the last line can actually be positioned mid-screen.
+  const [spacerHeight, setSpacerHeight] = useState(0)
+  const programmaticScroll = useRef(false)
+
   useEffect(() => {
-    if (following && containerRef.current) {
-      const el = containerRef.current
-      el.scrollTop = Math.max(0, el.scrollHeight - el.clientHeight * 0.5)
-    }
-  }, [lines, following])
+    if (!containerRef.current) return
+    const ro = new ResizeObserver(([entry]) => {
+      setSpacerHeight(Math.floor(entry.contentRect.height * 0.5))
+    })
+    ro.observe(containerRef.current)
+    return () => ro.disconnect()
+  }, [])
+
+  useEffect(() => {
+    if (!following || !containerRef.current || !bottomRef.current) return
+    programmaticScroll.current = true
+    const el = containerRef.current
+    const target = bottomRef.current.offsetTop - el.clientHeight * 0.5
+    el.scrollTop = Math.max(0, target)
+    requestAnimationFrame(() => { programmaticScroll.current = false })
+  }, [lines, following, spacerHeight])
 
   const handleScroll = useCallback(() => {
-    if (!containerRef.current) return
-    const { scrollTop, scrollHeight, clientHeight } = containerRef.current
-    const followPos = scrollHeight - clientHeight * 0.5
-    if (followPos - scrollTop > clientHeight * 0.3) {
+    if (programmaticScroll.current) return
+    if (!containerRef.current || !bottomRef.current) return
+    const el = containerRef.current
+    const midTarget = bottomRef.current.offsetTop - el.clientHeight * 0.5
+    if (midTarget - el.scrollTop > el.clientHeight * 0.3) {
       setFollowing(false)
     }
   }, [])
@@ -433,7 +451,14 @@ function LogStreamPanel({
         </button>
         {!following && (
           <button
-            onClick={() => { setFollowing(true); if (containerRef.current) { containerRef.current.scrollTop = containerRef.current.scrollHeight - containerRef.current.clientHeight * 0.5 } }}
+            onClick={() => {
+              setFollowing(true)
+              if (containerRef.current && bottomRef.current) {
+                programmaticScroll.current = true
+                containerRef.current.scrollTop = Math.max(0, bottomRef.current.offsetTop - containerRef.current.clientHeight * 0.5)
+                requestAnimationFrame(() => { programmaticScroll.current = false })
+              }
+            }}
             className="flex items-center gap-0.5 px-1.5 py-0.5 bg-blue-600 text-white rounded text-xs"
           >
             <ArrowDown className="w-3 h-3" /> Follow
@@ -490,7 +515,10 @@ function LogStreamPanel({
             <span className={getLogLevelColor(line.level)}>{highlightSearch(line.text)}</span>
           </div>
         ))}
+        {/* Anchor mark — sits right after the last log line */}
         <div ref={bottomRef} />
+        {/* Teleprompter spacer: pushes anchor to viewport midpoint */}
+        <div style={{ height: spacerHeight }} aria-hidden />
       </div>
     </div>
   )
