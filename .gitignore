@@ -1,34 +1,120 @@
-# Dependencies
+# ============================================================================
+# K8s Cluster Intelligence Engine — .gitignore
+# ============================================================================
+# NOTE: node_modules/ and bin/ binaries were committed to history before this
+# file was tightened. Run `git rm -r --cached node_modules src/dashboard/node_modules bin`
+# to untrack the already-committed files (does NOT delete local copies).
+# ============================================================================
+
+# ---- Dependencies ---------------------------------------------------------
 node_modules/
 venv/
 .venv/
+vendor/
 
-# Build outputs
+# ---- Compiled Go binaries -------------------------------------------------
+bin/
+# Binary produced when `go build` is run in the package directory.
 src/collector/cluster-intel-collector
+src/collector/collector
 src/analyzer/cluster-intel-analyzer
+src/analyzer/analyzer
+src/collector-lblogs/collector-lblogs
+src/collector-podlogs/collector-podlogs
+# Backwards-compat: also ignore copies at repo root (old build outputs).
+/cluster-intel-collector
+/cluster-intel-analyzer
+/analyzer
+/collector
+
+# Go coverage and profiling output
+coverage.out
+coverage.html
+*.prof
+*.pprof
+
+# ---- Next.js / TypeScript -------------------------------------------------
 src/dashboard/.next/
-cluster-intel-collector
-cluster-intel-analyzer
+src/dashboard/out/
+src/dashboard/build/
+src/dashboard/next-env.d.ts
+src/dashboard/tsconfig.tsbuildinfo
+src/dashboard/.turbo/
 
-# AI tool artifacts
-.aider.*
+# ---- Test artifacts -------------------------------------------------------
+# Playwright
+src/dashboard/playwright-report/
+src/dashboard/test-results/
+src/dashboard/blob-report/
+src/dashboard/playwright/.cache/
+# Legacy screenshot harness
+test-screenshots/
 
-# IDE
+# ---- Logs & runtime state -------------------------------------------------
+*.log
+*.log.*
+*.pid
+/tmp/cluster-intel-logs/
+
+# ---- Local backups / swap files -------------------------------------------
+*.bak
+*.swp
+*.swo
+*~
+.orig
+*.rej
+
+# ---- Environment & secrets ------------------------------------------------
+.env
+.env.local
+.env.*.local
+.envrc
+secrets.yaml
+secrets.yml
+*.pem
+*.key
+# Kubeconfig files occasionally land in workspaces.
+kubeconfig
+kubeconfig.yaml
+*.kubeconfig
+
+# ---- IDE / editor ---------------------------------------------------------
 .cursor/
 .vscode/
 .idea/
+*.iml
+.project
+.classpath
+.settings/
 
-# OS
+# ---- AI tool artifacts ----------------------------------------------------
+.aider.*
+.claude/
+
+# ---- OS ------------------------------------------------------------------
 .DS_Store
 Thumbs.db
+Desktop.ini
+ehthumbs.db
+$RECYCLE.BIN/
 
-# Test artifacts
-test-screenshots/
-
-# Python
+# ---- Python (scripts may pull in venvs) ----------------------------------
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
-# Environment
-.env
-.env.local
+# ---- Helm / Kustomize build output ---------------------------------------
+charts/*.tgz
+deploy/helm/*/charts/*.tgz
+helm-rendered.yaml
+
+# ---- Monitoring stack build output ---------------------------------------
+manifests/monitoring/generated/
+
+# ---- Benchmark output ----------------------------------------------------
+*.bench
+benchmark-*.txt

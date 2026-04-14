@@ -35,12 +35,22 @@
     overflow: hidden;
   }
 
-  .impress-not-supported {
+  /* Fallback for browsers that can't run impress.js. Hidden entirely
+     when impress.js successfully initialises (the script removes the
+     `impress-not-supported` class from the body and adds
+     `impress-supported`). */
+  .fallback-message {
+    display: none;
     margin: 5em auto;
     max-width: 30em;
     padding: 2em;
     background: var(--c-bg-1);
     border-radius: 12px;
+    color: var(--c-text);
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+  .impress-not-supported .fallback-message {
+    display: block;
   }
 
   /* --- impress.js stage ----------------------------------------------- */
@@ -933,7 +943,7 @@ AllResources []string  // full list (json:"-")</pre>
 <div class="impress-progressbar"><div></div></div>
 <div class="impress-progress"></div>
 
-<script src="https://cdn.jsdelivr.net/npm/impress.js@2.0.0/js/impress.js"></script>
+<script src="./impress.min.js"></script>
 <script>
   // Progress indicator — updates on step change
   document.addEventListener('impress:stepenter', function (event) {
