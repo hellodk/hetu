@@ -18,11 +18,25 @@ export default function RootLayout({
 }: {
   children: React.ReactNode
 }) {
-  // Browser-side API URL: empty string means use relative URLs (/api/v1/...)
-  // which are proxied server-side by Next.js route handlers.
-  // For WebSocket (logs, exec), the browser needs the direct analyzer URL
-  // since Next.js can't proxy WebSocket upgrades.
-  const apiUrl = process.env.ANALYZER_URL || process.env.NEXT_PUBLIC_API_URL || ''
+  // Browser-side API URL injected into window.__CLUSTER_INTEL_API__.
+  //
+  // IMPORTANT: this URL must be reachable from whatever device loads the
+  // page, NOT from the Next.js server. Only read NEXT_PUBLIC_API_URL —
+  // ANALYZER_URL is intentionally excluded because it's often something
+  // like "http://localhost:18081" that only the host running next dev
+  // can resolve. Injecting it causes every LAN visitor (phone, another
+  // laptop at http://<lan-ip>:3003) to try and fetch the analyzer at
+  // their OWN localhost, which 5xx's.
+  //
+  // When this is empty (the common local-dev case), the client uses:
+  //   - relative URLs for REST    → proxied by app/api/v1/[...path]/route.ts
+  //   - ws://${window.location.hostname}:18081 for WebSocket (logs/exec)
+  // Both work from any origin that can reach the dashboard.
+  //
+  // Set NEXT_PUBLIC_API_URL only when the browser must bypass the proxy
+  // (e.g. dashboard and analyzer served from different origins with no
+  //  same-origin path).
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || ''
 
   return (
     <html lang="en" className="dark">
