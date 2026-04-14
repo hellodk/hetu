@@ -28,23 +28,28 @@ interface Breakdown {
   architecture: Dimension
 }
 
+interface BreakdownResource {
+  kind: string
+  namespace: string
+  name: string
+  status?: string
+  impact: number
+  detail?: string
+}
+
+interface RuleBreakdownResponse {
+  rule: string
+  dimension: string
+  totalImpact: number
+  resources: BreakdownResource[]
+}
+
 const dimensionConfig = {
   reliability: { label: 'Reliability', icon: Activity, color: 'blue' },
   security: { label: 'Security', icon: Shield, color: 'purple' },
   cost: { label: 'Cost Efficiency', icon: DollarSign, color: 'emerald' },
   architecture: { label: 'Architecture', icon: Boxes, color: 'amber' },
 } as const
-
-// Convert a resource string like "namespace/name" into a workload detail link.
-// Returns null for resources that don't map cleanly (e.g., plain titles).
-function resourceToLink(resource: string): string | null {
-  const parts = resource.split('/')
-  if (parts.length !== 2) return null
-  const [ns, name] = parts
-  if (!ns || !name) return null
-  // Link any namespace/name pair to the pod list filtered by namespace
-  return `/workloads/pods?group=core&version=v1`
-}
 
 const severityColors: Record<string, string> = {
   critical: 'text-red-400 bg-red-500/10 border-red-500/20',
@@ -53,19 +58,88 @@ const severityColors: Record<string, string> = {
   low: 'text-slate-400 bg-slate-500/10 border-slate-500/20',
 }
 
-function FactorRow({ factor }: { factor: Factor }) {
+// Build a link to the correct page for a given kind of resource. Workload
+// kinds route to the workload detail page; incidents/anomalies/error groups
+// route to their dedicated pages.
+function linkForResource(r: BreakdownResource): string | null {
+  switch (r.kind) {
+    case 'Incident':
+      return `/incidents/${r.name}`
+    case 'Anomaly':
+      return `/anomalies`
+    case 'ErrorGroup':
+      return `/errors`
+    case 'Namespace':
+    case 'ClusterRoleBinding':
+    case 'Resource':
+      return null
+    default:
+      // Default: treat as a workload (Pod / Deployment / etc.)
+      if (r.namespace && r.name) {
+        return `/workloads/${r.kind}/${r.namespace}/${r.name}?group=core&version=v1`
+      }
+      return null
+  }
+}
+
+function FactorRow({
+  factor,
+  dimensionKey,
+  ruleIndex,
+}: {
+  factor: Factor
+  dimensionKey: string
+  ruleIndex: number
+}) {
   const [expanded, setExpanded] = useState(false)
-  const hasResources = factor.resources && factor.resources.length > 0
+  const [drilldown, setDrilldown] = useState<RuleBreakdownResponse | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [nsFilter, setNsFilter] = useState<string>('')
+  const [warmingUp, setWarmingUp] = useState(false)
+  // Only negative deductions have per-resource drill-down data. Positive
+  // bonuses (e.g. cost efficiency ratios) render as info-only rows.
+  const canDrill = factor.impact < 0
   const sevClass = severityColors[factor.severity || 'medium'] || severityColors.medium
+
+  const toggle = useCallback(async () => {
+    if (!canDrill) return
+    if (expanded) {
+      setExpanded(false)
+      return
+    }
+    setExpanded(true)
+    if (drilldown) return
+    setLoading(true)
+    setWarmingUp(false)
+    try {
+      const resp = await apiFetch<RuleBreakdownResponse>(
+        `/api/v1/health/breakdown/${dimensionKey}/${ruleIndex}`
+      )
+      setDrilldown(resp)
+    } catch (e) {
+      // apiFetch throws an Error whose message contains the status code.
+      // A 503 means the analyzer hasn't completed its first analysis yet.
+      if (e instanceof Error && e.message.includes('503')) {
+        setWarmingUp(true)
+      }
+      setDrilldown(null)
+    } finally {
+      setLoading(false)
+    }
+  }, [canDrill, expanded, drilldown, dimensionKey, ruleIndex])
+
+  const resources = drilldown?.resources || []
+  const namespaces = Array.from(new Set(resources.map(r => r.namespace).filter(Boolean))).sort()
+  const filtered = nsFilter ? resources.filter(r => r.namespace === nsFilter) : resources
 
   return (
     <div className="border border-cluster-border rounded-lg overflow-hidden">
       <button
-        onClick={() => hasResources && setExpanded(!expanded)}
+        onClick={toggle}
         className={clsx(
           'w-full flex items-center gap-3 px-3 py-2 text-left text-sm',
-          hasResources && 'hover:bg-white/5 cursor-pointer',
-          !hasResources && 'cursor-default'
+          canDrill && 'hover:bg-white/5 cursor-pointer',
+          !canDrill && 'cursor-default'
         )}
       >
         <TrendingDown className="w-4 h-4 text-red-400 flex-shrink-0" aria-hidden="true" />
@@ -73,57 +147,87 @@ function FactorRow({ factor }: { factor: Factor }) {
         <span className={clsx('text-xs font-medium px-2 py-0.5 rounded-full border', sevClass)}>
           {factor.impact > 0 ? '+' : ''}{factor.impact}
         </span>
-        {hasResources && (
+        {canDrill && (
           expanded
             ? <ChevronUp className="w-4 h-4 text-slate-500 flex-shrink-0" />
             : <ChevronDown className="w-4 h-4 text-slate-500 flex-shrink-0" />
         )}
       </button>
-      {expanded && hasResources && (
-        <div className="px-3 pb-2 pt-1 border-t border-cluster-border bg-black/20">
-          <div className="flex flex-wrap gap-1.5">
-            {factor.resources!.slice(0, 20).map((r, i) => {
-              const link = resourceToLink(r)
-              if (link) {
-                return (
-                  <Link
-                    key={i}
-                    href={link}
-                    className="text-xs font-mono text-blue-400 bg-blue-500/10 border border-blue-500/20 rounded px-1.5 py-0.5 hover:bg-blue-500/20 transition-colors inline-flex items-center gap-1"
-                  >
-                    {r}
-                    <ExternalLink className="w-3 h-3" />
-                  </Link>
-                )
-              }
-              return (
-                <span key={i} className="text-xs font-mono text-slate-400 bg-cluster-border/50 rounded px-1.5 py-0.5">
-                  {r}
+      {expanded && canDrill && (
+        <div className="px-3 pb-2 pt-1 border-t border-cluster-border bg-black/20 space-y-2">
+          {loading && (
+            <div className="flex items-center gap-2 text-xs text-slate-400">
+              <Loader2 className="w-3 h-3 animate-spin" />
+              Loading affected resources…
+            </div>
+          )}
+          {!loading && warmingUp && (
+            <div className="text-xs text-amber-400">
+              Analyzer is completing its first analysis cycle — try again in a moment.
+            </div>
+          )}
+          {!loading && !warmingUp && resources.length === 0 && (
+            <div className="text-xs text-slate-500">
+              No per-resource detail available for this rule.
+            </div>
+          )}
+          {!loading && resources.length > 0 && (
+            <>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] text-slate-500">
+                  {filtered.length} of {resources.length} resources
                 </span>
-              )
-            })}
-            {factor.resources!.length > 20 && (
-              <span className="text-xs text-slate-500">+{factor.resources!.length - 20} more</span>
-            )}
-          </div>
-          {/* Level 3-4: related pages */}
-          <div className="flex gap-2 mt-2 pt-2 border-t border-cluster-border/50">
-            {factor.severity === 'critical' || factor.severity === 'high' ? (
-              <Link href="/incidents" className="text-[10px] text-blue-400 hover:underline">View related incidents</Link>
-            ) : null}
-            {factor.name?.includes('security') || factor.name?.includes('severity') ? (
-              <Link href="/security" className="text-[10px] text-blue-400 hover:underline">Security findings</Link>
-            ) : null}
-            {factor.name?.includes('rightsizing') || factor.name?.includes('opportunities') ? (
-              <Link href="/optimization" className="text-[10px] text-blue-400 hover:underline">Optimization details</Link>
-            ) : null}
-            {factor.name?.includes('pods') || factor.name?.includes('crashloop') || factor.name?.includes('pending') ? (
-              <Link href="/workloads/pods?group=core&version=v1" className="text-[10px] text-blue-400 hover:underline">Pod health</Link>
-            ) : null}
-            {factor.name?.includes('anomal') ? (
-              <Link href="/anomalies" className="text-[10px] text-blue-400 hover:underline">Anomaly details</Link>
-            ) : null}
-          </div>
+                {namespaces.length > 1 && (
+                  <select
+                    value={nsFilter}
+                    onChange={e => setNsFilter(e.target.value)}
+                    className="text-xs bg-gray-800 border border-gray-700 rounded px-1.5 py-0.5 text-slate-300"
+                    aria-label="Filter by namespace"
+                  >
+                    <option value="">All namespaces</option>
+                    {namespaces.map(ns => (
+                      <option key={ns} value={ns}>{ns}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+              <div className="flex flex-col gap-1 max-h-80 overflow-auto">
+                {filtered.map((r, i) => {
+                  const link = linkForResource(r)
+                  const label = r.namespace ? `${r.namespace}/${r.name}` : r.name
+                  const content = (
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className="inline-block px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400 uppercase text-[10px] tracking-wide">
+                        {r.kind}
+                      </span>
+                      <span className="font-mono text-slate-200 truncate">{label}</span>
+                      {r.status && (
+                        <span className="text-slate-500 text-[11px]">{r.status}</span>
+                      )}
+                      {r.detail && (
+                        <span className="text-slate-500 text-[11px] truncate">· {r.detail}</span>
+                      )}
+                      <span className="ml-auto text-red-400 font-medium flex-shrink-0">{r.impact}</span>
+                      {link && <ExternalLink className="w-3 h-3 text-blue-400 flex-shrink-0" />}
+                    </div>
+                  )
+                  return link ? (
+                    <Link
+                      key={i}
+                      href={link}
+                      className="px-2 py-1 rounded hover:bg-blue-500/10 border border-transparent hover:border-blue-500/30 transition-colors"
+                    >
+                      {content}
+                    </Link>
+                  ) : (
+                    <div key={i} className="px-2 py-1">
+                      {content}
+                    </div>
+                  )
+                })}
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>
@@ -153,12 +257,12 @@ function DimensionCard({ name, dim }: { name: keyof typeof dimensionConfig; dim:
         <>
           <div className="space-y-1.5 mb-2">
             {dim.factors.map((f, i) => (
-              <FactorRow key={i} factor={f} />
+              <FactorRow key={i} factor={f} dimensionKey={name} ruleIndex={i} />
             ))}
           </div>
           <div className="text-xs text-slate-500 pt-2 border-t border-cluster-border">
             Total impact: <span className="text-red-400 font-medium">{totalImpact}</span>
-            {' '} across {dim.factors.reduce((s, f) => s + (f.resources?.length || 0), 0)} resources
+            {' '} across {dim.factors.reduce((s, f) => s + (f.resources?.length || 0), 0)} resources (preview)
           </div>
         </>
       )}
@@ -194,7 +298,6 @@ export function ScoreBreakdown({ expanded, onToggle, focusDimension }: ScoreBrea
     }
   }, [expanded, data, fetchBreakdown])
 
-  // Auto-refresh when expanded
   useEffect(() => {
     if (!expanded) return
     const id = setInterval(fetchBreakdown, 60000)

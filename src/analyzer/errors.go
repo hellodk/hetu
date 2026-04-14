@@ -145,6 +145,46 @@ func (ea *ErrorAggregator) Ingest(evt IngestEvent) {
 	ea.occurrences[fp] = append(occs, occ)
 }
 
+// Evict removes error groups whose LastSeen timestamp is older than ttl
+// and enforces a hard cap on map size by evicting the least-recently-seen
+// groups. Also drops the matching occurrences ring buffer. Returns the
+// number of groups removed.
+func (ea *ErrorAggregator) Evict(ttl time.Duration, maxSize int) int {
+	ea.mu.Lock()
+	defer ea.mu.Unlock()
+
+	now := time.Now()
+	var removed int
+	for fp, g := range ea.groups {
+		if now.Sub(g.LastSeen) > ttl {
+			delete(ea.groups, fp)
+			delete(ea.occurrences, fp)
+			removed++
+		}
+	}
+
+	if maxSize > 0 && len(ea.groups) > maxSize {
+		type kv struct {
+			fp string
+			t  time.Time
+		}
+		entries := make([]kv, 0, len(ea.groups))
+		for fp, g := range ea.groups {
+			entries = append(entries, kv{fp, g.LastSeen})
+		}
+		sort.Slice(entries, func(i, j int) bool {
+			return entries[i].t.Before(entries[j].t)
+		})
+		excess := len(ea.groups) - maxSize
+		for i := range excess {
+			delete(ea.groups, entries[i].fp)
+			delete(ea.occurrences, entries[i].fp)
+			removed++
+		}
+	}
+	return removed
+}
+
 // RegisterRoutes adds the error aggregator API endpoints.
 func (ea *ErrorAggregator) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/errors/groups", ea.handleListGroups)

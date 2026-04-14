@@ -183,6 +183,57 @@ func (c *Correlator) GetIncident(id int64) *Incident {
 	return c.incidents[id]
 }
 
+// Evict removes incidents past their TTL and enforces a hard cap on the
+// map size. Resolved/dismissed incidents use resolvedTTL (from
+// ResolvedAt if set, else DetectedAt); anything older than activeTTL
+// is evicted regardless of status. Returns the number of incidents
+// removed.
+func (c *Correlator) Evict(resolvedTTL, activeTTL time.Duration, maxSize int) int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	now := time.Now()
+	var removed int
+	for id, inc := range c.incidents {
+		age := now.Sub(inc.DetectedAt)
+		if age > activeTTL {
+			delete(c.incidents, id)
+			removed++
+			continue
+		}
+		if inc.Status == "resolved" || inc.Status == "dismissed" {
+			ref := inc.DetectedAt
+			if inc.ResolvedAt != nil {
+				ref = *inc.ResolvedAt
+			}
+			if now.Sub(ref) > resolvedTTL {
+				delete(c.incidents, id)
+				removed++
+			}
+		}
+	}
+
+	if maxSize > 0 && len(c.incidents) > maxSize {
+		type kv struct {
+			id int64
+			t  time.Time
+		}
+		entries := make([]kv, 0, len(c.incidents))
+		for id, inc := range c.incidents {
+			entries = append(entries, kv{id, inc.DetectedAt})
+		}
+		sort.Slice(entries, func(i, j int) bool {
+			return entries[i].t.Before(entries[j].t)
+		})
+		excess := len(c.incidents) - maxSize
+		for i := range excess {
+			delete(c.incidents, entries[i].id)
+			removed++
+		}
+	}
+	return removed
+}
+
 // RegisterRoutes adds incident API endpoints.
 func (c *Correlator) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/incidents", c.handleListIncidents)

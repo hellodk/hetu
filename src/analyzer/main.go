@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/signal"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -126,6 +127,15 @@ type Analyzer struct {
 	analysisDuration prometheus.Histogram
 	llmTokensUsed    prometheus.Counter
 	healthScore      prometheus.Gauge
+
+	// Cached per-dimension ScoreResult from the most recent analysis
+	// cycle. Protected by reportMu. Used by the drill-down endpoints to
+	// return the same data that produced the currently displayed
+	// scores, including the untruncated AllResources lists.
+	lastReliability  ScoreResult
+	lastSecurity     ScoreResult
+	lastCost         ScoreResult
+	lastArchitecture ScoreResult
 
 	// HTTP servers for graceful shutdown
 	metricsServer *http.Server
@@ -521,6 +531,14 @@ func (a *Analyzer) Start(ctx context.Context) error {
 	// Prometheus. They're no-ops when the profile is "mock".
 	a.wg.Add(1)
 	go a.startBackgroundScans(ctx)
+
+	// Periodic TTL/max-size eviction so the in-memory handler maps stay
+	// bounded over long runtimes.
+	a.wg.Add(1)
+	go func() {
+		defer a.wg.Done()
+		a.startEvictionLoop(ctx)
+	}()
 
 	// Start HTTP servers
 	a.wg.Add(2)
@@ -1344,6 +1362,16 @@ func (a *Analyzer) buildHealthReport(events []types.TelemetryEvent, metrics []ty
 	scoreInput := a.BuildScoreInput()
 	ruleRel, ruleSec, ruleCost, ruleArch := CalculateScores(scoreInput)
 
+	// Cache per-dimension results for drill-down endpoints. These
+	// preserve the untruncated AllResources list that the wire-level
+	// response trims to 10.
+	a.reportMu.Lock()
+	a.lastReliability = ruleRel
+	a.lastSecurity = ruleSec
+	a.lastCost = ruleCost
+	a.lastArchitecture = ruleArch
+	a.reportMu.Unlock()
+
 	// 2. Extract LLM scores (if available)
 	var llmRel, llmSec, llmCost, llmArch *int
 	if llmResponse != nil {
@@ -1494,6 +1522,8 @@ func (a *Analyzer) serveAPI() {
 	// API endpoints
 	mux.HandleFunc("/api/v1/health", a.handleHealthReport)
 	mux.HandleFunc("/api/v1/health/breakdown", a.handleHealthBreakdown)
+	mux.HandleFunc("GET /api/v1/health/breakdown/{dimension}/{ruleIndex}", a.handleRuleBreakdown)
+	mux.HandleFunc("GET /api/v1/health/resource-impact", a.handleResourceImpact)
 	mux.HandleFunc("/api/v1/scores", a.handleScores)
 	mux.HandleFunc("/api/v1/recommendations", a.handleRecommendations)
 	mux.HandleFunc("/api/v1/issues", a.handleIssues)
@@ -1679,11 +1709,32 @@ func (a *Analyzer) handleHealthStream(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// severityForRule maps a rule name (and fall-back impact magnitude) to a
+// severity bucket the UI uses for badge colouring.
+func severityForRule(rule string, impact int) string {
+	switch rule {
+	case "CrashLoopBackOff pods", "OOMKilled pods", "Privileged containers",
+		"Root containers", "Cluster-admin bindings", "Open incidents":
+		return "high"
+	case "Pending pods", "Evicted pods", "Host network/PID/IPC pods",
+		"Secrets in env vars", "Namespaces without network policy",
+		"Active anomalies", "Rightsizing opportunities",
+		"Namespaces without ResourceQuota", "Namespaces without LimitRange",
+		"Wildcard RBAC rules", "Missing securityContext",
+		"Writable root filesystem", "Open error groups":
+		return "medium"
+	}
+	if impact <= -20 {
+		return "high"
+	}
+	return "medium"
+}
+
 // handleHealthBreakdown returns a per-dimension breakdown showing which
-// cluster resources and conditions contribute to each health score. This
-// is built from real data (security findings, pod health, optimizer recs,
-// anomalies) — NOT from the LLM. It gives the operator drill-down
-// visibility into why each score is what it is.
+// scoring rules contribute to each dimension score. It serves directly
+// from the cached ScoreResult fields so factor indices in the response
+// match the indices used by the Level-3 drill-down endpoint
+// (/api/v1/health/breakdown/{dimension}/{ruleIndex}).
 func (a *Analyzer) handleHealthBreakdown(w http.ResponseWriter, r *http.Request) {
 	type factor struct {
 		Name      string   `json:"name"`
@@ -1702,166 +1753,341 @@ func (a *Analyzer) handleHealthBreakdown(w http.ResponseWriter, r *http.Request)
 		Architecture dimension `json:"architecture"`
 	}
 
-	bd := breakdown{}
-
-	// Current scores from latest report (if any)
 	a.reportMu.RLock()
+	rel, sec, cost, arch := a.lastReliability, a.lastSecurity, a.lastCost, a.lastArchitecture
+	var relScore, secScore, costScore, archScore int
 	if a.latestReport != nil && a.latestReport.Scores != nil {
-		bd.Reliability.Score = a.latestReport.Scores.Reliability
-		bd.Security.Score = a.latestReport.Scores.Security
-		bd.Cost.Score = a.latestReport.Scores.Cost
-		bd.Architecture.Score = a.latestReport.Scores.Architecture
+		relScore = a.latestReport.Scores.Reliability
+		secScore = a.latestReport.Scores.Security
+		costScore = a.latestReport.Scores.Cost
+		archScore = a.latestReport.Scores.Architecture
 	}
 	a.reportMu.RUnlock()
 
-	// --- Reliability factors from Pod Health ---
-	if a.podHealthScanner != nil {
-		a.podHealthScanner.mu.RLock()
-		if rpt := a.podHealthScanner.report; rpt != nil {
-			for _, cat := range rpt.Categories {
-				if cat.Count == 0 {
-					continue
-				}
-				impact := -3 * cat.Count
-				sev := "medium"
-				switch cat.Name {
-				case "crashloop", "oomkilled":
-					impact = -5 * cat.Count
-					sev = "high"
-				case "evicted":
-					impact = -4 * cat.Count
-				case "pending":
-					impact = -2 * cat.Count
-				case "completed", "terminating":
-					impact = -1 * cat.Count
-					sev = "low"
-				}
-				resources := make([]string, 0, len(cat.Pods))
-				for _, p := range cat.Pods {
-					resources = append(resources, p.Namespace+"/"+p.Name)
-				}
-				bd.Reliability.Factors = append(bd.Reliability.Factors, factor{
-					Name:      fmt.Sprintf("%s pods (%d)", cat.Name, cat.Count),
-					Impact:    impact,
-					Resources: resources,
-					Severity:  sev,
-				})
+	// toFactors turns a ScoreResult's Deductions into wire factors.
+	// The index of each factor in the output matches the index of the
+	// corresponding ScoreDeduction, which is what the Level-3 drill-down
+	// endpoint keys on.
+	toFactors := func(sr ScoreResult) []factor {
+		out := make([]factor, 0, len(sr.Deductions))
+		for _, d := range sr.Deductions {
+			name := d.Rule
+			if d.Count > 0 {
+				name = fmt.Sprintf("%s (%d)", d.Rule, d.Count)
 			}
-		}
-		a.podHealthScanner.mu.RUnlock()
-	}
-
-	// --- Security factors from Security Scanner ---
-	if a.securityScanner != nil {
-		a.securityScanner.mu.RLock()
-		bySev := map[string][]string{}
-		for _, f := range a.securityScanner.findings {
-			bySev[f.Severity] = append(bySev[f.Severity], f.Title)
-		}
-		a.securityScanner.mu.RUnlock()
-		for sev, titles := range bySev {
-			impact := -2 * len(titles)
-			if sev == "critical" {
-				impact = -8 * len(titles)
-			} else if sev == "high" {
-				impact = -5 * len(titles)
-			} else if sev == "low" {
-				impact = -1 * len(titles)
-			}
-			bd.Security.Factors = append(bd.Security.Factors, factor{
-				Name:      fmt.Sprintf("%s severity findings (%d)", sev, len(titles)),
-				Impact:    impact,
-				Resources: titles,
-				Severity:  sev,
+			out = append(out, factor{
+				Name:      name,
+				Impact:    d.Impact,
+				Resources: d.Resources,
+				Severity:  severityForRule(d.Rule, d.Impact),
 			})
 		}
+		return out
 	}
 
-	// --- Cost factors from Optimizer ---
-	if a.optimizerRegistry != nil {
-		a.optimizerRegistry.mu.RLock()
-		byType := map[string]struct {
-			count   int
-			savings float64
-			targets []string
-		}{}
-		for _, rec := range a.optimizerRegistry.recommendations {
-			if rec.Status == "dismissed" || rec.Status == "applied" {
-				continue
-			}
-			entry := byType[rec.Type]
-			entry.count++
-			entry.savings += rec.EstimatedSavingsMonthly
-			entry.targets = append(entry.targets, rec.Target.Namespace+"/"+rec.Target.Name)
-			byType[rec.Type] = entry
-		}
-		a.optimizerRegistry.mu.RUnlock()
-		for typ, entry := range byType {
-			impact := -2 * entry.count
-			bd.Cost.Factors = append(bd.Cost.Factors, factor{
-				Name:      fmt.Sprintf("%s opportunities (%d, ~$%.0f/mo)", typ, entry.count, entry.savings),
-				Impact:    impact,
-				Resources: entry.targets,
-				Severity:  "medium",
-			})
-		}
-	}
-
-	// --- Architecture factors from Anomalies ---
-	if a.anomalyDetector != nil {
-		a.anomalyDetector.mu.RLock()
-		var activeAnomalies []string
-		for _, an := range a.anomalyDetector.anomalies {
-			if an.Status == "active" {
-				activeAnomalies = append(activeAnomalies, fmt.Sprintf("%s/%s %s (z=%.1f)", an.Namespace, an.Service, an.Metric, an.Score))
-			}
-		}
-		a.anomalyDetector.mu.RUnlock()
-		if len(activeAnomalies) > 0 {
-			bd.Architecture.Factors = append(bd.Architecture.Factors, factor{
-				Name:      fmt.Sprintf("Active anomalies (%d)", len(activeAnomalies)),
-				Impact:    -3 * len(activeAnomalies),
-				Resources: activeAnomalies,
-				Severity:  "medium",
-			})
-		}
-	}
-
-	// --- Architecture: also count incidents as a factor ---
-	if a.correlator != nil {
-		a.correlator.mu.RLock()
-		openCount := 0
-		for _, inc := range a.correlator.incidents {
-			if inc.Status == "open" || inc.Status == "investigating" {
-				openCount++
-			}
-		}
-		a.correlator.mu.RUnlock()
-		if openCount > 0 {
-			bd.Architecture.Factors = append(bd.Architecture.Factors, factor{
-				Name:     fmt.Sprintf("Open incidents (%d)", openCount),
-				Impact:   -2 * openCount,
-				Severity: "high",
-			})
-		}
-	}
-
-	// Default empty slices so JSON returns [] not null
-	if bd.Reliability.Factors == nil {
-		bd.Reliability.Factors = []factor{}
-	}
-	if bd.Security.Factors == nil {
-		bd.Security.Factors = []factor{}
-	}
-	if bd.Cost.Factors == nil {
-		bd.Cost.Factors = []factor{}
-	}
-	if bd.Architecture.Factors == nil {
-		bd.Architecture.Factors = []factor{}
+	bd := breakdown{
+		Reliability:  dimension{Score: relScore, Factors: toFactors(rel)},
+		Security:     dimension{Score: secScore, Factors: toFactors(sec)},
+		Cost:         dimension{Score: costScore, Factors: toFactors(cost)},
+		Architecture: dimension{Score: archScore, Factors: toFactors(arch)},
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(bd)
+}
+
+// handleRuleBreakdown returns the full (untruncated) list of resources
+// for a single scoring rule at Level 3 of the drill-down. For dynamic
+// rules that have no AllResources slice (active anomalies, open
+// incidents, open error groups) it queries the owning handler live so
+// the UI still gets a meaningful list.
+func (a *Analyzer) handleRuleBreakdown(w http.ResponseWriter, r *http.Request) {
+	dimension := r.PathValue("dimension")
+	ruleIdx, err := strconv.Atoi(r.PathValue("ruleIndex"))
+	if err != nil || ruleIdx < 0 {
+		http.Error(w, "invalid ruleIndex", http.StatusBadRequest)
+		return
+	}
+
+	a.reportMu.RLock()
+	var result ScoreResult
+	switch dimension {
+	case "reliability":
+		result = a.lastReliability
+	case "security":
+		result = a.lastSecurity
+	case "cost":
+		result = a.lastCost
+	case "architecture":
+		result = a.lastArchitecture
+	default:
+		a.reportMu.RUnlock()
+		http.Error(w, "invalid dimension", http.StatusBadRequest)
+		return
+	}
+	// Distinguish "warming up" (no analysis has run yet) from "valid
+	// dimension but invalid index" so the UI can show a meaningful hint.
+	warmingUp := len(a.lastReliability.Deductions) == 0 &&
+		len(a.lastSecurity.Deductions) == 0 &&
+		len(a.lastCost.Deductions) == 0 &&
+		len(a.lastArchitecture.Deductions) == 0
+	a.reportMu.RUnlock()
+
+	if warmingUp {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusServiceUnavailable)
+		json.NewEncoder(w).Encode(map[string]string{"error": "analyzer warming up"})
+		return
+	}
+	if ruleIdx >= len(result.Deductions) {
+		http.Error(w, "ruleIndex out of range", http.StatusNotFound)
+		return
+	}
+	ded := result.Deductions[ruleIdx]
+
+	perResourceImpact := ded.Impact
+	if ded.Count > 0 {
+		perResourceImpact = ded.Impact / ded.Count
+	}
+
+	var resources []types.BreakdownResource
+	switch ded.Rule {
+	case "Active anomalies":
+		resources = a.liveAnomalyResources(perResourceImpact)
+	case "Open incidents":
+		resources = a.liveIncidentResources(perResourceImpact)
+	case "Open error groups":
+		resources = a.liveErrorGroupResources(perResourceImpact)
+	default:
+		for _, raw := range ded.AllResources {
+			br := parseResourceIdentifier(raw, ded.Rule)
+			br.Impact = perResourceImpact
+			resources = append(resources, br)
+		}
+	}
+	if resources == nil {
+		resources = []types.BreakdownResource{}
+	}
+
+	writeJSON(w, types.RuleBreakdownResponse{
+		Rule:        ded.Rule,
+		Dimension:   dimension,
+		TotalImpact: ded.Impact,
+		Resources:   resources,
+	})
+}
+
+// handleResourceImpact returns every scoring rule that a single
+// resource contributes to, with static remediation hints. Used by the
+// Level-4 Score Impact tab on a resource detail page.
+func (a *Analyzer) handleResourceImpact(w http.ResponseWriter, r *http.Request) {
+	kind := r.URL.Query().Get("kind")
+	namespace := r.URL.Query().Get("namespace")
+	name := r.URL.Query().Get("name")
+	if kind == "" || name == "" {
+		http.Error(w, "kind and name are required", http.StatusBadRequest)
+		return
+	}
+
+	needle := name
+	if namespace != "" {
+		needle = namespace + "/" + name
+	}
+
+	a.reportMu.RLock()
+	dimResults := []struct {
+		name string
+		res  ScoreResult
+	}{
+		{"reliability", a.lastReliability},
+		{"security", a.lastSecurity},
+		{"cost", a.lastCost},
+		{"architecture", a.lastArchitecture},
+	}
+	a.reportMu.RUnlock()
+
+	rules := []types.ResourceImpactRule{}
+	for _, d := range dimResults {
+		for _, ded := range d.res.Deductions {
+			if !ruleMatchesResource(ded, needle, name, kind, namespace, a) {
+				continue
+			}
+			impact := ded.Impact
+			if ded.Count > 0 {
+				impact = ded.Impact / ded.Count
+			}
+			rules = append(rules, types.ResourceImpactRule{
+				Dimension:   d.name,
+				Rule:        ded.Rule,
+				Impact:      impact,
+				Remediation: remediationFor(ded.Rule),
+			})
+		}
+	}
+
+	writeJSON(w, types.ResourceImpactResponse{
+		Kind:      kind,
+		Namespace: namespace,
+		Name:      name,
+		Rules:     rules,
+	})
+}
+
+// ruleMatchesResource returns true when the given deduction was
+// triggered by the resource identified by (kind, namespace, name).
+// Standard deductions store "ns/name" or bare names in AllResources;
+// dynamic rules (anomalies/incidents/error groups) consult their
+// owning handler.
+func ruleMatchesResource(ded ScoreDeduction, nsName, name, kind, namespace string, a *Analyzer) bool {
+	switch ded.Rule {
+	case "Active anomalies":
+		if a.anomalyDetector == nil {
+			return false
+		}
+		a.anomalyDetector.mu.RLock()
+		defer a.anomalyDetector.mu.RUnlock()
+		for _, an := range a.anomalyDetector.anomalies {
+			if an.Service == name && an.Namespace == namespace {
+				return true
+			}
+		}
+		return false
+	case "Open incidents":
+		if a.correlator == nil {
+			return false
+		}
+		a.correlator.mu.RLock()
+		defer a.correlator.mu.RUnlock()
+		for _, inc := range a.correlator.incidents {
+			if inc.Status != "open" && inc.Status != "investigating" {
+				continue
+			}
+			for _, aff := range inc.Affected {
+				if aff == nsName || aff == name {
+					return true
+				}
+			}
+		}
+		return false
+	case "Open error groups":
+		if a.errorAggregator == nil {
+			return false
+		}
+		a.errorAggregator.mu.RLock()
+		defer a.errorAggregator.mu.RUnlock()
+		for _, g := range a.errorAggregator.groups {
+			if g.Status != "open" {
+				continue
+			}
+			if g.Namespace == namespace && (g.Service == name || g.LastPod == name) {
+				return true
+			}
+		}
+		return false
+	}
+	_ = kind // kind is informational; AllResources already carries enough context
+	for _, r := range ded.AllResources {
+		if r == nsName || r == name {
+			return true
+		}
+	}
+	return false
+}
+
+// parseResourceIdentifier splits a "ns/name" or bare identifier from
+// AllResources into a BreakdownResource, inferring Kind from the rule
+// name so the UI can generate correct links.
+func parseResourceIdentifier(s, rule string) types.BreakdownResource {
+	kind := inferKindForRule(rule)
+	ns, name := "", s
+	if idx := strings.Index(s, "/"); idx > 0 {
+		ns = s[:idx]
+		name = s[idx+1:]
+	}
+	return types.BreakdownResource{Kind: kind, Namespace: ns, Name: name}
+}
+
+// inferKindForRule returns the K8s resource kind associated with a
+// scoring rule name. Must stay in sync with scoring.go; any new rule
+// that populates AllResources should add a case here.
+func inferKindForRule(rule string) string {
+	switch rule {
+	case "CrashLoopBackOff pods", "OOMKilled pods", "Pending pods", "Evicted pods",
+		"Privileged containers", "Root containers", "Host network/PID/IPC pods",
+		"Secrets in env vars", "Rightsizing opportunities":
+		return "Pod"
+	case "Cluster-admin bindings":
+		return "ClusterRoleBinding"
+	case "Namespaces without network policy", "Namespaces without ResourceQuota",
+		"Namespaces without LimitRange":
+		return "Namespace"
+	}
+	return "Resource"
+}
+
+func (a *Analyzer) liveAnomalyResources(impact int) []types.BreakdownResource {
+	if a.anomalyDetector == nil {
+		return nil
+	}
+	a.anomalyDetector.mu.RLock()
+	defer a.anomalyDetector.mu.RUnlock()
+	out := make([]types.BreakdownResource, 0, len(a.anomalyDetector.anomalies))
+	for _, an := range a.anomalyDetector.anomalies {
+		out = append(out, types.BreakdownResource{
+			Kind:      "Anomaly",
+			Namespace: an.Namespace,
+			Name:      an.Service,
+			Status:    an.Severity,
+			Impact:    impact,
+			Detail:    fmt.Sprintf("%s z=%.2f", an.Metric, an.Score),
+		})
+	}
+	return out
+}
+
+func (a *Analyzer) liveIncidentResources(impact int) []types.BreakdownResource {
+	if a.correlator == nil {
+		return nil
+	}
+	a.correlator.mu.RLock()
+	defer a.correlator.mu.RUnlock()
+	var out []types.BreakdownResource
+	for _, inc := range a.correlator.incidents {
+		if inc.Status != "open" && inc.Status != "investigating" {
+			continue
+		}
+		out = append(out, types.BreakdownResource{
+			Kind:   "Incident",
+			Name:   strconv.FormatInt(inc.ID, 10),
+			Status: inc.Severity,
+			Impact: impact,
+			Detail: inc.Summary,
+		})
+	}
+	return out
+}
+
+func (a *Analyzer) liveErrorGroupResources(impact int) []types.BreakdownResource {
+	if a.errorAggregator == nil {
+		return nil
+	}
+	a.errorAggregator.mu.RLock()
+	defer a.errorAggregator.mu.RUnlock()
+	var out []types.BreakdownResource
+	for _, g := range a.errorAggregator.groups {
+		if g.Status != "open" {
+			continue
+		}
+		out = append(out, types.BreakdownResource{
+			Kind:      "ErrorGroup",
+			Namespace: g.Namespace,
+			Name:      g.Title,
+			Status:    g.Level,
+			Impact:    impact,
+			Detail:    fmt.Sprintf("%s · %d occurrences", g.Service, g.Count),
+		})
+	}
+	return out
 }
 
 // handleScores returns just the health scores. Returns null (JSON) when

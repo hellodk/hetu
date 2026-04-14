@@ -241,6 +241,44 @@ type SecurityFinding struct {
 	Remediation       string   `json:"remediation"`
 }
 
+// BreakdownResource is a single resource affected by a scoring rule,
+// returned by the per-rule drill-down endpoint.
+type BreakdownResource struct {
+	Kind      string `json:"kind"`
+	Namespace string `json:"namespace"`
+	Name      string `json:"name"`
+	Status    string `json:"status,omitempty"`
+	Impact    int    `json:"impact"`
+	Detail    string `json:"detail,omitempty"`
+}
+
+// RuleBreakdownResponse is the full (untruncated) resource list for a
+// single scoring rule, used by the Level-3 drill-down UI.
+type RuleBreakdownResponse struct {
+	Rule        string              `json:"rule"`
+	Dimension   string              `json:"dimension"`
+	TotalImpact int                 `json:"totalImpact"`
+	Resources   []BreakdownResource `json:"resources"`
+}
+
+// ResourceImpactRule describes a single scoring rule that a specific
+// resource contributes to, along with a static remediation hint.
+type ResourceImpactRule struct {
+	Dimension   string `json:"dimension"`
+	Rule        string `json:"rule"`
+	Impact      int    `json:"impact"`
+	Remediation string `json:"remediation"`
+}
+
+// ResourceImpactResponse lists every scoring rule a given resource
+// triggers. Used by the Level-4 "Score Impact" tab.
+type ResourceImpactResponse struct {
+	Kind      string               `json:"kind"`
+	Namespace string               `json:"namespace"`
+	Name      string               `json:"name"`
+	Rules     []ResourceImpactRule `json:"rules"`
+}
+
 // LLMRequest represents a request to the LLM
 type LLMRequest struct {
 	Model       string       `json:"model"`

@@ -49,7 +49,57 @@ import {
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
 
-type Tab = 'summary' | 'yaml' | 'events' | 'logs' | 'exec'
+type Tab = 'summary' | 'yaml' | 'events' | 'logs' | 'exec' | 'score-impact'
+
+interface ResourceImpactRule {
+  dimension: string
+  rule: string
+  impact: number
+  remediation: string
+}
+
+interface ResourceImpactResponse {
+  kind: string
+  namespace: string
+  name: string
+  rules: ResourceImpactRule[]
+}
+
+// Map the plural URL segment (e.g. "pods") to the canonical singular
+// K8s Kind the API expects. Inline slicing would mangle irregular
+// plurals like "ingresses" → "Ingresse" or "replicasets" → "Replicase".
+const kindSingular: Record<string, string> = {
+  pods: 'Pod',
+  deployments: 'Deployment',
+  statefulsets: 'StatefulSet',
+  daemonsets: 'DaemonSet',
+  replicasets: 'ReplicaSet',
+  jobs: 'Job',
+  cronjobs: 'CronJob',
+  services: 'Service',
+  ingresses: 'Ingress',
+  configmaps: 'ConfigMap',
+  secrets: 'Secret',
+  namespaces: 'Namespace',
+  nodes: 'Node',
+  persistentvolumeclaims: 'PersistentVolumeClaim',
+  persistentvolumes: 'PersistentVolume',
+  horizontalpodautoscalers: 'HorizontalPodAutoscaler',
+  networkpolicies: 'NetworkPolicy',
+  serviceaccounts: 'ServiceAccount',
+  roles: 'Role',
+  rolebindings: 'RoleBinding',
+  clusterroles: 'ClusterRole',
+  clusterrolebindings: 'ClusterRoleBinding',
+}
+
+function toKindSingular(kind: string): string {
+  const mapped = kindSingular[kind.toLowerCase()]
+  if (mapped) return mapped
+  // Fallback: char-slice drop-trailing-'s' for regular plurals
+  if (kind.endsWith('s')) return kind.charAt(0).toUpperCase() + kind.slice(1, -1)
+  return kind.charAt(0).toUpperCase() + kind.slice(1)
+}
 
 interface K8sEvent {
   type: string
@@ -402,35 +452,64 @@ function EnhancedLogViewer({
     return () => clearInterval(id)
   }, [lastReceived, lastHeartbeat])
 
-  // Auto-scroll: anchor at the MIDDLE of the viewport, not the bottom.
-  // New lines appear below midpoint, older lines scroll up above it.
-  // This gives the user a stable reading zone in the upper half while
-  // the log continues flowing below — like a teleprompter.
-  useEffect(() => {
-    if (following && containerRef.current) {
-      const el = containerRef.current
-      // Scroll so the latest content is at ~50% of the viewport height
-      const targetScroll = el.scrollHeight - el.clientHeight * 0.5
-      el.scrollTop = Math.max(0, targetScroll)
-    }
-  }, [lines, following])
+  // Teleprompter scroll: the newest log line sits at the viewport midpoint.
+  // A spacer div (50% of container height) below the log lines creates room
+  // so scrollTop can actually position content mid-screen instead of clamping
+  // to the bottom.  The user reads at the centre; older lines scroll up and
+  // out of view while new lines appear below the reading zone.
+  const [spacerHeight, setSpacerHeight] = useState(0)
 
-  const handleScroll = useCallback(() => {
+  // Keep spacer sized to half the container whenever the container resizes.
+  useEffect(() => {
     if (!containerRef.current) return
-    const { scrollTop, scrollHeight, clientHeight } = containerRef.current
-    // User scrolled up significantly from the follow position — pause
-    const followPosition = scrollHeight - clientHeight * 0.5
-    if (followPosition - scrollTop > clientHeight * 0.3) {
+    const ro = new ResizeObserver(([entry]) => {
+      setSpacerHeight(Math.floor(entry.contentRect.height * 0.5))
+    })
+    ro.observe(containerRef.current)
+    return () => ro.disconnect()
+  }, [])
+
+  const programmaticScroll = useRef(false)
+
+  // Auto-scroll: place the last log line at the viewport midpoint.
+  useEffect(() => {
+    if (!following || !containerRef.current || !bottomRef.current) return
+    programmaticScroll.current = true
+    const el = containerRef.current
+    // bottomRef sits right before the spacer — scroll it to the midpoint
+    const bottomOffset = bottomRef.current.offsetTop
+    const targetScroll = bottomOffset - el.clientHeight * 0.5
+    el.scrollTop = Math.max(0, targetScroll)
+    requestAnimationFrame(() => { programmaticScroll.current = false })
+  }, [lines, following, spacerHeight])
+
+  // Detect user scrolling up → pause following.
+  const handleScroll = useCallback(() => {
+    if (programmaticScroll.current) return
+    if (!containerRef.current || !bottomRef.current) return
+    const el = containerRef.current
+    const bottomOffset = bottomRef.current.offsetTop
+    const midTarget = bottomOffset - el.clientHeight * 0.5
+    // If the user has scrolled more than 30% of viewport away from the
+    // midpoint anchor, they're reading history — pause following.
+    if (midTarget - el.scrollTop > el.clientHeight * 0.3) {
       setFollowing(false)
     }
   }, [])
 
+  // Wrap programmatic scrolls so handleScroll ignores them.
+  const scrollToMidpoint = useCallback(() => {
+    if (!containerRef.current || !bottomRef.current) return
+    programmaticScroll.current = true
+    const el = containerRef.current
+    const bottomOffset = bottomRef.current.offsetTop
+    el.scrollTop = Math.max(0, bottomOffset - el.clientHeight * 0.5)
+    requestAnimationFrame(() => { programmaticScroll.current = false })
+  }, [])
+
   const scrollToFollow = () => {
     setFollowing(true)
-    if (containerRef.current) {
-      const el = containerRef.current
-      el.scrollTop = el.scrollHeight - el.clientHeight * 0.5
-    }
+    scrollToMidpoint()
   }
 
   const downloadLogs = () => {
@@ -706,7 +785,10 @@ function EnhancedLogViewer({
             </span>
           </div>
         ))}
+        {/* Anchor mark — sits right after the last log line */}
         <div ref={bottomRef} />
+        {/* Teleprompter spacer: pushes the anchor to the viewport midpoint */}
+        <div style={{ height: spacerHeight }} aria-hidden />
       </div>
     </div>
   )
@@ -739,6 +821,8 @@ export default function ResourceDetailPage() {
   const [expandedVolumes, setExpandedVolumes] = useState(false)
   const [expandedRawStatus, setExpandedRawStatus] = useState(false)
   const [childPods, setChildPods] = useState<any[]>([])
+  const [scoreImpact, setScoreImpact] = useState<ResourceImpactResponse | null>(null)
+  const [scoreImpactLoading, setScoreImpactLoading] = useState(false)
 
   const isPod = kind === 'pods'
   const isDeployment = ['deployments', 'statefulsets', 'replicasets', 'daemonsets'].includes(kind)
@@ -799,6 +883,18 @@ export default function ResourceDetailPage() {
     }
   }, [tab, basePath])
 
+  // Score Impact: fetch which scoring rules this resource contributes to.
+  useEffect(() => {
+    if (tab !== 'score-impact') return
+    const apiKind = toKindSingular(kind)
+    setScoreImpactLoading(true)
+    const q = `kind=${encodeURIComponent(apiKind)}&namespace=${encodeURIComponent(namespace)}&name=${encodeURIComponent(name)}`
+    apiFetch<ResourceImpactResponse>(`/api/v1/health/resource-impact?${q}`)
+      .then(setScoreImpact)
+      .catch(() => setScoreImpact(null))
+      .finally(() => setScoreImpactLoading(false))
+  }, [tab, kind, namespace, name])
+
   const copyYaml = async () => {
     await navigator.clipboard.writeText(yamlContent)
     setCopied(true)
@@ -838,6 +934,7 @@ export default function ResourceDetailPage() {
     { id: 'events', label: 'Events', icon: <Calendar className="w-4 h-4" /> },
     ...(isPod ? [{ id: 'logs' as Tab, label: 'Logs', icon: <ScrollText className="w-4 h-4" /> }] : []),
     ...(isPod && capabilities.exec ? [{ id: 'exec' as Tab, label: 'Exec', icon: <Terminal className="w-4 h-4" /> }] : []),
+    { id: 'score-impact', label: 'Score Impact', icon: <Activity className="w-4 h-4" /> },
   ]
 
   /* ---- Loading skeleton ---- */
@@ -1501,6 +1598,47 @@ export default function ResourceDetailPage() {
       {/* ================================================================ */}
       {tab === 'exec' && isPod && capabilities.exec && containers.length > 0 && (
         <PodExecTerminal namespace={namespace} podName={name} containers={containers} />
+      )}
+
+      {tab === 'score-impact' && (
+        <div className="space-y-4">
+          <div>
+            <h3 className="text-lg font-semibold text-white">Score Impact</h3>
+            <p className="text-sm text-gray-400 mt-1">
+              Scoring rules this resource currently triggers, and how to remediate them.
+            </p>
+          </div>
+          {scoreImpactLoading && (
+            <div className="text-sm text-gray-400">Loading scoring rules…</div>
+          )}
+          {!scoreImpactLoading && scoreImpact && scoreImpact.rules.length === 0 && (
+            <div className="flex items-center gap-2 text-green-400 py-4 px-4 bg-green-500/5 border border-green-500/20 rounded-lg">
+              <CheckCircle className="w-5 h-5" />
+              <span>This resource is not contributing to any scoring deductions.</span>
+            </div>
+          )}
+          {!scoreImpactLoading && scoreImpact && scoreImpact.rules.map((rule, i) => (
+            <div key={i} className="bg-gray-800/50 border border-gray-700 rounded-lg p-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="font-medium text-white">{rule.rule}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs px-2 py-0.5 rounded bg-blue-900/50 text-blue-300 uppercase tracking-wide">
+                    {rule.dimension}
+                  </span>
+                  <span className="text-xs font-mono text-red-400">{rule.impact}</span>
+                </div>
+              </div>
+              {rule.remediation && (
+                <p className="text-sm text-gray-300 leading-relaxed">{rule.remediation}</p>
+              )}
+            </div>
+          ))}
+          {!scoreImpactLoading && !scoreImpact && (
+            <div className="text-sm text-gray-500">
+              Score impact data unavailable. The analyzer may not have completed its first analysis cycle yet.
+            </div>
+          )}
+        </div>
       )}
     </div>
   )

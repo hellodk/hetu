@@ -9,11 +9,12 @@ import (
 // These form the drill-down data: each deduction names the rule, the impact,
 // and the specific resources that triggered it.
 type ScoreDeduction struct {
-	Rule      string   `json:"rule"`
-	Impact    int      `json:"impact"`    // negative number (deduction)
-	Max       int      `json:"max"`       // max deduction for this rule
-	Count     int      `json:"count"`     // how many resources triggered it
-	Resources []string `json:"resources"` // affected resource identifiers
+	Rule         string   `json:"rule"`
+	Impact       int      `json:"impact"`    // negative number (deduction)
+	Max          int      `json:"max"`       // max deduction for this rule
+	Count        int      `json:"count"`     // how many resources triggered it
+	Resources    []string `json:"resources"` // affected resource identifiers (truncated)
+	AllResources []string `json:"-"`         // full list for drill-down; not serialized
 }
 
 // ScoreResult holds a computed dimension score and its breakdown.
@@ -79,18 +80,19 @@ type ClusterScoreInput struct {
 	NamespacesWithoutLR    int
 
 	// Resource names for drill-down
-	CrashLoopPodNames    []string
-	OOMKilledPodNames    []string
-	PendingPodNames      []string
-	EvictedPodNames      []string
-	PrivilegedPodNames   []string
-	RootPodNames         []string
-	HostNetworkPodNames  []string
-	ClusterAdminNames    []string
-	SecretsInEnvPodNames []string
-	NsWithoutNPNames     []string
-	NsWithoutQuotaNames  []string
-	NsWithoutLRNames     []string
+	CrashLoopPodNames      []string
+	OOMKilledPodNames      []string
+	PendingPodNames        []string
+	EvictedPodNames        []string
+	PrivilegedPodNames     []string
+	RootPodNames           []string
+	HostNetworkPodNames    []string
+	ClusterAdminNames      []string
+	SecretsInEnvPodNames   []string
+	NsWithoutNPNames       []string
+	NsWithoutQuotaNames    []string
+	NsWithoutLRNames       []string
+	RightsizingTargetNames []string
 }
 
 // CalculateScores runs the documented deduction-based scoring engine.
@@ -154,6 +156,7 @@ func calculateReliability(input ClusterScoreInput) ScoreResult {
 		deductions = append(deductions, ScoreDeduction{
 			Rule: "CrashLoopBackOff pods", Impact: -d, Max: -30,
 			Count: input.CrashLoopPods, Resources: truncNames(input.CrashLoopPodNames, 10),
+			AllResources: input.CrashLoopPodNames,
 		})
 	}
 	if input.OOMKilledPods > 0 {
@@ -161,6 +164,7 @@ func calculateReliability(input ClusterScoreInput) ScoreResult {
 		deductions = append(deductions, ScoreDeduction{
 			Rule: "OOMKilled pods", Impact: -d, Max: -20,
 			Count: input.OOMKilledPods, Resources: truncNames(input.OOMKilledPodNames, 10),
+			AllResources: input.OOMKilledPodNames,
 		})
 	}
 	if input.PendingPods > 0 {
@@ -168,6 +172,7 @@ func calculateReliability(input ClusterScoreInput) ScoreResult {
 		deductions = append(deductions, ScoreDeduction{
 			Rule: "Pending pods", Impact: -d, Max: -15,
 			Count: input.PendingPods, Resources: truncNames(input.PendingPodNames, 10),
+			AllResources: input.PendingPodNames,
 		})
 	}
 	if input.EvictedPods > 0 {
@@ -175,6 +180,7 @@ func calculateReliability(input ClusterScoreInput) ScoreResult {
 		deductions = append(deductions, ScoreDeduction{
 			Rule: "Evicted pods", Impact: -d, Max: -15,
 			Count: input.EvictedPods, Resources: truncNames(input.EvictedPodNames, 10),
+			AllResources: input.EvictedPodNames,
 		})
 	}
 	if input.OpenErrorGroups > 0 {
@@ -210,6 +216,7 @@ func calculateSecurity(input ClusterScoreInput) ScoreResult {
 		deductions = append(deductions, ScoreDeduction{
 			Rule: "Privileged containers", Impact: -d, Max: -30,
 			Count: input.PrivilegedContainers, Resources: truncNames(input.PrivilegedPodNames, 10),
+			AllResources: input.PrivilegedPodNames,
 		})
 	}
 	if input.RootContainers > 0 {
@@ -217,6 +224,7 @@ func calculateSecurity(input ClusterScoreInput) ScoreResult {
 		deductions = append(deductions, ScoreDeduction{
 			Rule: "Root containers", Impact: -d, Max: -30,
 			Count: input.RootContainers, Resources: truncNames(input.RootPodNames, 10),
+			AllResources: input.RootPodNames,
 		})
 	}
 	if input.HostNetworkPods > 0 {
@@ -224,6 +232,7 @@ func calculateSecurity(input ClusterScoreInput) ScoreResult {
 		deductions = append(deductions, ScoreDeduction{
 			Rule: "Host network/PID/IPC pods", Impact: -d, Max: -20,
 			Count: input.HostNetworkPods, Resources: truncNames(input.HostNetworkPodNames, 10),
+			AllResources: input.HostNetworkPodNames,
 		})
 	}
 	if input.ClusterAdminBindings > 0 {
@@ -231,6 +240,7 @@ func calculateSecurity(input ClusterScoreInput) ScoreResult {
 		deductions = append(deductions, ScoreDeduction{
 			Rule: "Cluster-admin bindings", Impact: -d, Max: -20,
 			Count: input.ClusterAdminBindings, Resources: truncNames(input.ClusterAdminNames, 10),
+			AllResources: input.ClusterAdminNames,
 		})
 	}
 	if input.SecretsInEnvVars > 0 {
@@ -238,6 +248,7 @@ func calculateSecurity(input ClusterScoreInput) ScoreResult {
 		deductions = append(deductions, ScoreDeduction{
 			Rule: "Secrets in env vars", Impact: -d, Max: -15,
 			Count: input.SecretsInEnvVars, Resources: truncNames(input.SecretsInEnvPodNames, 10),
+			AllResources: input.SecretsInEnvPodNames,
 		})
 	}
 	if input.NamespacesWithoutNP > 0 {
@@ -245,6 +256,7 @@ func calculateSecurity(input ClusterScoreInput) ScoreResult {
 		deductions = append(deductions, ScoreDeduction{
 			Rule: "Namespaces without network policy", Impact: -d, Max: -20,
 			Count: input.NamespacesWithoutNP, Resources: truncNames(input.NsWithoutNPNames, 10),
+			AllResources: input.NsWithoutNPNames,
 		})
 	}
 	if input.WritableRootFS > 0 {
@@ -327,7 +339,9 @@ func calculateCost(input ClusterScoreInput) ScoreResult {
 		d := deduct(input.RightsizingRecs, 2, 20)
 		deductions = append(deductions, ScoreDeduction{
 			Rule: "Rightsizing opportunities", Impact: -d, Max: -20,
-			Count: input.RightsizingRecs,
+			Count:        input.RightsizingRecs,
+			Resources:    truncNames(input.RightsizingTargetNames, 10),
+			AllResources: input.RightsizingTargetNames,
 		})
 	}
 
@@ -390,6 +404,7 @@ func calculateArchitecture(input ClusterScoreInput) ScoreResult {
 		deductions = append(deductions, ScoreDeduction{
 			Rule: "Namespaces without ResourceQuota", Impact: -d, Max: -15,
 			Count: input.NamespacesWithoutQuota, Resources: truncNames(input.NsWithoutQuotaNames, 10),
+			AllResources: input.NsWithoutQuotaNames,
 		})
 	}
 	if input.NamespacesWithoutLR > 0 {
@@ -397,6 +412,7 @@ func calculateArchitecture(input ClusterScoreInput) ScoreResult {
 		deductions = append(deductions, ScoreDeduction{
 			Rule: "Namespaces without LimitRange", Impact: -d, Max: -10,
 			Count: input.NamespacesWithoutLR, Resources: truncNames(input.NsWithoutLRNames, 10),
+			AllResources: input.NsWithoutLRNames,
 		})
 	}
 
@@ -529,6 +545,11 @@ func (a *Analyzer) BuildScoreInput() ClusterScoreInput {
 		for _, r := range a.optimizerRegistry.recommendations {
 			if r.Status == "open" && r.Type == "rightsizing" {
 				input.RightsizingRecs++
+				target := r.Target.Name
+				if r.Target.Namespace != "" {
+					target = r.Target.Namespace + "/" + r.Target.Name
+				}
+				input.RightsizingTargetNames = append(input.RightsizingTargetNames, target)
 			}
 		}
 		a.optimizerRegistry.mu.RUnlock()
@@ -568,4 +589,38 @@ func (a *Analyzer) BuildScoreInput() ClusterScoreInput {
 	}
 
 	return input
+}
+
+// remediationHints maps each static scoring rule name to a short,
+// actionable remediation text shown on the Level-4 "Score Impact"
+// panel. Keys must match the Rule field set in the calculate*
+// functions exactly. Dynamic rules (e.g. "CPU efficiency: 45%
+// used/requested") are intentionally absent — remediationFor returns
+// "" for them and the UI hides the remediation block.
+var remediationHints = map[string]string{
+	"CrashLoopBackOff pods":             "Check container logs for startup errors. Verify resource limits, liveness probes, and image tags. Consider increasing memory limits if OOM is suspected.",
+	"OOMKilled pods":                    "Increase memory limits for affected containers. Profile memory usage with pprof or top. Check for memory leaks.",
+	"Pending pods":                      "Check node capacity, resource requests, node selectors, tolerations, and PVC bindings. Run 'kubectl describe pod' for scheduling failure details.",
+	"Evicted pods":                      "Nodes may be under memory or disk pressure. Set appropriate resource requests and use PriorityClasses to protect critical workloads.",
+	"Open error groups":                 "Review error groups on the Errors page. Fix or suppress known issues. Set up alerting for new error patterns.",
+	"Privileged containers":             "Remove 'privileged: true' from securityContext. Use specific capabilities (NET_ADMIN, SYS_PTRACE) instead of full privilege.",
+	"Root containers":                   "Set 'runAsNonRoot: true' and specify a numeric 'runAsUser' in the pod securityContext. Rebuild images to run as non-root.",
+	"Host network/PID/IPC pods":         "Remove 'hostNetwork', 'hostPID', 'hostIPC' from the pod spec. Use Services and NetworkPolicies for network access instead.",
+	"Cluster-admin bindings":            "Replace cluster-admin ClusterRoleBindings with scoped Roles. Audit who needs cluster-wide access and create least-privilege roles.",
+	"Secrets in env vars":               "Mount secrets as files via volume mounts instead of env vars. Use external secret stores (Vault, AWS Secrets Manager) where possible.",
+	"Namespaces without network policy": "Create a default-deny NetworkPolicy in each namespace, then allow only required traffic flows.",
+	"Writable root filesystem":          "Set 'readOnlyRootFilesystem: true' in securityContext. Use emptyDir volumes for temp files.",
+	"Missing securityContext":           "Add a securityContext to every container with runAsNonRoot, readOnlyRootFilesystem, and drop ALL capabilities.",
+	"Wildcard RBAC rules":               "Replace wildcard verbs/resources in ClusterRoles with specific verbs and named resources.",
+	"Rightsizing opportunities":         "Adjust CPU/memory requests to match observed usage (see Optimization page). Right-size to 80th-percentile with 20% headroom.",
+	"Active anomalies":                  "Investigate metric anomalies on the Anomalies page. Check if recent deployments or config changes correlate with the spike.",
+	"Open incidents":                    "Triage open incidents on the Incidents page. Resolve or dismiss incidents that are no longer relevant.",
+	"Namespaces without ResourceQuota":  "Create ResourceQuota objects to prevent any single namespace from consuming unbounded cluster resources.",
+	"Namespaces without LimitRange":     "Create LimitRange objects to set default CPU/memory requests and limits for pods that don't specify them.",
+}
+
+// remediationFor returns the remediation hint for a scoring rule, or "" when
+// the rule is dynamic (e.g. cost efficiency bonuses) or unrecognised.
+func remediationFor(rule string) string {
+	return remediationHints[rule]
 }

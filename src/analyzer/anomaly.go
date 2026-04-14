@@ -38,8 +38,9 @@ type AnomalyDetector struct {
 }
 
 type rollingStats struct {
-	values []float64
-	maxLen int
+	values      []float64
+	maxLen      int
+	lastUpdated time.Time
 }
 
 func (rs *rollingStats) push(v float64) {
@@ -47,6 +48,7 @@ func (rs *rollingStats) push(v float64) {
 	if len(rs.values) > rs.maxLen {
 		rs.values = rs.values[1:]
 	}
+	rs.lastUpdated = time.Now()
 }
 
 func (rs *rollingStats) mean() float64 {
@@ -218,4 +220,41 @@ func (d *AnomalyDetector) handleList(w http.ResponseWriter, r *http.Request) {
 		"totalCount": len(result),
 		"anomalies":  result,
 	})
+}
+
+// EvictStats removes rolling-stats entries that haven't been updated within
+// ttl and enforces a hard cap on map size by evicting the least-recently
+// updated entries. Returns the number of entries removed.
+func (d *AnomalyDetector) EvictStats(ttl time.Duration, maxSize int) int {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	now := time.Now()
+	var removed int
+	for k, rs := range d.stats {
+		if !rs.lastUpdated.IsZero() && now.Sub(rs.lastUpdated) > ttl {
+			delete(d.stats, k)
+			removed++
+		}
+	}
+
+	if maxSize > 0 && len(d.stats) > maxSize {
+		type kv struct {
+			k string
+			t time.Time
+		}
+		entries := make([]kv, 0, len(d.stats))
+		for k, rs := range d.stats {
+			entries = append(entries, kv{k, rs.lastUpdated})
+		}
+		sort.Slice(entries, func(i, j int) bool {
+			return entries[i].t.Before(entries[j].t)
+		})
+		excess := len(d.stats) - maxSize
+		for i := range excess {
+			delete(d.stats, entries[i].k)
+			removed++
+		}
+	}
+	return removed
 }

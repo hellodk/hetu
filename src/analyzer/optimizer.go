@@ -143,6 +143,51 @@ func (r *OptimizerRegistry) RunOne(name string) {
 	log.Info().Str("optimizer", name).Int("recs", len(recs)).Dur("elapsed", time.Since(start)).Msg("Optimizer completed")
 }
 
+// Evict removes closed (accepted/dismissed/applied) recommendations older
+// than ttl and enforces a hard cap on map size. When capping, non-open
+// recommendations are evicted first. Returns the number of recs removed.
+func (r *OptimizerRegistry) Evict(ttl time.Duration, maxSize int) int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	now := time.Now()
+	var removed int
+	closed := func(s string) bool {
+		return s == "accepted" || s == "dismissed" || s == "applied"
+	}
+	for id, rec := range r.recommendations {
+		if closed(rec.Status) && now.Sub(rec.CreatedAt) > ttl {
+			delete(r.recommendations, id)
+			removed++
+		}
+	}
+
+	if maxSize > 0 && len(r.recommendations) > maxSize {
+		type kv struct {
+			id     int64
+			closed bool
+			t      time.Time
+		}
+		entries := make([]kv, 0, len(r.recommendations))
+		for id, rec := range r.recommendations {
+			entries = append(entries, kv{id, closed(rec.Status), rec.CreatedAt})
+		}
+		// Evict closed recs first, then open ones; within each group, oldest first.
+		sort.Slice(entries, func(i, j int) bool {
+			if entries[i].closed != entries[j].closed {
+				return entries[i].closed
+			}
+			return entries[i].t.Before(entries[j].t)
+		})
+		excess := len(r.recommendations) - maxSize
+		for i := range excess {
+			delete(r.recommendations, entries[i].id)
+			removed++
+		}
+	}
+	return removed
+}
+
 // RegisterRoutes adds optimization API endpoints.
 func (r *OptimizerRegistry) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/recommendations", r.handleList)

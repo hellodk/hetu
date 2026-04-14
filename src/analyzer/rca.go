@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -273,6 +274,50 @@ func (e *RCAEngine) parseReport(incidentID int64, result *llmclient.CompletionRe
 	}
 
 	return report, nil
+}
+
+// Evict removes RCA reports whose underlying incident no longer exists
+// (orphan detection via e.correlator.GetIncident), reports older than
+// ttl, and enforces a hard cap on map size. Must run AFTER
+// Correlator.Evict so orphan detection works correctly. Returns the
+// number of reports removed.
+func (e *RCAEngine) Evict(ttl time.Duration, maxSize int) int {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	now := time.Now()
+	var removed int
+	for incidentID, report := range e.reports {
+		if e.correlator != nil && e.correlator.GetIncident(incidentID) == nil {
+			delete(e.reports, incidentID)
+			removed++
+			continue
+		}
+		if now.Sub(report.CreatedAt) > ttl {
+			delete(e.reports, incidentID)
+			removed++
+		}
+	}
+
+	if maxSize > 0 && len(e.reports) > maxSize {
+		type kv struct {
+			id int64
+			t  time.Time
+		}
+		entries := make([]kv, 0, len(e.reports))
+		for id, r := range e.reports {
+			entries = append(entries, kv{id, r.CreatedAt})
+		}
+		sort.Slice(entries, func(i, j int) bool {
+			return entries[i].t.Before(entries[j].t)
+		})
+		excess := len(e.reports) - maxSize
+		for i := range excess {
+			delete(e.reports, entries[i].id)
+			removed++
+		}
+	}
+	return removed
 }
 
 // RegisterRoutes adds RCA-specific API endpoints.
