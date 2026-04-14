@@ -70,41 +70,61 @@ See [Pod Health Management Design Doc](docs/POD_HEALTH_MANAGEMENT.md) for detail
 
 ### Prerequisites
 - Kubernetes cluster (1.25+)
-- kubectl configured
-- Helm 3.x (for Trivy Operator)
-- 512MB available memory
+- `kubectl` configured
+- `helm` 3.x
+- ~512MB available memory (more with bundled Postgres / Redis / NATS)
 
-### One-Command Deploy
+### Install (Helm only)
+
+All deployments go through the Helm chart at
+[`deploy/helm/cluster-intel/`](deploy/helm/cluster-intel/). There is no
+`deploy.sh` or `kubectl apply` flow anymore — see
+[docs/MIGRATION.md](docs/MIGRATION.md) if you're coming from a pre-0.2.0
+install.
 
 ```bash
-curl -sfL https://raw.githubusercontent.com/yourorg/k8s-cluster-health/main/deploy.sh | bash
-```
-
-Or clone and run:
-
-```bash
-git clone https://github.com/yourorg/k8s-cluster-health.git
+git clone https://github.com/hellodk/k8s-cluster-health.git
 cd k8s-cluster-health
-./deploy.sh
+make helm-deps      # downloads Postgres / Redis / NATS sub-charts
+make helm-deploy    # = helm upgrade --install cluster-intel …
 ```
 
-### Manual Installation
+Or, directly with Helm:
 
 ```bash
-# 1. Create namespace
-kubectl create namespace cluster-intel
+helm dependency build deploy/helm/cluster-intel/
+helm upgrade --install cluster-intel deploy/helm/cluster-intel/ \
+  --namespace cluster-intel --create-namespace
+```
 
-# 2. Install Trivy Operator (optional but recommended)
-helm repo add aqua https://aquasecurity.github.io/helm-charts/
-helm install trivy-operator aqua/trivy-operator \
-  -n trivy-system --create-namespace
+### Production override
 
-# 3. Deploy Cluster Intelligence
-kubectl apply -f manifests/full-stack/
+```bash
+helm upgrade --install cluster-intel deploy/helm/cluster-intel/ \
+  --namespace cluster-intel --create-namespace \
+  -f values-deploy.yaml
+```
 
-# 4. Access dashboard
-kubectl port-forward svc/cluster-intel 8080:8080 -n cluster-intel
-# Open http://localhost:8080
+### Optional hardening / observability
+
+```bash
+--set networkPolicy.enabled=true            # zero-trust network policies
+--set collector.pdb.enabled=true \
+--set analyzer.pdb.enabled=true \
+--set dashboard.pdb.enabled=true            # pod disruption budgets
+--set monitoring.enabled=true \
+--set monitoring.ollama.externalIP=10.0.0.50   # Tempo + OTEL + alerts + dashboards
+```
+
+Full values reference:
+[`deploy/helm/cluster-intel/README.md`](deploy/helm/cluster-intel/README.md).
+
+### Access the dashboard
+
+```bash
+kubectl port-forward svc/cluster-intel-dashboard 3000:3000 \
+  -n cluster-intel
+# → http://localhost:3000
 ```
 
 ## Configuration
