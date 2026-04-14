@@ -191,6 +191,79 @@ validate_url_reachable() {
   fi
 }
 
+# normalize_url — auto-prepend http:// when no scheme present.
+# Operators routinely type "192.168.1.10:11434" or "myhost.local:8080";
+# we should accept that and not bounce them with "must start with http://".
+# Variable name is passed by reference so the caller's value is updated.
+#
+#   normalize_url LLM_ENDPOINT
+#   # if LLM_ENDPOINT was "192.168.1.10:11434", it's now "http://192.168.1.10:11434"
+normalize_url() {
+  local var="$1"
+  local value="${!var}"
+  [[ -z "$value" ]] && return 0
+  if [[ ! "$value" =~ ^https?:// ]]; then
+    # Strip any leading "//" some users add by reflex.
+    value="${value#//}"
+    value="http://$value"
+    printf -v "$var" '%s' "$value"
+    info "  $var → $value (auto-prepended http://)"
+  fi
+}
+
+# discover_models — query the LLM endpoint and emit the model list, one
+# per line, on stdout. Empty output means discovery wasn't possible
+# (network down, wrong endpoint, unsupported provider). Stderr is silent
+# so callers can use $(discover_models …) cleanly.
+#
+#   discover_models <provider> <endpoint> [api_key]
+discover_models() {
+  local provider="$1" endpoint="$2" api_key="${3:-}"
+  local url body
+  case "$provider" in
+    ollama)
+      # Ollama: GET /api/tags → {"models":[{"name":"…"}, ...]}
+      url="${endpoint%/}/api/tags"
+      body="$(curl -s --max-time 5 "$url" 2>/dev/null || true)"
+      ;;
+    openai|anthropic|vllm|llamacpp|azure|bedrock)
+      # OpenAI-compatible: GET /v1/models → {"data":[{"id":"…"}, ...]}
+      # Some endpoints already include /v1 in the path; tolerate both.
+      local base="${endpoint%/}"
+      [[ "$base" == */v1 ]] || base="$base/v1"
+      url="$base/models"
+      local hdr=()
+      [[ -n "$api_key" ]] && hdr=(-H "Authorization: Bearer $api_key")
+      body="$(curl -s --max-time 5 "${hdr[@]}" "$url" 2>/dev/null || true)"
+      ;;
+    *)
+      return 0   # unknown provider, no discovery
+      ;;
+  esac
+
+  [[ -z "$body" ]] && return 0
+  # Parse with python3 (already required by the Next.js dashboard build);
+  # tolerate either schema (Ollama .models[].name OR OpenAI .data[].id).
+  if command -v python3 >/dev/null 2>&1; then
+    python3 - <<PY 2>/dev/null
+import json, sys
+try:
+    d = json.loads(${body@Q})
+except Exception:
+    sys.exit(0)
+out = []
+if isinstance(d, dict):
+    for entry in d.get("models", []):
+        n = entry.get("name") or entry.get("model")
+        if n: out.append(n)
+    for entry in d.get("data", []):
+        n = entry.get("id") or entry.get("name")
+        if n: out.append(n)
+print("\n".join(out))
+PY
+  fi
+}
+
 validate_choice() {
   local name="$1" value="$2"; shift 2
   for opt in "$@"; do
@@ -364,18 +437,26 @@ validate_ports_free() {
 }
 
 collect_collector() {
-  if [[ "$PROFILE" != "live" ]]; then
-    info "PROFILE=mock — skipping COLLECTOR_URL"
-    return
-  fi
+  # Always prompt — even in PROFILE=mock the operator may flip to live
+  # later via the dashboard Settings, and we want the value persisted to
+  # the env file. In mock mode it's "optional"; in live mode "required".
   header "Collector"
+  local label
+  if [[ "$PROFILE" == "live" ]]; then
+    label="COLLECTOR_URL (required for live profile; scheme optional, e.g. host:8080)"
+  else
+    label="COLLECTOR_URL (optional in mock; needed when switching to live)"
+  fi
   while true; do
-    _prompt_input "COLLECTOR_URL (required for live profile)" "$COLLECTOR_URL"
+    _prompt_input "$label" "$COLLECTOR_URL"
     COLLECTOR_URL="$PROMPT_RESULT"
     if [[ -z "$COLLECTOR_URL" ]]; then
-      warn "COLLECTOR_URL is empty — analyzer will report 'collector unreachable' until you set one in the dashboard Settings"
+      if [[ "$PROFILE" == "live" ]]; then
+        warn "COLLECTOR_URL is empty — analyzer will report 'collector unreachable' until you set one in the dashboard Settings"
+      fi
       break
     fi
+    normalize_url COLLECTOR_URL
     validate_url_syntax COLLECTOR_URL "$COLLECTOR_URL" && {
       validate_url_reachable COLLECTOR_URL "$COLLECTOR_URL"
       break
@@ -400,25 +481,21 @@ collect_llm() {
   fi
 
   while true; do
-    _prompt_input "LLM_ENDPOINT" "$LLM_ENDPOINT"
+    _prompt_input "LLM_ENDPOINT (scheme optional, e.g. host:11434)" "$LLM_ENDPOINT"
     LLM_ENDPOINT="$PROMPT_RESULT"
     if [[ -z "$LLM_ENDPOINT" ]]; then
       error "LLM_ENDPOINT may not be empty (use provider=none to disable LLM)"
       continue
     fi
+    normalize_url LLM_ENDPOINT
     validate_url_syntax LLM_ENDPOINT "$LLM_ENDPOINT" && {
       validate_url_reachable LLM_ENDPOINT "$LLM_ENDPOINT"
       break
     }
   done
 
-  while true; do
-    _prompt_input "LLM_MODEL" "$LLM_MODEL"
-    LLM_MODEL="$PROMPT_RESULT"
-    [[ -n "$LLM_MODEL" ]] && break
-    error "LLM_MODEL may not be empty"
-  done
-
+  # Ask for the API key BEFORE model discovery so OpenAI-compatible
+  # endpoints can authenticate the /v1/models request.
   case "$LLM_PROVIDER" in
     ollama|llamacpp|none)
       info "LLM_PROVIDER=$LLM_PROVIDER — API key not required"
@@ -429,6 +506,38 @@ collect_llm() {
       [[ -z "$LLM_API_KEY" ]] && warn "LLM_API_KEY is empty — provider $LLM_PROVIDER will likely 401"
       ;;
   esac
+
+  # Smart Router: query the endpoint for available models and offer them
+  # as a picker. Falls back to free-text input if discovery fails (network
+  # down, unsupported provider, missing API key for /v1/models, etc.).
+  local discovered=""
+  if (( ! YES )) && (( ! NON_INTERACTIVE )); then
+    info "Discovering models at $LLM_ENDPOINT…"
+    discovered="$(discover_models "$LLM_PROVIDER" "$LLM_ENDPOINT" "$LLM_API_KEY")"
+  fi
+
+  if [[ -n "$discovered" ]]; then
+    # Build option list with the current value first (so it stays the default).
+    local options=()
+    if [[ -n "$LLM_MODEL" ]]; then options+=("$LLM_MODEL"); fi
+    while IFS= read -r m; do
+      [[ -z "$m" ]] && continue
+      [[ "$m" == "$LLM_MODEL" ]] && continue   # already first
+      options+=("$m")
+    done <<< "$discovered"
+
+    local default_model="${LLM_MODEL:-${options[0]:-}}"
+    success "Found ${#options[@]} model(s) at endpoint"
+    _prompt_select "LLM_MODEL" "$default_model" "${options[@]}"
+    LLM_MODEL="$PROMPT_RESULT"
+  else
+    while true; do
+      _prompt_input "LLM_MODEL" "$LLM_MODEL"
+      LLM_MODEL="$PROMPT_RESULT"
+      [[ -n "$LLM_MODEL" ]] && break
+      error "LLM_MODEL may not be empty"
+    done
+  fi
 }
 
 collect_intervals() {

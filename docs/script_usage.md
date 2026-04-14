@@ -158,24 +158,69 @@ All validated as integer 1–65535 **and** not currently bound:
 | `COLLECTOR_PORT` | `18080` |
 | `COLLECTOR_METRICS_PORT` | `19090` |
 
-### Collector (only when `PROFILE=live`)
+### Collector
 
 | Variable | Default | Validator |
 |---|---|---|
-| `COLLECTOR_URL` | empty | URL syntax (hard-fail) + reachability (warn-only) |
+| `COLLECTOR_URL` | empty | scheme auto-prepended if missing → URL syntax (hard-fail) → reachability (warn-only) |
 
-If empty, the analyzer reports "collector unreachable" until the
-operator points it somewhere via the dashboard's Settings modal or
-`POST /api/v1/collector`.
+Always prompted (even in `PROFILE=mock`) so the env file always carries
+a value the operator can swap to live mode without re-editing. Required
+when `PROFILE=live`; if empty in live, the analyzer reports
+"collector unreachable" until the operator sets one via the dashboard's
+Settings modal or `POST /api/v1/collector`.
+
+### URL auto-scheme
+
+For both `COLLECTOR_URL` and `LLM_ENDPOINT`, if you type a value without
+a scheme the script prepends `http://` automatically:
+
+```
+COLLECTOR_URL [http://collector:8080]: 192.168.1.10:8080
+[info]    COLLECTOR_URL → http://192.168.1.10:8080 (auto-prepended http://)
+```
+
+`https://` URLs are left untouched.
 
 ### LLM
 
 | Variable | Default | Validator |
 |---|---|---|
 | `LLM_PROVIDER` | `ollama` | one of `ollama|openai|anthropic|vllm|llamacpp|azure|bedrock|none` |
-| `LLM_ENDPOINT` | `http://localhost:11434` | URL syntax + reachability (warn-only); skipped when `provider=none` |
-| `LLM_MODEL` | `llama3` | non-empty |
+| `LLM_ENDPOINT` | `http://localhost:11434` | scheme auto-prepended → URL syntax → reachability (warn-only); skipped when `provider=none` |
+| `LLM_MODEL` | `llama3` | non-empty; **discovered from the endpoint** when interactive — see below |
 | `LLM_API_KEY` | empty | masked input; not required for `ollama|llamacpp|none` |
+
+### Smart-router model discovery
+
+After the operator picks `LLM_PROVIDER` + `LLM_ENDPOINT`, the script
+queries the endpoint to enumerate the models actually available there:
+
+| Provider | Endpoint hit | Field extracted |
+|---|---|---|
+| `ollama` | `GET <endpoint>/api/tags` | `.models[].name` |
+| `openai`, `anthropic`, `vllm`, `llamacpp`, `azure`, `bedrock` | `GET <endpoint>/v1/models` (with `Authorization: Bearer $LLM_API_KEY` if set) | `.data[].id` |
+
+If the endpoint returns models, the operator sees a numbered picker
+with the current `LLM_MODEL` as the default:
+
+```
+LLM_MODEL [default: qwen2.5:7b-instruct]
+  1)* qwen2.5:7b-instruct
+  2)  Qwen2.5-Coder:14B-Instruct
+  3)  Qwen2.5-Coder:7b-instruct
+  4)  llama3.1:8b
+  5)  nomic-embed-text:latest
+  ...
+  Select [1-9, enter for default]:
+```
+
+If discovery fails (network down, unreachable endpoint, unsupported
+provider, missing/wrong API key) the script transparently falls back to
+free-text input — no surprise failure modes.
+
+`--yes` / `--non-interactive` paths skip the picker and use whatever
+`LLM_MODEL` the env file specified, so CI runs are deterministic.
 
 ### Intervals (Go duration syntax: `30s`, `5m`, `1h30m`)
 
@@ -403,6 +448,10 @@ against a clean state on a 3-node K8s cluster (`cylon`, `raspberrypi`,
 | `nopesuch` | clean `Unknown command:` error + usage | ✓ |
 | `--non-interactive` | fatals cleanly when required value missing | ✓ |
 | `PROFILE=mock ./run-local.sh start --yes` | **CLI overrides env-file** (was `profile=live` before fix) | ✓ |
+| `LLM_ENDPOINT=192.168.1.10:11434 ./run-local.sh start --yes` | **scheme auto-prepended** to `http://192.168.1.10:11434` | ✓ |
+| `discover_models ollama …` (interactive) | enumerates 9 real Ollama models, presents as picker | ✓ |
+| `discover_models ollama http://10.0.0.99:…` | unreachable endpoint → empty output → falls back to free-text | ✓ |
+| `COLLECTOR_URL=my-collector:8080 ./run-local.sh start --yes` (mock) | always prompts/normalises COLLECTOR_URL even in mock profile | ✓ |
 
 ---
 
