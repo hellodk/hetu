@@ -1,28 +1,45 @@
 package main
 
 import (
+	"reflect"
 	"testing"
 )
 
 // --- severityForRule --------------------------------------------------------
 
+// NOTE: every static case in severityForRule (main.go) must appear here.
+// When adding a new rule to the switch, add a corresponding test case below
+// so "high/medium" classification is locked in.
 func TestSeverityForRule(t *testing.T) {
 	cases := []struct {
 		rule   string
 		impact int
 		want   string
 	}{
+		// High-severity bucket (6 rules from severityForRule switch)
 		{"CrashLoopBackOff pods", -10, "high"},
 		{"OOMKilled pods", -5, "high"},
 		{"Privileged containers", -15, "high"},
+		{"Root containers", -10, "high"},
 		{"Cluster-admin bindings", -10, "high"},
 		{"Open incidents", -4, "high"},
+		// Medium-severity bucket (13 rules)
 		{"Pending pods", -3, "medium"},
 		{"Evicted pods", -3, "medium"},
+		{"Host network/PID/IPC pods", -5, "medium"},
+		{"Secrets in env vars", -5, "medium"},
+		{"Namespaces without network policy", -5, "medium"},
 		{"Active anomalies", -5, "medium"},
 		{"Rightsizing opportunities", -4, "medium"},
-		{"Unknown rule", -25, "high"},   // falls through to impact check
-		{"Unknown rule", -5, "medium"},  // small impact fallback
+		{"Namespaces without ResourceQuota", -5, "medium"},
+		{"Namespaces without LimitRange", -3, "medium"},
+		{"Wildcard RBAC rules", -3, "medium"},
+		{"Missing securityContext", -2, "medium"},
+		{"Writable root filesystem", -2, "medium"},
+		{"Open error groups", -1, "medium"},
+		// Fallback branches for unknown rules
+		{"Unknown rule", -25, "high"},
+		{"Unknown rule", -5, "medium"},
 		{"Unknown rule", 0, "medium"},
 	}
 	for _, tc := range cases {
@@ -92,11 +109,20 @@ func TestParseResourceIdentifier(t *testing.T) {
 
 // --- remediationFor ---------------------------------------------------------
 
+// TestRemediationFor_Known verifies every key in the remediationHints map
+// has a non-empty value. Guards against accidentally shipping a rule with
+// no remediation text (which would render an empty gray card in the UI).
 func TestRemediationFor_Known(t *testing.T) {
-	rule := "CrashLoopBackOff pods"
-	got := remediationFor(rule)
-	if got == "" {
-		t.Fatalf("expected non-empty remediation for %q, got empty", rule)
+	if len(remediationHints) < 19 {
+		t.Fatalf("expected at least 19 remediation entries, got %d", len(remediationHints))
+	}
+	for rule, hint := range remediationHints {
+		if hint == "" {
+			t.Errorf("remediation hint for rule %q is empty", rule)
+		}
+		if got := remediationFor(rule); got != hint {
+			t.Errorf("remediationFor(%q) = %q, want %q", rule, got, hint)
+		}
 	}
 }
 
@@ -162,9 +188,10 @@ func TestCalculateScores_AllZeroInput(t *testing.T) {
 }
 
 func TestCalculateScores_CrashLoopPopulatesAllResources(t *testing.T) {
+	want := []string{"ns-a/p1", "ns-a/p2", "ns-b/p3"}
 	input := ClusterScoreInput{
 		CrashLoopPods:     3,
-		CrashLoopPodNames: []string{"ns-a/p1", "ns-a/p2", "ns-b/p3"},
+		CrashLoopPodNames: want,
 	}
 	rel, _, _, _ := CalculateScores(input)
 	if len(rel.Deductions) != 1 {
@@ -174,11 +201,13 @@ func TestCalculateScores_CrashLoopPopulatesAllResources(t *testing.T) {
 	if d.Rule != "CrashLoopBackOff pods" {
 		t.Errorf("unexpected rule: %q", d.Rule)
 	}
-	if len(d.AllResources) != 3 {
-		t.Errorf("AllResources: got %d, want 3", len(d.AllResources))
+	// Content equality — not just length — so a refactor that populated
+	// AllResources from any other 3-element source would fail this test.
+	if !reflect.DeepEqual(d.AllResources, want) {
+		t.Errorf("AllResources: got %v, want %v", d.AllResources, want)
 	}
-	if len(d.Resources) != 3 {
-		t.Errorf("Resources: got %d, want 3 (under truncation limit of 10)", len(d.Resources))
+	if !reflect.DeepEqual(d.Resources, want) {
+		t.Errorf("Resources (under truncation limit): got %v, want %v", d.Resources, want)
 	}
 }
 

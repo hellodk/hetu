@@ -13,6 +13,9 @@ import (
 	types "github.com/your-org/cluster-intel/pkg/types"
 )
 
+// Keep the time import; new live-path tests below use time.Now() to
+// seed realistic timestamps on correlator incidents and error groups.
+
 // newBreakdownMux builds a mux with the three drill-down routes for an
 // analyzer. Mirrors how main wires them in Start().
 func newBreakdownMux(a *Analyzer) *http.ServeMux {
@@ -261,14 +264,19 @@ func TestHandleRuleBreakdown_StandardRule(t *testing.T) {
 	if len(rb.Resources) != 2 {
 		t.Fatalf("expected 2 resources, got %d", len(rb.Resources))
 	}
-	if rb.Resources[0].Impact != -5 {
-		t.Errorf("per-resource impact: got %d, want -5 (−10/2)", rb.Resources[0].Impact)
-	}
-	if rb.Resources[0].Kind != "Pod" {
-		t.Errorf("kind: got %q", rb.Resources[0].Kind)
-	}
-	if rb.Resources[0].Namespace != "default" {
-		t.Errorf("namespace: got %q", rb.Resources[0].Namespace)
+	// Assert EVERY resource has the correct per-resource impact, kind,
+	// and namespace — not just the first. A bug that only broke some
+	// resources would slip past a single-index check.
+	for i, r := range rb.Resources {
+		if r.Impact != -5 {
+			t.Errorf("resource[%d].Impact = %d, want -5 (−10/2)", i, r.Impact)
+		}
+		if r.Kind != "Pod" {
+			t.Errorf("resource[%d].Kind = %q, want Pod", i, r.Kind)
+		}
+		if r.Namespace != "default" {
+			t.Errorf("resource[%d].Namespace = %q, want default", i, r.Namespace)
+		}
 	}
 }
 
@@ -393,5 +401,173 @@ func TestHandleResourceImpact_NoMatch(t *testing.T) {
 	}
 }
 
-// --- silence unused-import warning when time is only used transitively
-var _ = time.Now
+// --- additional live-handler paths ------------------------------------------
+
+// TestHandleRuleBreakdown_OpenIncidentsLive verifies that the
+// "Open incidents" dynamic rule falls through to liveIncidentResources
+// and returns data from the correlator's live incident map.
+func TestHandleRuleBreakdown_OpenIncidentsLive(t *testing.T) {
+	a := newTestAnalyzer()
+	a.correlator = NewCorrelator("test", time.Minute)
+	a.correlator.incidents[42] = &Incident{
+		ID:         42,
+		Status:     "open",
+		Severity:   "high",
+		DetectedAt: time.Now(),
+		Summary:    "database pod flapping",
+	}
+
+	a.lastArchitecture = ScoreResult{
+		Deductions: []ScoreDeduction{{Rule: "Open incidents", Impact: -5, Count: 1}},
+	}
+
+	srv := httptest.NewServer(newBreakdownMux(a))
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/api/v1/health/breakdown/architecture/0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	var rb types.RuleBreakdownResponse
+	if err := json.NewDecoder(resp.Body).Decode(&rb); err != nil {
+		t.Fatal(err)
+	}
+	if len(rb.Resources) != 1 {
+		t.Fatalf("expected 1 live incident, got %d", len(rb.Resources))
+	}
+	if rb.Resources[0].Kind != "Incident" {
+		t.Errorf("kind: got %q, want Incident", rb.Resources[0].Kind)
+	}
+	if rb.Resources[0].Name != "42" {
+		t.Errorf("name: got %q, want 42 (incident ID)", rb.Resources[0].Name)
+	}
+	if rb.Resources[0].Detail != "database pod flapping" {
+		t.Errorf("detail: got %q", rb.Resources[0].Detail)
+	}
+}
+
+// TestHandleRuleBreakdown_OpenErrorGroupsLive verifies the
+// "Open error groups" dynamic rule pulls from errorAggregator.groups.
+func TestHandleRuleBreakdown_OpenErrorGroupsLive(t *testing.T) {
+	a := newTestAnalyzer()
+	a.errorAggregator = NewErrorAggregator()
+	a.errorAggregator.groups["fp1"] = &ErrorGroup{
+		ID:        1,
+		Title:     "NullPointerException",
+		Service:   "api",
+		Namespace: "prod",
+		Level:     "error",
+		Status:    "open",
+		Count:     17,
+	}
+
+	a.lastReliability = ScoreResult{
+		Deductions: []ScoreDeduction{{Rule: "Open error groups", Impact: -3, Count: 1}},
+	}
+
+	srv := httptest.NewServer(newBreakdownMux(a))
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/api/v1/health/breakdown/reliability/0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	var rb types.RuleBreakdownResponse
+	if err := json.NewDecoder(resp.Body).Decode(&rb); err != nil {
+		t.Fatal(err)
+	}
+	if len(rb.Resources) != 1 {
+		t.Fatalf("expected 1 live error group, got %d", len(rb.Resources))
+	}
+	if rb.Resources[0].Kind != "ErrorGroup" {
+		t.Errorf("kind: got %q, want ErrorGroup", rb.Resources[0].Kind)
+	}
+	if rb.Resources[0].Name != "NullPointerException" {
+		t.Errorf("name: got %q", rb.Resources[0].Name)
+	}
+}
+
+// TestHandleRuleBreakdown_EmptyAllResources verifies that a deduction
+// with no AllResources returns a non-null, empty resources array in
+// the JSON response. Guards the defensive normalisation that the
+// frontend's resources.length access depends on.
+func TestHandleRuleBreakdown_EmptyAllResources(t *testing.T) {
+	a := newTestAnalyzer()
+	a.lastReliability = ScoreResult{
+		Deductions: []ScoreDeduction{{
+			Rule:         "CrashLoopBackOff pods",
+			Impact:       -5,
+			Count:        0, // no resources; edge case
+			AllResources: nil,
+		}},
+	}
+
+	srv := httptest.NewServer(newBreakdownMux(a))
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/api/v1/health/breakdown/reliability/0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	// Decode into a raw map so we can inspect the literal JSON value
+	// of "resources" — DeepEqual on an empty slice is indistinguishable
+	// from a decoded null, so we must check via json.RawMessage.
+	var raw struct {
+		Resources json.RawMessage `json:"resources"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
+		t.Fatal(err)
+	}
+	if string(raw.Resources) != "[]" {
+		t.Errorf("expected resources JSON to be [], got %s", string(raw.Resources))
+	}
+}
+
+// TestHandleResourceImpact_LiveIncidentMatch verifies that
+// ruleMatchesResource's live-handler path for "Open incidents" is
+// executed when a resource is listed in an incident's Affected array.
+func TestHandleResourceImpact_LiveIncidentMatch(t *testing.T) {
+	a := newTestAnalyzer()
+	a.correlator = NewCorrelator("test", time.Minute)
+	a.correlator.incidents[7] = &Incident{
+		ID:         7,
+		Status:     "open",
+		Severity:   "high",
+		DetectedAt: time.Now(),
+		Affected:   []string{"default/my-pod"},
+		Summary:    "checking the live match",
+	}
+	a.lastArchitecture = ScoreResult{
+		Deductions: []ScoreDeduction{{Rule: "Open incidents", Impact: -5, Count: 1}},
+	}
+
+	srv := httptest.NewServer(newBreakdownMux(a))
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/api/v1/health/resource-impact?kind=Pod&namespace=default&name=my-pod")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	var body types.ResourceImpactResponse
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if len(body.Rules) != 1 {
+		t.Fatalf("expected 1 rule match via live incident path, got %d", len(body.Rules))
+	}
+	if body.Rules[0].Rule != "Open incidents" {
+		t.Errorf("rule: got %q, want Open incidents", body.Rules[0].Rule)
+	}
+	if body.Rules[0].Dimension != "architecture" {
+		t.Errorf("dimension: got %q, want architecture", body.Rules[0].Dimension)
+	}
+	if body.Rules[0].Remediation == "" {
+		t.Error("expected non-empty remediation for Open incidents")
+	}
+}
+

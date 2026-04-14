@@ -1,7 +1,6 @@
 package main
 
 import (
-	"os"
 	"testing"
 	"time"
 )
@@ -251,7 +250,10 @@ func TestOptimizerRegistryEvict_MaxSizeClosedFirst(t *testing.T) {
 // --- EvictionConfig + sweep ordering ----------------------------------------
 
 func TestLoadEvictionConfig_Defaults(t *testing.T) {
-	// Clear any env that tests might have set in parallel runs.
+	// Use t.Setenv with empty string to override any leaked values from
+	// parallel tests or the environment. getEnvIntOrDefault and
+	// getDurationOrDefault both treat "" as unset. t.Setenv restores
+	// the original value automatically when the test ends.
 	for _, k := range []string{
 		"EVICT_INTERVAL", "EVICT_INCIDENT_RESOLVED_TTL", "EVICT_INCIDENT_ACTIVE_TTL",
 		"EVICT_INCIDENT_MAX", "EVICT_ERROR_GROUP_TTL", "EVICT_ERROR_GROUP_MAX",
@@ -259,7 +261,7 @@ func TestLoadEvictionConfig_Defaults(t *testing.T) {
 		"EVICT_RCA_REPORT_TTL", "EVICT_RCA_REPORT_MAX",
 		"EVICT_OPT_REC_TTL", "EVICT_OPT_REC_MAX",
 	} {
-		os.Unsetenv(k)
+		t.Setenv(k, "")
 	}
 
 	cfg := loadEvictionConfig()
