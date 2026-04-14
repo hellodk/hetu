@@ -3,8 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Clock, AlertTriangle, CheckCircle, Activity } from 'lucide-react'
 import clsx from 'clsx'
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8081'
+import { apiFetch } from '@/lib/api'
 
 interface TimelineEvent {
   id: string
@@ -55,20 +54,21 @@ export function TimelineChart() {
   useEffect(() => {
     const fetchEvents = async () => {
       try {
-        const res = await fetch(`${API_URL}/api/v1/actions/log`)
-        if (res.ok) {
-          const data = await res.json()
-          // Map action logs to timeline events
-          const mappedEvents: TimelineEvent[] = (data.actions || []).map((action: any, i: number) => ({
-            id: `action-${i}`,
-            timestamp: action.timestamp,
-            type: action.success ? 'recovery' : 'incident',
-            title: `${action.action} on ${action.target}`,
-            description: `${action.message} (by ${action.initiatedBy})`,
-            severity: action.success ? undefined : 'high'
-          }))
-          setEvents(mappedEvents)
-        }
+        // Use relative URL + Next.js proxy (via apiFetch) instead of the
+        // old `${API_URL}/api/v1/...` pattern. The old fallback was
+        // `http://localhost:8081`, which failed two ways: it pointed at
+        // port 8081 (analyzer dev is on 18081) and, from a LAN browser,
+        // "localhost" was the client's own loopback.
+        const data = await apiFetch<{ actions?: any[] }>('/api/v1/actions/log')
+        const mappedEvents: TimelineEvent[] = (data.actions || []).map((action: any, i: number) => ({
+          id: `action-${i}`,
+          timestamp: action.timestamp,
+          type: action.success ? 'recovery' : 'incident',
+          title: `${action.action} on ${action.target}`,
+          description: `${action.message} (by ${action.initiatedBy})`,
+          severity: action.success ? undefined : 'high'
+        }))
+        setEvents(mappedEvents)
       } catch (err) {
         console.error("Failed to fetch action logs", err)
       }
