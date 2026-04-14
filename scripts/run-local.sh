@@ -191,6 +191,23 @@ validate_url_reachable() {
   fi
 }
 
+# normalize_duration — accept a bare integer and append the default
+# unit. Operators routinely type "30" instead of "30s"; rejecting them
+# with "must be a Go duration" is hostile. We just append the unit.
+# Already-suffixed values are left untouched.
+#
+#   normalize_duration ANALYSIS_INTERVAL s
+#   # if value was "30", it's now "30s"
+normalize_duration() {
+  local var="$1" default_unit="$2"
+  local value="${!var}"
+  [[ -z "$value" ]] && return 0
+  if [[ "$value" =~ ^[0-9]+$ ]]; then
+    printf -v "$var" '%s%s' "$value" "$default_unit"
+    info "  $var → ${!var} (assumed ${default_unit})"
+  fi
+}
+
 # normalize_url — auto-prepend http:// when no scheme present.
 # Operators routinely type "192.168.1.10:11434" or "myhost.local:8080";
 # we should accept that and not bounce them with "must start with http://".
@@ -365,7 +382,10 @@ apply_defaults() {
   COLLECTOR_PORT="${COLLECTOR_PORT:-18080}"
   COLLECTOR_METRICS_PORT="${COLLECTOR_METRICS_PORT:-19090}"
   DASHBOARD_PORT="${DASHBOARD_PORT:-3003}"
-  COLLECTOR_URL="${COLLECTOR_URL:-}"
+  # Sensible default: the local collector on its known port. Operators
+  # who run the collector elsewhere (in-cluster service, remote host) can
+  # override via env file or CLI.
+  COLLECTOR_URL="${COLLECTOR_URL:-http://localhost:${COLLECTOR_PORT}}"
   LLM_PROVIDER="${LLM_PROVIDER:-ollama}"
   LLM_ENDPOINT="${LLM_ENDPOINT:-http://localhost:11434}"
   LLM_MODEL="${LLM_MODEL:-llama3}"
@@ -542,10 +562,14 @@ collect_llm() {
 
 collect_intervals() {
   header "Intervals"
+  # All three intervals are short (defaults: 20s, 30s, 30s) so seconds
+  # is the natural unit to assume when the operator types a bare number.
+  # Suffix-bearing values (5m, 1h30m) still work unchanged.
   for var in ANALYSIS_INTERVAL EVICT_INTERVAL MOCK_INTERVAL; do
     while true; do
-      _prompt_input "$var (Go duration: 30s, 5m, 1h)" "${!var}"
+      _prompt_input "$var (default unit: seconds; e.g. 30 or 30s or 5m)" "${!var}"
       printf -v "$var" '%s' "$PROMPT_RESULT"
+      normalize_duration "$var" s
       validate_duration "$var" "${!var}" && break
     done
   done
@@ -577,7 +601,7 @@ render_summary() {
   METRICS_PORT     = $METRICS_PORT
   DASHBOARD_PORT   = $DASHBOARD_PORT
   COLLECTOR_PORT   = $COLLECTOR_PORT
-  COLLECTOR_URL    = ${COLLECTOR_URL:-(unset)}
+  COLLECTOR_URL    = ${COLLECTOR_URL:-(empty)}
   LLM_PROVIDER     = $LLM_PROVIDER
   LLM_ENDPOINT     = ${LLM_ENDPOINT:-(none)}
   LLM_MODEL        = ${LLM_MODEL:-(none)}

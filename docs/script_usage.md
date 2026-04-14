@@ -162,7 +162,7 @@ All validated as integer 1–65535 **and** not currently bound:
 
 | Variable | Default | Validator |
 |---|---|---|
-| `COLLECTOR_URL` | empty | scheme auto-prepended if missing → URL syntax (hard-fail) → reachability (warn-only) |
+| `COLLECTOR_URL` | `http://localhost:$COLLECTOR_PORT` (i.e. the local collector) | scheme auto-prepended if missing → URL syntax (hard-fail) → reachability (warn-only) |
 
 Always prompted (even in `PROFILE=mock`) so the env file always carries
 a value the operator can swap to live mode without re-editing. Required
@@ -222,13 +222,22 @@ free-text input — no surprise failure modes.
 `--yes` / `--non-interactive` paths skip the picker and use whatever
 `LLM_MODEL` the env file specified, so CI runs are deterministic.
 
-### Intervals (Go duration syntax: `30s`, `5m`, `1h30m`)
+### Intervals
 
-| Variable | Default |
-|---|---|
-| `ANALYSIS_INTERVAL` | `30s` |
-| `EVICT_INTERVAL` | `30s` |
-| `MOCK_INTERVAL` | `20s` |
+Bare integers are accepted and normalised to **seconds** (the natural
+unit for these short intervals). Suffix-bearing values (`5m`, `1h30m`,
+`90s`) pass through unchanged.
+
+| Variable | Default | Bare-integer assumption |
+|---|---|---|
+| `ANALYSIS_INTERVAL` | `30s` | seconds |
+| `EVICT_INTERVAL` | `30s` | seconds |
+| `MOCK_INTERVAL` | `20s` | seconds |
+
+```
+ANALYSIS_INTERVAL [30s]: 45
+[info]    ANALYSIS_INTERVAL → 45s (assumed s)
+```
 
 ### Kubernetes (only when `PROFILE=live`)
 
@@ -452,6 +461,7 @@ against a clean state on a 3-node K8s cluster (`cylon`, `raspberrypi`,
 | `discover_models ollama …` (interactive) | enumerates 9 real Ollama models, presents as picker | ✓ |
 | `discover_models ollama http://10.0.0.99:…` | unreachable endpoint → empty output → falls back to free-text | ✓ |
 | `COLLECTOR_URL=my-collector:8080 ./run-local.sh start --yes` (mock) | always prompts/normalises COLLECTOR_URL even in mock profile | ✓ |
+| `ANALYSIS_INTERVAL=30 ./run-local.sh start --yes` | bare int normalised to `30s` (was hard-fail "must be Go duration") | ✓ |
 
 ---
 
