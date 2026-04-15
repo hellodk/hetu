@@ -638,13 +638,39 @@ EOF
 }
 
 # ── Service control ──────────────────────────────────────────────────────────
+# Returns 0 if any .go file under $1 is newer than $2 (or $2 missing).
+# Using `find -newer` catches changes to every source file, not just main.go
+# — editing workload.go etc. without this would silently run stale code.
+_any_go_newer_than() {
+  local src_dir="$1" bin="$2"
+  [[ ! -x "$bin" ]] && return 0
+  [[ -n "$(find "$src_dir" -name '*.go' -newer "$bin" -print -quit 2>/dev/null)" ]]
+}
+
 build_analyzer_if_stale() {
   local bin="$REPO_ROOT/bin/analyzer"
-  if [[ ! -x "$bin" ]] || [[ "$REPO_ROOT/src/analyzer/main.go" -nt "$bin" ]]; then
+  if _any_go_newer_than "$REPO_ROOT/src/analyzer" "$bin"; then
     info "Building analyzer..."
     (cd "$REPO_ROOT/src/analyzer" && go build -o "$bin" ./...) || fatal "analyzer build failed"
     success "analyzer built"
   fi
+}
+
+build_collector_if_stale() {
+  local bin="$REPO_ROOT/bin/collector"
+  if _any_go_newer_than "$REPO_ROOT/src/collector" "$bin"; then
+    info "Building collector..."
+    (cd "$REPO_ROOT/src/collector" && go build -o "$bin" ./...) || fatal "collector build failed"
+    success "collector built"
+  fi
+}
+
+# Returns 0 when COLLECTOR_URL points at a local loopback address — which
+# means this script is responsible for starting the collector. A non-local
+# URL means the operator is pointing at an in-cluster service or remote
+# host; we must NOT try to start a collector on their behalf.
+collector_is_local() {
+  [[ "$COLLECTOR_URL" =~ ^https?://(localhost|127\.0\.0\.1|0\.0\.0\.0)(:|/|$) ]]
 }
 
 wait_for_http() {
@@ -656,6 +682,41 @@ wait_for_http() {
     sleep 0.5
   done
   return 1
+}
+
+start_collector() {
+  # Only start a local collector in live mode AND when COLLECTOR_URL points
+  # at loopback. Mock profile doesn't need one; a remote/in-cluster URL
+  # means the operator runs it elsewhere.
+  if [[ "$PROFILE" != "live" ]]; then
+    info "PROFILE=$PROFILE — skipping collector start (not needed for mock)"
+    return 0
+  fi
+  if ! collector_is_local; then
+    info "COLLECTOR_URL=$COLLECTOR_URL is remote — not starting a local collector"
+    return 0
+  fi
+
+  if [[ -f "$COLLECTOR_PIDFILE" ]] && kill -0 "$(cat "$COLLECTOR_PIDFILE")" 2>/dev/null; then
+    fatal "Collector already running (PID $(cat "$COLLECTOR_PIDFILE")). Use 'stop' first."
+  fi
+  build_collector_if_stale
+
+  info "Starting collector on $BIND_ADDRESS:$COLLECTOR_PORT (metrics $COLLECTOR_METRICS_PORT)..."
+  BIND_ADDRESS="$BIND_ADDRESS" \
+    HEALTH_PORT="$COLLECTOR_PORT" \
+    METRICS_PORT="$COLLECTOR_METRICS_PORT" \
+    KUBECONFIG="$KUBECONFIG" \
+    CLUSTER_ID="${CLUSTER_ID:-default}" \
+    "$REPO_ROOT/bin/collector" > "$LOG_DIR/collector.log" 2>&1 &
+  echo $! > "$COLLECTOR_PIDFILE"
+
+  if ! wait_for_http "http://localhost:$COLLECTOR_PORT/healthz" "collector" 30; then
+    error "Collector failed to become healthy. Last log lines:"
+    tail -20 "$LOG_DIR/collector.log" >&2 || true
+    fatal "abort"
+  fi
+  success "Collector ready (PID $(cat "$COLLECTOR_PIDFILE"))"
 }
 
 start_analyzer() {
@@ -789,6 +850,7 @@ cmd_start() {
   collect_kubeconfig
   render_summary
 
+  start_collector
   start_analyzer
   start_dashboard
 
@@ -796,6 +858,9 @@ cmd_start() {
   success "Stack ready"
   echo "  dashboard: http://localhost:$DASHBOARD_PORT/" >&2
   echo "  analyzer : http://localhost:$ANALYZER_PORT/" >&2
+  if [[ "$PROFILE" == "live" ]] && collector_is_local; then
+    echo "  collector: http://localhost:$COLLECTOR_PORT/healthz" >&2
+  fi
   echo "  logs     : scripts/run-local.sh logs" >&2
 }
 
@@ -853,6 +918,7 @@ cmd_logs() {
 
 cmd_build() {
   build_analyzer_if_stale
+  build_collector_if_stale
 }
 
 tool_version() {
@@ -912,6 +978,12 @@ cmd_doctor() {
     success "analyzer binary: $REPO_ROOT/bin/analyzer"
   else
     warn "analyzer binary missing — will be built on start"
+  fi
+
+  if [[ -x "$REPO_ROOT/bin/collector" ]]; then
+    success "collector binary: $REPO_ROOT/bin/collector"
+  else
+    warn "collector binary missing — will be built on start (live profile only)"
   fi
 
   if (( fails > 0 )); then

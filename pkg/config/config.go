@@ -19,6 +19,7 @@ import "time"
 type Config struct {
 	Cluster ClusterConfig `yaml:"cluster"`
 	Server  ServerConfig  `yaml:"server"`
+	Analyzer AnalyzerConfig `yaml:"analyzer"`
 	Kube    KubeConfig    `yaml:"kube"`
 	Stores  StoresConfig  `yaml:"stores"`
 	Bus     BusConfig     `yaml:"bus"`
@@ -37,6 +38,19 @@ type ServerConfig struct {
 	APIPort     int    `yaml:"apiPort"`
 	MetricsPort int    `yaml:"metricsPort"`
 	BindAddress string `yaml:"bindAddress"`
+}
+
+// AnalyzerConfig captures analyzer-specific runtime config that isn't shared
+// across all binaries.
+type AnalyzerConfig struct {
+	CollectorURL        string        `yaml:"collectorUrl"`
+	PrometheusURL       string        `yaml:"prometheusUrl"`
+	CORSAllowedOrigins  []string      `yaml:"corsAllowedOrigins"`
+	AnalysisInterval    time.Duration `yaml:"analysisInterval"`
+	ScanSecurityInterval time.Duration `yaml:"scanSecurityInterval"`
+	ScanPodHealthInterval time.Duration `yaml:"scanPodHealthInterval"`
+	ScanAnomalyInterval time.Duration `yaml:"scanAnomalyInterval"`
+	ScanOptimizerInterval time.Duration `yaml:"scanOptimizerInterval"`
 }
 
 // KubeConfig controls how a binary connects to the Kubernetes API.
@@ -174,6 +188,16 @@ func Default() Config {
 			APIPort:     8080,
 			MetricsPort: 9090,
 			BindAddress: "0.0.0.0",
+		},
+		Analyzer: AnalyzerConfig{
+			CollectorURL:         "",
+			PrometheusURL:        "",
+			CORSAllowedOrigins:   []string{"*"},
+			AnalysisInterval:     5 * time.Minute,
+			ScanSecurityInterval: 5 * time.Minute,
+			ScanPodHealthInterval: 2 * time.Minute,
+			ScanAnomalyInterval:  3 * time.Minute,
+			ScanOptimizerInterval: 10 * time.Minute,
 		},
 		Kube: KubeConfig{
 			InCluster: true,

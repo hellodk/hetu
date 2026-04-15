@@ -73,6 +73,9 @@ secrets.yaml
 secrets.yml
 *.pem
 *.key
+# Production overlays are local-only by default.
+/values-prod.yaml
+env/prod.env
 # Kubeconfig files occasionally land in workspaces.
 kubeconfig
 kubeconfig.yaml
@@ -130,3 +133,10 @@ demo.mp4
 
 # ---- Personal session scratch (not intended for git) ---------------------
 requests.md
+
+# ---- Secret-bearing local overrides (committed examples are .example) ----
+*.local.env
+env/*.local.env
+*.secret.yaml
+*.creds
+.envrc

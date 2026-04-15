@@ -1,0 +1,26 @@
+# cluster-intel — dev environment override (in-cluster)
+#
+# Intended for a personal dev cluster where you want fast iteration:
+# - uses images from $(REGISTRY) via Makefile (or override here)
+# - bundled Postgres/Redis/NATS
+# - no ingress by default
+
+cluster:
+  id: "dev"
+  displayName: "Cluster Intel (dev)"
+
+writeActions:
+  enabled: false
+
+exec:
+  enabled: true
+
+serviceMonitor:
+  enabled: false
+
+networkPolicy:
+  enabled: false
+
+monitoring:
+  enabled: false
+

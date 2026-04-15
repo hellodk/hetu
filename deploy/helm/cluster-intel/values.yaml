@@ -126,6 +126,11 @@ analyzer:
   pdb:
     enabled: false
     minAvailable: 1
+  # Runtime config defaults that land in the unified config ConfigMap.
+  # The UI can override these at runtime via the override ConfigMap layer.
+  collectorUrl: "http://cluster-intel-collector:8080"
+  corsAllowedOrigins:
+    - "*"
 
 # =============================================================================
 # Dashboard (Next.js)
@@ -253,6 +258,13 @@ networkPolicy:
   # GA since k8s 1.22).
   monitoringNamespace: monitoring
   ingressNamespace: ingress-nginx
+  # CIDRs considered "private" for the external-LLM HTTPS egress rule.
+  # These are excluded from the 0.0.0.0/0:443 allowlist so operators can
+  # explicitly allow internal HTTPS targets via dedicated rules.
+  privateCidrs:
+    - 10.0.0.0/8
+    - 172.16.0.0/12
+    - 192.168.0.0/16
   # CIDR for external LLM endpoint (e.g. a self-hosted Ollama outside the
   # cluster). Leave empty to allow general-internet egress on port 443 only.
   llmEgressCIDR: ""

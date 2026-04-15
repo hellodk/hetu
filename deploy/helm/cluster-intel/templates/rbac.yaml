@@ -7,6 +7,38 @@ metadata:
     {{- include "cluster-intel.labels" . | nindent 4 }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: cluster-intel-runtime-config-writer
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "cluster-intel.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: ["cluster-intel-runtime"]
+    # NOTE: we intentionally do NOT grant "create". The chart renders the
+    # runtime ConfigMap by default, so the analyzer only needs to mutate it.
+    # Keeping RBAC to update/patch avoids needing broad create permissions.
+    verbs: ["get", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: cluster-intel-runtime-config-writer
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "cluster-intel.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: cluster-intel-runtime-config-writer
+subjects:
+  - kind: ServiceAccount
+    name: cluster-intel
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: cluster-intel-reader

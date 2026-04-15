@@ -525,9 +525,10 @@ func podRestarts(obj unstructured.Unstructured) (int64, bool) {
 }
 
 func statusFromK8sErr(err error) int {
-	s := err.Error()
+	s := strings.ToLower(err.Error())
 	switch {
-	case strings.Contains(s, "not found"):
+	case strings.Contains(s, "not found"),
+		strings.Contains(s, "could not find"):
 		return http.StatusNotFound
 	case strings.Contains(s, "forbidden"):
 		return http.StatusForbidden

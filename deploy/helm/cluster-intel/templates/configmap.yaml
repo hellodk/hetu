@@ -11,6 +11,11 @@ data:
       id: {{ .Values.cluster.id | quote }}
       displayName: {{ .Values.cluster.displayName | quote }}
 
+    analyzer:
+      collectorUrl: {{ .Values.analyzer.collectorUrl | quote }}
+      corsAllowedOrigins:
+        {{- toYaml .Values.analyzer.corsAllowedOrigins | nindent 8 }}
+
     stores:
       postgres:
         enabled: true

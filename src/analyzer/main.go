@@ -23,6 +23,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"gopkg.in/yaml.v3"
 
 	ucconfig "github.com/your-org/cluster-intel/pkg/config"
 	mw "github.com/your-org/cluster-intel/pkg/middleware"
@@ -39,6 +40,7 @@ import (
 type Config struct {
 	ClusterID        string        `json:"clusterId"`
 	CollectorURL     string        `json:"collectorUrl"`
+	BindAddress      string        `json:"bindAddress"`
 	LLMBackend       string        `json:"llmBackend"`
 	LLMEndpoint      string        `json:"llmEndpoint"`
 	LLMModel         string        `json:"llmModel"`
@@ -53,6 +55,11 @@ type Config struct {
 // Analyzer is the main analyzer service
 type Analyzer struct {
 	config          Config
+	configMu        sync.RWMutex
+	unifiedDiagMu   sync.RWMutex
+	unifiedCfg      ucconfig.Config
+	unifiedDiag     ucconfig.Diagnostics
+	configStore     ConfigStore
 	httpClient      *http.Client
 	latestReport    *types.ClusterHealthReport
 	previousReport  *types.ClusterHealthReport
@@ -167,6 +174,24 @@ func NewAnalyzer(config Config) (*Analyzer, error) {
 	analyzer.mockSource = newMockSource(analyzer, interval)
 
 	return analyzer, nil
+}
+
+func (a *Analyzer) getCollectorURL() string {
+	a.configMu.RLock()
+	defer a.configMu.RUnlock()
+	return a.config.CollectorURL
+}
+
+func (a *Analyzer) setCollectorURL(url string) {
+	a.configMu.Lock()
+	a.config.CollectorURL = strings.TrimSpace(url)
+	a.configMu.Unlock()
+}
+
+func (a *Analyzer) getLLMEndpoint() string {
+	a.configMu.RLock()
+	defer a.configMu.RUnlock()
+	return a.config.LLMEndpoint
 }
 
 // resolveProfile normalizes the incoming profile string to a known value,
@@ -290,19 +315,20 @@ func (a *Analyzer) buildReportStatus(hasScores bool) *types.ReportStatus {
 	defer a.diagMu.RUnlock()
 
 	profile := a.getProfile()
+	collectorURL := a.getCollectorURL()
 	status := &types.ReportStatus{
 		Profile:           profile,
 		LastAnalysisAt:    a.lastAnalysisAt,
 		LastAnalysisError: a.lastAnalysisError,
 		Collector: types.ComponentHealth{
 			Reachable: a.collectorReachable,
-			Endpoint:  a.config.CollectorURL,
+			Endpoint:  collectorURL,
 			LastOKAt:  a.collectorLastOKAt,
 			LastError: a.collectorLastError,
 		},
 		LLM: types.ComponentHealth{
 			Reachable: a.llmReachable,
-			Endpoint:  a.config.LLMEndpoint,
+			Endpoint:  a.getLLMEndpoint(),
 			LastOKAt:  a.llmLastOKAt,
 			LastError: a.llmLastError,
 		},
@@ -582,10 +608,14 @@ func (a *Analyzer) analysisLoop(ctx context.Context) {
 func (a *Analyzer) startBackgroundScans(ctx context.Context) {
 	defer a.wg.Done()
 
-	secInterval := getDurationOrDefault("SCAN_SECURITY_INTERVAL", 5*time.Minute)
-	podInterval := getDurationOrDefault("SCAN_PODHEALTH_INTERVAL", 2*time.Minute)
-	anomalyInterval := getDurationOrDefault("SCAN_ANOMALY_INTERVAL", 3*time.Minute)
-	optInterval := getDurationOrDefault("SCAN_OPTIMIZER_INTERVAL", 10*time.Minute)
+	a.unifiedDiagMu.RLock()
+	ucfg := a.unifiedCfg
+	a.unifiedDiagMu.RUnlock()
+
+	secInterval := coalesceDuration(getEnvOrDefault("SCAN_SECURITY_INTERVAL", ""), ucfg.Analyzer.ScanSecurityInterval, 5*time.Minute)
+	podInterval := coalesceDuration(getEnvOrDefault("SCAN_PODHEALTH_INTERVAL", ""), ucfg.Analyzer.ScanPodHealthInterval, 2*time.Minute)
+	anomalyInterval := coalesceDuration(getEnvOrDefault("SCAN_ANOMALY_INTERVAL", ""), ucfg.Analyzer.ScanAnomalyInterval, 3*time.Minute)
+	optInterval := coalesceDuration(getEnvOrDefault("SCAN_OPTIMIZER_INTERVAL", ""), ucfg.Analyzer.ScanOptimizerInterval, 10*time.Minute)
 
 	secTicker := time.NewTicker(secInterval)
 	podTicker := time.NewTicker(podInterval)
@@ -1032,13 +1062,30 @@ func (a *Analyzer) unsubscribe(ch chan *types.ClusterHealthReport) {
 
 // fetchEvents fetches events from the collector
 func (a *Analyzer) fetchEvents(ctx context.Context) ([]types.TelemetryEvent, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", a.config.CollectorURL+"/api/v1/events", nil)
+	// In mock profile, the dashboard expects the events APIs to work even
+	// without a running collector. Return deterministic synthetic events.
+	if a.getProfile() == types.ProfileMock {
+		return a.mockTelemetryEvents(), nil
+	}
+	collectorURL := a.getCollectorURL()
+	if strings.TrimSpace(collectorURL) == "" {
+		return nil, fmt.Errorf("COLLECTOR_URL is not set (required for live profile)")
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "GET", collectorURL+"/api/v1/events", nil)
 	if err != nil {
 		return nil, err
 	}
 
 	resp, err := a.httpClient.Do(req)
 	if err != nil {
+		// Local/demo runs often don't have a collector. If the default K8s DNS
+		// name isn't resolvable, fall back to synthetic events so the UI stays
+		// usable (timeline, incidents) in mock mode.
+		if strings.Contains(err.Error(), "lookup collector") ||
+			strings.Contains(err.Error(), "no such host") {
+			return a.mockTelemetryEvents(), nil
+		}
 		return nil, err
 	}
 	defer resp.Body.Close()
@@ -1053,7 +1100,30 @@ func (a *Analyzer) fetchEvents(ctx context.Context) ([]types.TelemetryEvent, err
 
 // fetchCorrelatedEvents fetches correlated events from the collector
 func (a *Analyzer) fetchCorrelatedEvents(ctx context.Context) ([]types.CorrelatedEvidence, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", a.config.CollectorURL+"/api/v1/events/correlated", nil)
+	if a.getProfile() == types.ProfileMock {
+		events := a.mockTelemetryEvents()
+		out := make([]types.CorrelatedEvidence, 0, len(events))
+		for _, e := range events {
+			out = append(out, types.CorrelatedEvidence{
+				Event: e,
+				Metrics: map[string][]types.DataPoint{
+					"cpu": {
+						{Timestamp: e.Timestamp.Add(-5 * time.Minute), Value: 0.2},
+						{Timestamp: e.Timestamp, Value: 0.85},
+					},
+				},
+				LogLines:    []string{"mock: correlated evidence not available in demo mode"},
+				RelatedPods: []string{e.InvolvedObject.Namespace + "/" + e.InvolvedObject.Name},
+			})
+		}
+		return out, nil
+	}
+	collectorURL := a.getCollectorURL()
+	if strings.TrimSpace(collectorURL) == "" {
+		return nil, fmt.Errorf("COLLECTOR_URL is not set (required for live profile)")
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "GET", collectorURL+"/api/v1/events/correlated", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1074,7 +1144,27 @@ func (a *Analyzer) fetchCorrelatedEvents(ctx context.Context) ([]types.Correlate
 
 // fetchMetrics fetches metrics from the collector
 func (a *Analyzer) fetchMetrics(ctx context.Context) ([]types.ResourceMetrics, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", a.config.CollectorURL+"/api/v1/metrics", nil)
+	if a.getProfile() == types.ProfileMock {
+		now := time.Now()
+		return []types.ResourceMetrics{
+			{
+				Timestamp:    now,
+				Cluster:      a.config.ClusterID,
+				ResourceType: "node",
+				Resource:     types.ResourceIdentifier{Name: "node-1"},
+				Metrics: map[string]any{
+					"cpu_usage":    0.62,
+					"memory_usage": 0.71,
+				},
+			},
+		}, nil
+	}
+	collectorURL := a.getCollectorURL()
+	if strings.TrimSpace(collectorURL) == "" {
+		return nil, fmt.Errorf("COLLECTOR_URL is not set (required for live profile)")
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "GET", collectorURL+"/api/v1/metrics", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1091,6 +1181,70 @@ func (a *Analyzer) fetchMetrics(ctx context.Context) ([]types.ResourceMetrics, e
 	}
 
 	return metrics, nil
+}
+
+func (a *Analyzer) mockTelemetryEvents() []types.TelemetryEvent {
+	now := time.Now()
+	events := []types.TelemetryEvent{
+		{
+			ID:        fmt.Sprintf("mock-evt-%d", now.Add(-25*time.Minute).Unix()),
+			Timestamp: now.Add(-25 * time.Minute),
+			Cluster:   a.config.ClusterID,
+			Source:    "k8s",
+			Type:      "Warning",
+			Reason:    "CrashLoopBackOff",
+			InvolvedObject: types.InvolvedObject{
+				Kind:      "Pod",
+				Namespace: "default",
+				Name:      "api-gateway-x2k9m",
+				UID:       "mock-uid-1",
+			},
+			Message:        "Back-off restarting failed container",
+			Count:          7,
+			FirstTimestamp: now.Add(-50 * time.Minute),
+			LastTimestamp:  now.Add(-25 * time.Minute),
+			Metadata:       map[string]any{"profile": "mock"},
+		},
+		{
+			ID:        fmt.Sprintf("mock-evt-%d", now.Add(-12*time.Minute).Unix()),
+			Timestamp: now.Add(-12 * time.Minute),
+			Cluster:   a.config.ClusterID,
+			Source:    "k8s",
+			Type:      "Warning",
+			Reason:    "FailedScheduling",
+			InvolvedObject: types.InvolvedObject{
+				Kind:      "Pod",
+				Namespace: "default",
+				Name:      "ml-trainer-batch",
+				UID:       "mock-uid-2",
+			},
+			Message:        "0/4 nodes are available: 2 Insufficient cpu.",
+			Count:          3,
+			FirstTimestamp: now.Add(-20 * time.Minute),
+			LastTimestamp:  now.Add(-12 * time.Minute),
+			Metadata:       map[string]any{"profile": "mock"},
+		},
+		{
+			ID:        fmt.Sprintf("mock-evt-%d", now.Add(-3*time.Minute).Unix()),
+			Timestamp: now.Add(-3 * time.Minute),
+			Cluster:   a.config.ClusterID,
+			Source:    "k8s",
+			Type:      "Normal",
+			Reason:    "SuccessfulCreate",
+			InvolvedObject: types.InvolvedObject{
+				Kind:      "ReplicaSet",
+				Namespace: "default",
+				Name:      "api-gateway-6b7d9f7f6c",
+				UID:       "mock-uid-3",
+			},
+			Message:        "Created pod: api-gateway-6b7d9f7f6c-abc12",
+			Count:          1,
+			FirstTimestamp: now.Add(-3 * time.Minute),
+			LastTimestamp:  now.Add(-3 * time.Minute),
+			Metadata:       map[string]any{"profile": "mock"},
+		},
+	}
+	return events
 }
 
 // runLLMAnalysis executes LLM analysis with the given template
@@ -1132,7 +1286,8 @@ func (a *Analyzer) runLLMAnalysis(ctx context.Context, templateName string, data
 		return nil, err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", a.config.LLMEndpoint+"/chat/completions", bytes.NewReader(reqBody))
+	endpoint := a.getLLMEndpoint()
+	req, err := http.NewRequestWithContext(ctx, "POST", endpoint+"/chat/completions", bytes.NewReader(reqBody))
 	if err != nil {
 		return nil, err
 	}
@@ -1497,7 +1652,7 @@ func (a *Analyzer) serveMetrics() {
 	mux.Handle("/metrics", promhttp.HandlerFor(a.registry, promhttp.HandlerOpts{}))
 
 	a.metricsServer = &http.Server{
-		Addr:    fmt.Sprintf(":%d", a.config.MetricsPort),
+		Addr:    fmt.Sprintf("%s:%d", a.config.BindAddress, a.config.MetricsPort),
 		Handler: mux,
 	}
 
@@ -1535,6 +1690,8 @@ func (a *Analyzer) serveAPI() {
 	mux.HandleFunc("/api/v1/pods/", a.handlePodLogs)
 	// Profile + diagnostics
 	mux.HandleFunc("/api/v1/profile", a.handleProfile)
+	mux.HandleFunc("/api/v1/collector", a.handleCollector)
+	mux.HandleFunc("/api/v1/config", a.handleConfig)
 	mux.HandleFunc("/api/v1/status", a.handleStatus)
 	mux.HandleFunc("POST /api/v1/errors/analyze", a.handleErrorsAnalyze)
 
@@ -1617,7 +1774,18 @@ func (a *Analyzer) serveAPI() {
 	}
 
 	// Configure CORS from environment
-	allowedOriginsStr := getEnvOrDefault("CORS_ALLOWED_ORIGINS", "*")
+	allowedOriginsStr := getEnvOrDefault("CORS_ALLOWED_ORIGINS", "")
+	if strings.TrimSpace(allowedOriginsStr) == "" {
+		a.unifiedDiagMu.RLock()
+		ucfg := a.unifiedCfg
+		a.unifiedDiagMu.RUnlock()
+		if len(ucfg.Analyzer.CORSAllowedOrigins) > 0 {
+			allowedOriginsStr = strings.Join(ucfg.Analyzer.CORSAllowedOrigins, ",")
+		}
+	}
+	if strings.TrimSpace(allowedOriginsStr) == "" {
+		allowedOriginsStr = "*"
+	}
 	allowedOrigins := strings.Split(allowedOriginsStr, ",")
 	for i := range allowedOrigins {
 		allowedOrigins[i] = strings.TrimSpace(allowedOrigins[i])
@@ -1637,7 +1805,7 @@ func (a *Analyzer) serveAPI() {
 	handler := rateLimitMiddleware(corsMiddleware(mux))
 
 	a.apiServer = &http.Server{
-		Addr:    fmt.Sprintf(":%d", a.config.APIPort),
+		Addr:    fmt.Sprintf("%s:%d", a.config.BindAddress, a.config.APIPort),
 		Handler: handler,
 	}
 
@@ -2346,11 +2514,18 @@ func (a *Analyzer) handleStatus(w http.ResponseWriter, r *http.Request) {
 	a.reportMu.RUnlock()
 
 	status := a.buildReportStatus(hasScores)
+	a.unifiedDiagMu.RLock()
+	diag := a.unifiedDiag
+	a.unifiedDiagMu.RUnlock()
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]any{
 		"status":    status,
 		"hasReport": hasReport,
 		"hasScores": hasScores,
+		"config": map[string]any{
+			"errors":   diag.Errors,
+			"warnings": diag.Warnings,
+		},
 	})
 }
 
@@ -2371,10 +2546,16 @@ func (a *Analyzer) handleTriggerAnalysis(w http.ResponseWriter, r *http.Request)
 
 // handleTimeline returns timeline events
 func (a *Analyzer) handleTimeline(w http.ResponseWriter, r *http.Request) {
-	events, err := a.fetchEvents(r.Context())
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+	var events []types.TelemetryEvent
+	if a.getProfile() == types.ProfileMock {
+		events = a.mockTelemetryEvents()
+	} else {
+		var err error
+		events, err = a.fetchEvents(r.Context())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 	}
 
 	var timeline []types.TimelineEvent
@@ -2408,6 +2589,196 @@ func (a *Analyzer) handleTimeline(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(timeline)
 }
 
+// handleCollector returns (GET) or updates (POST) the collector URL used in live mode.
+// POST body is {"collectorUrl":"http://collector:8080"}.
+func (a *Analyzer) handleCollector(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	switch r.Method {
+	case http.MethodGet:
+		json.NewEncoder(w).Encode(map[string]any{
+			"collectorUrl": a.getCollectorURL(),
+		})
+	case http.MethodPost:
+		var body struct {
+			CollectorURL string `json:"collectorUrl"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, fmt.Sprintf("invalid body: %v", err), http.StatusBadRequest)
+			return
+		}
+		a.setCollectorURL(body.CollectorURL)
+		// Persist into runtime override layer (non-secret).
+		a.persistOverridePatch(r.Context(), map[string]any{
+			"analyzer": map[string]any{
+				"collectorUrl": a.getCollectorURL(),
+			},
+		})
+		json.NewEncoder(w).Encode(map[string]any{
+			"collectorUrl": a.getCollectorURL(),
+		})
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+// handleConfig exposes the unified effective config and allows writing runtime
+// overrides that persist via the configured ConfigStore.
+//
+// GET returns:
+// - effective: the current effective unified config (base + override + env)
+// - diagnostics: load/validation issues (non-fatal)
+// - runtimeOverrideYaml: the persisted override layer
+// - store: where overrides are persisted
+//
+// PUT accepts JSON:
+// - {"overrideYaml":"..."}  (preferred; sparse YAML layer)
+// - {"override":{...}}      (object is marshaled to YAML)
+func (a *Analyzer) handleConfig(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	readOverride := func() (string, bool, string, string) {
+		if a.configStore == nil {
+			return "", false, "", "no config store configured"
+		}
+		raw, found, err := a.configStore.Get(r.Context())
+		if err != nil {
+			return "", false, a.configStore.Location(), err.Error()
+		}
+		return raw, found, a.configStore.Location(), ""
+	}
+
+	switch r.Method {
+	case http.MethodGet:
+		overrideYaml, found, loc, storeErr := readOverride()
+		a.unifiedDiagMu.RLock()
+		cfg := a.unifiedCfg
+		diag := a.unifiedDiag
+		a.unifiedDiagMu.RUnlock()
+		writeJSON(w, map[string]any{
+			"effective":   cfg,
+			"diagnostics": diag,
+			"runtimeOverrideYaml": map[string]any{
+				"found": found,
+				"yaml":  overrideYaml,
+			},
+			"store": map[string]any{
+				"location": loc,
+				"error":    storeErr,
+			},
+		})
+		return
+
+	case http.MethodPut:
+		var body struct {
+			OverrideYAML string         `json:"overrideYaml"`
+			Override     map[string]any `json:"override"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, fmt.Sprintf("invalid body: %v", err), http.StatusBadRequest)
+			return
+		}
+
+		overrideYaml := strings.TrimSpace(body.OverrideYAML)
+		if overrideYaml == "" && body.Override != nil {
+			out, err := yaml.Marshal(body.Override)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("failed to marshal override: %v", err), http.StatusBadRequest)
+				return
+			}
+			overrideYaml = strings.TrimSpace(string(out))
+		}
+		if overrideYaml == "" {
+			// Allow clearing the override layer.
+			overrideYaml = ""
+		}
+
+		if a.configStore == nil {
+			http.Error(w, "no config store configured", http.StatusServiceUnavailable)
+			return
+		}
+		if err := a.configStore.Put(r.Context(), overrideYaml); err != nil {
+			http.Error(w, fmt.Sprintf("failed to persist override: %v", err), http.StatusBadGateway)
+			return
+		}
+
+		// Best-effort apply a few high-impact keys immediately so the UI can recover
+		// without a restart. (Full reload comes from layered config on restart / mount refresh.)
+		a.applyRuntimeOverrideBestEffort(overrideYaml)
+
+		// Refresh unified config cache/diagnostics from layered loader (relaxed).
+		basePath, overridePath := ucconfig.ResolvePathsFromEnv("/etc/cluster-intel/config.yaml", "/etc/cluster-intel/runtime.yaml")
+		ucfg, udiag := ucconfig.LoadLayeredRelaxed(basePath, overridePath)
+		a.unifiedDiagMu.Lock()
+		a.unifiedCfg = ucfg
+		a.unifiedDiag = udiag
+		a.unifiedDiagMu.Unlock()
+
+		writeJSON(w, map[string]any{
+			"ok":       true,
+			"location": a.configStore.Location(),
+		})
+		return
+
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+func (a *Analyzer) applyRuntimeOverrideBestEffort(overrideYaml string) {
+	if strings.TrimSpace(overrideYaml) == "" {
+		return
+	}
+	var o struct {
+		Analyzer struct {
+			CollectorURL       string   `yaml:"collectorUrl"`
+			PrometheusURL      string   `yaml:"prometheusUrl"`
+			CORSAllowedOrigins []string `yaml:"corsAllowedOrigins"`
+		} `yaml:"analyzer"`
+		LLM struct {
+			Provider     string  `yaml:"provider"`
+			Endpoint     string  `yaml:"endpoint"`
+			Model        string  `yaml:"model"`
+			MaxTokens    int     `yaml:"maxTokens"`
+			Temperature  float64 `yaml:"temperature"`
+		} `yaml:"llm"`
+		Server struct {
+			BindAddress string `yaml:"bindAddress"`
+			APIPort     int    `yaml:"apiPort"`
+			MetricsPort int    `yaml:"metricsPort"`
+		} `yaml:"server"`
+	}
+	if err := yaml.Unmarshal([]byte(overrideYaml), &o); err != nil {
+		return
+	}
+
+	if strings.TrimSpace(o.Analyzer.CollectorURL) != "" {
+		a.setCollectorURL(o.Analyzer.CollectorURL)
+	}
+	// Note: Prometheus/CORS are read in other parts of the analyzer; those will
+	// take effect on the next refresh/restart. We still keep them persisted.
+
+	// Update in-memory LLM config used by report status + LLM calls.
+	// (We do not accept API keys via runtime override.)
+	a.configMu.Lock()
+	if strings.TrimSpace(o.LLM.Provider) != "" {
+		a.config.LLMBackend = strings.TrimSpace(o.LLM.Provider)
+	}
+	if strings.TrimSpace(o.LLM.Endpoint) != "" {
+		a.config.LLMEndpoint = strings.TrimSpace(o.LLM.Endpoint)
+	}
+	if strings.TrimSpace(o.LLM.Model) != "" {
+		a.config.LLMModel = strings.TrimSpace(o.LLM.Model)
+	}
+	if o.LLM.MaxTokens > 0 {
+		a.config.MaxTokens = o.LLM.MaxTokens
+	}
+	if o.LLM.Temperature > 0 {
+		a.config.Temperature = o.LLM.Temperature
+	}
+	a.configMu.Unlock()
+}
+
 // handleHistory returns history of reports
 func (a *Analyzer) handleHistory(w http.ResponseWriter, r *http.Request) {
 	a.reportMu.RLock()
@@ -2420,7 +2791,7 @@ func (a *Analyzer) handleHistory(w http.ResponseWriter, r *http.Request) {
 
 // handleDNSHealth proxies the DNS metrics from the collector
 func (a *Analyzer) handleDNSHealth(w http.ResponseWriter, r *http.Request) {
-	req, err := http.NewRequestWithContext(r.Context(), "GET", a.config.CollectorURL+"/api/v1/dns/health", nil)
+	req, err := http.NewRequestWithContext(r.Context(), "GET", a.getCollectorURL()+"/api/v1/dns/health", nil)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -2437,7 +2808,7 @@ func (a *Analyzer) handleDNSHealth(w http.ResponseWriter, r *http.Request) {
 
 // handlePodLogs proxies pod logs from the collector
 func (a *Analyzer) handlePodLogs(w http.ResponseWriter, r *http.Request) {
-	targetURL := a.config.CollectorURL + r.URL.Path
+	targetURL := a.getCollectorURL() + r.URL.Path
 	if r.URL.RawQuery != "" {
 		targetURL += "?" + r.URL.RawQuery
 	}
@@ -2497,11 +2868,15 @@ func main() {
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
 
-	// v7: Try loading unified config file (CI_CONFIG env or /etc/cluster-intel/config.yaml).
-	// If available, its values seed the Config below; env vars still override as before.
-	ucfg, ucfgErr := ucconfig.LoadFromEnv("/etc/cluster-intel/config.yaml")
-	if ucfgErr != nil {
-		log.Debug().Err(ucfgErr).Msg("No unified config loaded, using legacy env vars")
+	// v7: Load layered unified config (base + runtime override) in relaxed mode
+	// so the service can start even if config files are missing/invalid.
+	basePath, overridePath := ucconfig.ResolvePathsFromEnv("/etc/cluster-intel/config.yaml", "/etc/cluster-intel/runtime.yaml")
+	ucfg, udiag := ucconfig.LoadLayeredRelaxed(basePath, overridePath)
+	if len(udiag.Errors) > 0 || len(udiag.Warnings) > 0 {
+		log.Warn().
+			Strs("errors", udiag.Errors).
+			Strs("warnings", udiag.Warnings).
+			Msg("Unified config loaded with diagnostics")
 	} else {
 		log.Info().Str("cluster", ucfg.Cluster.ID).Msg("Loaded unified config")
 	}
@@ -2509,7 +2884,11 @@ func main() {
 	// Load configuration
 	config := Config{
 		ClusterID:        coalesce(getEnvOrDefault("CLUSTER_ID", ""), ucfg.Cluster.ID, "default"),
-		CollectorURL:     getEnvOrDefault("COLLECTOR_URL", "http://collector:8080"),
+		BindAddress:      coalesce(getEnvOrDefault("BIND_ADDRESS", ""), ucfg.Server.BindAddress, "0.0.0.0"),
+		// Do not hardcode a K8s-DNS default (e.g. http://collector:8080) because
+		// it breaks local runs and LAN demos. Configure this explicitly via
+		// COLLECTOR_URL (or set it through your deployment config).
+		CollectorURL:     coalesce(getEnvOrDefault("COLLECTOR_URL", ""), ucfg.Analyzer.CollectorURL, ""),
 		// LLM_PROVIDER is the canonical env var (matches the config field
 		// name and how the rest of the codebase refers to it). LLM_BACKEND
 		// is accepted as a backward-compat alias.
@@ -2517,7 +2896,7 @@ func main() {
 		LLMEndpoint:      coalesce(getEnvOrDefault("LLM_ENDPOINT", ""), ucfg.LLM.Endpoint, "https://api.openai.com/v1"),
 		LLMModel:         coalesce(getEnvOrDefault("LLM_MODEL", ""), ucfg.LLM.Model, "gpt-4-turbo"),
 		LLMAPIKey:        coalesce(os.Getenv("LLM_API_KEY"), ucfg.LLM.APIKey),
-		AnalysisInterval: getDurationOrDefault("ANALYSIS_INTERVAL", 5*time.Minute),
+		AnalysisInterval: coalesceDuration(getEnvOrDefault("ANALYSIS_INTERVAL", ""), ucfg.Analyzer.AnalysisInterval, 5*time.Minute),
 		MetricsPort:      getEnvIntOrDefault("METRICS_PORT", ucfg.Server.MetricsPort),
 		APIPort:          getEnvIntOrDefault("API_PORT", ucfg.Server.APIPort),
 		MaxTokens:        getEnvIntOrDefault("LLM_MAX_TOKENS", ucfg.LLM.MaxTokens),
@@ -2534,6 +2913,15 @@ func main() {
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to create analyzer")
 	}
+	analyzer.unifiedDiagMu.Lock()
+	analyzer.unifiedDiag = udiag
+	analyzer.unifiedDiagMu.Unlock()
+	// Cache the effective unified config for config APIs.
+	analyzer.unifiedDiagMu.Lock()
+	// Note: unifiedDiagMu also protects unifiedCfg to avoid adding another lock.
+	analyzer.unifiedCfg = ucfg
+	analyzer.unifiedDiagMu.Unlock()
+	analyzer.configStore = NewDefaultConfigStore()
 
 	// v7 Phase 3: Error aggregator
 	analyzer.errorAggregator = NewErrorAggregator()
@@ -2546,6 +2934,41 @@ func main() {
 		config.LLMBackend, config.LLMEndpoint, config.LLMModel, config.LLMAPIKey,
 		config.MaxTokens, config.Temperature, 1000000,
 	)
+	analyzer.llmConfigAPI.onUpdate = func(state LLMConfigState, apiKeyProvided bool) {
+		// Apply to runtime config (best-effort, no restart).
+		analyzer.configMu.Lock()
+		if strings.TrimSpace(state.Provider) != "" {
+			analyzer.config.LLMBackend = strings.TrimSpace(state.Provider)
+		}
+		if strings.TrimSpace(state.Endpoint) != "" {
+			analyzer.config.LLMEndpoint = strings.TrimSpace(state.Endpoint)
+		}
+		if strings.TrimSpace(state.Model) != "" {
+			analyzer.config.LLMModel = strings.TrimSpace(state.Model)
+		}
+		if state.MaxTokens > 0 {
+			analyzer.config.MaxTokens = state.MaxTokens
+		}
+		if state.Temperature > 0 {
+			analyzer.config.Temperature = state.Temperature
+		}
+		// Never persist API keys via runtime override.
+		_ = apiKeyProvided
+		analyzer.configMu.Unlock()
+
+		// Persist non-secret LLM fields into runtime override layer.
+		analyzer.persistOverridePatch(context.Background(), map[string]any{
+			"llm": map[string]any{
+				"provider":     state.Provider,
+				"endpoint":     state.Endpoint,
+				"model":        state.Model,
+				"maxTokens":    state.MaxTokens,
+				"temperature":  state.Temperature,
+				"dailyTokenBudget": state.DailyTokenBudget,
+				"explainOptimizations": state.ExplainOptimizations,
+			},
+		})
+	}
 
 	// v7 Phase 6-10: Optimizers, anomaly, security, pod health
 	promURL := coalesce(os.Getenv("PROMETHEUS_URL"), os.Getenv("PROMETHEUS_ENDPOINT"), "")
@@ -2684,6 +3107,18 @@ func getDurationOrDefault(key string, defaultVal time.Duration) time.Duration {
 		if d, err := time.ParseDuration(val); err == nil {
 			return d
 		}
+	}
+	return defaultVal
+}
+
+func coalesceDuration(envRaw string, cfgVal time.Duration, defaultVal time.Duration) time.Duration {
+	if strings.TrimSpace(envRaw) != "" {
+		if d, err := time.ParseDuration(envRaw); err == nil {
+			return d
+		}
+	}
+	if cfgVal > 0 {
+		return cfgVal
 	}
 	return defaultVal
 }

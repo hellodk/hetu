@@ -15,6 +15,21 @@ import (
 // EnvPrefix is prepended to every environment-variable override.
 const EnvPrefix = "CI_"
 
+// Diagnostics captures non-fatal config load issues. It is intended for UI
+// surfacing and operator debugging when the process continues with defaults.
+type Diagnostics struct {
+	Warnings []string `json:"warnings"`
+	Errors   []string `json:"errors"`
+}
+
+func (d *Diagnostics) warn(msg string) {
+	d.Warnings = append(d.Warnings, msg)
+}
+
+func (d *Diagnostics) err(msg string) {
+	d.Errors = append(d.Errors, msg)
+}
+
 // Load reads configuration from the given file path (if non-empty), then
 // applies environment-variable overrides, then resolves any *File sibling
 // fields by reading the referenced files. Finally it runs Validate.
@@ -49,6 +64,95 @@ func Load(path string) (Config, error) {
 	return cfg, nil
 }
 
+// LoadLayered reads an optional base config file and optional override config
+// file, then applies env overrides and resolves *File secrets. Finally it
+// validates the resulting config.
+//
+// Precedence (lowest → highest):
+// - compiled defaults
+// - basePath YAML
+// - overridePath YAML
+// - CI_* env vars
+// - *File sibling fields (secrets)
+func LoadLayered(basePath, overridePath string) (Config, error) {
+	cfg := Default()
+
+	if basePath != "" {
+		raw, err := os.ReadFile(basePath)
+		if err != nil {
+			return cfg, fmt.Errorf("config: read %q: %w", basePath, err)
+		}
+		if err := yaml.Unmarshal(raw, &cfg); err != nil {
+			return cfg, fmt.Errorf("config: parse %q: %w", basePath, err)
+		}
+	}
+
+	if overridePath != "" {
+		raw, err := os.ReadFile(overridePath)
+		if err != nil {
+			return cfg, fmt.Errorf("config: read %q: %w", overridePath, err)
+		}
+		// Unmarshal into existing cfg so only provided keys override.
+		if err := yaml.Unmarshal(raw, &cfg); err != nil {
+			return cfg, fmt.Errorf("config: parse %q: %w", overridePath, err)
+		}
+	}
+
+	if err := applyEnv(&cfg); err != nil {
+		return cfg, fmt.Errorf("config: env overrides: %w", err)
+	}
+	if err := resolveSecretFiles(&cfg); err != nil {
+		return cfg, fmt.Errorf("config: resolve secret files: %w", err)
+	}
+	if err := Validate(&cfg); err != nil {
+		return cfg, fmt.Errorf("config: validate: %w", err)
+	}
+	return cfg, nil
+}
+
+// LoadLayeredRelaxed behaves like LoadLayered but never fails startup. It
+// returns the best-effort config along with diagnostics describing what was
+// wrong. Downstream systems should treat non-empty diagnostics.Errors as a
+// degraded state and surface them to operators.
+func LoadLayeredRelaxed(basePath, overridePath string) (Config, Diagnostics) {
+	cfg := Default()
+	var diag Diagnostics
+
+	tryUnmarshal := func(path string) {
+		if path == "" {
+			return
+		}
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				diag.warn(fmt.Sprintf("config file %q not found; using defaults", path))
+				return
+			}
+			diag.err(fmt.Sprintf("failed to read config file %q: %v", path, err))
+			return
+		}
+		if err := yaml.Unmarshal(raw, &cfg); err != nil {
+			diag.err(fmt.Sprintf("failed to parse config file %q: %v", path, err))
+			return
+		}
+	}
+
+	tryUnmarshal(basePath)
+	tryUnmarshal(overridePath)
+
+	if err := applyEnv(&cfg); err != nil {
+		diag.err(fmt.Sprintf("failed to apply env overrides: %v", err))
+	}
+	if err := resolveSecretFiles(&cfg); err != nil {
+		diag.err(fmt.Sprintf("failed to resolve secret files: %v", err))
+	}
+	if err := Validate(&cfg); err != nil {
+		diag.err(fmt.Sprintf("config validation failed: %v", err))
+	}
+
+	return cfg, diag
+}
+
 // LoadFromEnv is a convenience that resolves the file path from the
 // CI_CONFIG environment variable and the supplied default. It returns the
 // loaded Config or an error if loading fails. Use the empty string for
@@ -66,6 +170,20 @@ func LoadFromEnv(defaultPath string) (Config, error) {
 		}
 	}
 	return Load(path)
+}
+
+// ResolvePathsFromEnv returns the base config path and override config path
+// according to environment variables. Empty strings mean “not set”.
+func ResolvePathsFromEnv(defaultBasePath, defaultOverridePath string) (string, string) {
+	base := os.Getenv(EnvPrefix + "CONFIG")
+	if base == "" {
+		base = defaultBasePath
+	}
+	override := os.Getenv(EnvPrefix + "CONFIG_OVERRIDE")
+	if override == "" {
+		override = defaultOverridePath
+	}
+	return base, override
 }
 
 // applyEnv walks the Config struct via reflection and overlays any matching

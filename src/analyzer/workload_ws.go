@@ -371,6 +371,7 @@ func (h *WorkloadHandler) writeAudit(actor, action string, target, request map[s
 		Str("actor", actor).
 		Str("action", action).
 		Any("target", target).
+		Any("request", request).
 		Str("result", result).
 		Msg("audit")
 	// TODO: write to Postgres audit_log table when store is wired

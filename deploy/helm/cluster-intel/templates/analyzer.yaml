@@ -51,6 +51,8 @@ spec:
           env:
             - name: CI_CONFIG
               value: /etc/cluster-intel/config.yaml
+            - name: CI_CONFIG_OVERRIDE
+              value: /etc/cluster-intel/runtime.yaml
             {{- with .Values.analyzer.env }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -79,6 +81,10 @@ spec:
             - name: config
               mountPath: /etc/cluster-intel
               readOnly: true
+            - name: runtime-config
+              mountPath: /etc/cluster-intel/runtime.yaml
+              subPath: runtime.yaml
+              readOnly: true
             {{- if .Values.stores.postgres.external.existingSecret }}
             - name: postgres-secret
               mountPath: /etc/cluster-intel/secrets/postgres
@@ -98,6 +104,10 @@ spec:
         - name: config
           configMap:
             name: cluster-intel-config
+        - name: runtime-config
+          configMap:
+            name: cluster-intel-runtime
+            optional: true
         {{- if .Values.stores.postgres.external.existingSecret }}
         - name: postgres-secret
           secret:

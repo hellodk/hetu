@@ -58,6 +58,33 @@ const severityColors: Record<string, string> = {
   low: 'text-slate-400 bg-slate-500/10 border-slate-500/20',
 }
 
+// Kind → (plural URL segment, apiGroup, apiVersion). The /workloads/ route
+// expects the plural resource (e.g. "pods"), not the K8s Kind ("Pod"), and
+// non-core kinds live in different API groups. Hardcoding group=core was
+// wrong for Deployment, StatefulSet, Ingress, HPA, etc.
+const workloadRoute: Record<string, { resource: string; group: string; version: string }> = {
+  Pod:                     { resource: 'pods',                     group: 'core', version: 'v1' },
+  Service:                 { resource: 'services',                 group: 'core', version: 'v1' },
+  ConfigMap:               { resource: 'configmaps',               group: 'core', version: 'v1' },
+  Secret:                  { resource: 'secrets',                  group: 'core', version: 'v1' },
+  PersistentVolumeClaim:   { resource: 'persistentvolumeclaims',   group: 'core', version: 'v1' },
+  PersistentVolume:        { resource: 'persistentvolumes',        group: 'core', version: 'v1' },
+  ServiceAccount:          { resource: 'serviceaccounts',          group: 'core', version: 'v1' },
+  Node:                    { resource: 'nodes',                    group: 'core', version: 'v1' },
+  Deployment:              { resource: 'deployments',              group: 'apps', version: 'v1' },
+  StatefulSet:             { resource: 'statefulsets',             group: 'apps', version: 'v1' },
+  DaemonSet:               { resource: 'daemonsets',               group: 'apps', version: 'v1' },
+  ReplicaSet:              { resource: 'replicasets',              group: 'apps', version: 'v1' },
+  Job:                     { resource: 'jobs',                     group: 'batch', version: 'v1' },
+  CronJob:                 { resource: 'cronjobs',                 group: 'batch', version: 'v1' },
+  Ingress:                 { resource: 'ingresses',                group: 'networking.k8s.io', version: 'v1' },
+  NetworkPolicy:           { resource: 'networkpolicies',          group: 'networking.k8s.io', version: 'v1' },
+  HorizontalPodAutoscaler: { resource: 'horizontalpodautoscalers', group: 'autoscaling', version: 'v2' },
+  Role:                    { resource: 'roles',                    group: 'rbac.authorization.k8s.io', version: 'v1' },
+  RoleBinding:             { resource: 'rolebindings',             group: 'rbac.authorization.k8s.io', version: 'v1' },
+  ClusterRole:             { resource: 'clusterroles',             group: 'rbac.authorization.k8s.io', version: 'v1' },
+}
+
 // Build a link to the correct page for a given kind of resource. Workload
 // kinds route to the workload detail page; incidents/anomalies/error groups
 // route to their dedicated pages.
@@ -74,11 +101,11 @@ function linkForResource(r: BreakdownResource): string | null {
     case 'Resource':
       return null
     default:
-      // Default: treat as a workload (Pod / Deployment / etc.)
-      if (r.namespace && r.name) {
-        return `/workloads/${r.kind}/${r.namespace}/${r.name}?group=core&version=v1`
-      }
-      return null
+      if (!r.name) return null
+      const route = workloadRoute[r.kind]
+      if (!route) return null
+      const ns = r.namespace || '_cluster'
+      return `/workloads/${route.resource}/${ns}/${r.name}?group=${route.group}&version=${route.version}`
   }
 }
 

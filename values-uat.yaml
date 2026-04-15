@@ -1,0 +1,23 @@
+# cluster-intel — uat environment override (staging-like)
+#
+# Customize these values for your UAT cluster.
+
+cluster:
+  id: "uat"
+  displayName: "Cluster Intel (uat)"
+
+writeActions:
+  enabled: false
+
+exec:
+  enabled: false
+
+serviceMonitor:
+  enabled: true
+
+networkPolicy:
+  enabled: true
+
+monitoring:
+  enabled: false
+

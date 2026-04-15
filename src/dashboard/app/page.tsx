@@ -21,6 +21,7 @@ import { NamespacesTable, NamespaceStats } from '@/components/NamespacesTable'
 import { DiagnosticPanel } from '@/components/DiagnosticPanel'
 import { ProfileBadge } from '@/components/ProfileBadge'
 import { ScoreBreakdown } from '@/components/ScoreBreakdown'
+import { MockWatermark } from '@/components/MockWatermark'
 
 // Types
 interface HealthScores {
@@ -377,6 +378,25 @@ export default function Dashboard() {
     }
   }, [fetchReport])
 
+  // Persistent “fix your config” reminder every 10 minutes while broken.
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const s = report?.status
+      if (!s) return
+      const isLive = (s.profile ?? 'live') === 'live'
+      if (!isLive) return
+      const collectorMissing = !s.collector?.endpoint || String(s.collector.endpoint).trim() === ''
+      const collectorDown = s.collector?.reachable === false
+      const llmDown = s.llm?.reachable === false
+      if (collectorMissing || collectorDown) {
+        addToast('error', 'Live mode is blocked: Collector is misconfigured or unreachable. Open Settings to set COLLECTOR_URL.')
+      } else if (llmDown) {
+        addToast('info', 'LLM is unreachable: telemetry is flowing but AI insights are unavailable. Check LLM settings.')
+      }
+    }, 10 * 60 * 1000)
+    return () => clearInterval(interval)
+  }, [report, addToast])
+
   // Trigger manual refresh
   const handleRefresh = useCallback(() => {
     setLoading(true)
@@ -410,6 +430,29 @@ export default function Dashboard() {
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Unknown error'
         addToast('error', `Failed to switch profile: ${msg}`)
+      }
+    },
+    [addToast, fetchReport]
+  )
+
+  // Update COLLECTOR_URL at runtime (live profile dependency).
+  const handleSetCollectorUrl = useCallback(
+    async (collectorUrl: string) => {
+      try {
+        const resp = await fetch(`${API_URL}/api/v1/collector`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ collectorUrl }),
+        })
+        if (!resp.ok) {
+          throw new Error(`HTTP ${resp.status}`)
+        }
+        addToast('success', collectorUrl ? 'Collector URL saved' : 'Collector URL cleared')
+        fetchReport()
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Unknown error'
+        addToast('error', `Failed to save Collector URL: ${msg}`)
+        throw err
       }
     },
     [addToast, fetchReport]
@@ -501,6 +544,7 @@ export default function Dashboard() {
   const displayReport: HealthReport = report
 
   const criticalIssueCount = displayReport.topIssues.filter(i => i.severity === 'critical').length
+  const isMockProfile = (displayReport.status?.profile ?? 'live') === 'mock'
 
   // Get tab label with count
   const getTabLabel = (tabId: TabId) => {
@@ -516,6 +560,7 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen flex flex-col">
+      {isMockProfile && <MockWatermark />}
       {/* Header */}
       <header className="border-b border-cluster-border bg-cluster-card/50 backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-[1800px] mx-auto px-4 sm:px-6 py-3 sm:py-4">
@@ -529,18 +574,13 @@ export default function Dashboard() {
                   <span className="sm:hidden">K8s Health</span>
                 </h1>
               </div>
-              <select
-                title="Select Cluster"
-                className="hidden sm:inline-flex pl-3 pr-8 py-1 bg-blue-600/20 text-blue-400 border border-blue-500/30 text-sm rounded-full cursor-pointer appearance-none hover:bg-blue-600/30 outline-none focus:ring-2 focus:ring-blue-500"
-                defaultValue={displayReport.clusterId}
-                onChange={(e) => addToast('info', `Switched view to cluster: ${e.target.value}`)}
-                aria-label="Select cluster"
+              <span
+                className="hidden sm:inline-flex items-center px-3 py-1 bg-blue-600/20 text-blue-200 border border-blue-500/30 text-sm rounded-full"
+                title="Cluster ID"
+                aria-label={`Cluster: ${displayReport.clusterId}`}
               >
-                <option value={displayReport.clusterId}>{displayReport.clusterId}</option>
-                <option value="prod-us-east">prod-us-east</option>
-                <option value="prod-eu-west">prod-eu-west</option>
-                <option value="staging">staging</option>
-              </select>
+                {displayReport.clusterId}
+              </span>
               {/* Profile badge — tells the operator at a glance whether this
                   dashboard is showing real telemetry or synthetic demo data. */}
               <ProfileBadge profile={displayReport.status?.profile ?? 'live'} />
@@ -783,7 +823,9 @@ export default function Dashboard() {
         isOpen={showSettings}
         onClose={() => setShowSettings(false)}
         profile={displayReport.status?.profile ?? 'live'}
+        collectorUrl={displayReport.status?.collector?.endpoint ?? ''}
         onSwitchProfile={handleSwitchProfile}
+        onSetCollectorUrl={handleSetCollectorUrl}
       />
     </div>
   )

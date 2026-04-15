@@ -1,21 +1,67 @@
 'use client'
 
 import { Modal } from './Modal'
-import { PlayCircle, Activity } from 'lucide-react'
+import { PlayCircle, Activity, Save, Download } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
 
 interface SettingsModalProps {
     isOpen: boolean
     onClose: () => void
     // Current profile, sourced from report.status.profile in page.tsx.
     profile?: 'live' | 'mock'
+    // Current collector URL (from report.status.collector.endpoint)
+    collectorUrl?: string
     // Callback invoked when the operator toggles the profile. The parent
     // handles the POST /api/v1/profile call so this component stays
     // presentational.
     onSwitchProfile?: (profile: 'live' | 'mock') => void
+    // Callback invoked when the operator updates COLLECTOR_URL.
+    onSetCollectorUrl?: (collectorUrl: string) => Promise<void> | void
 }
 
-export function SettingsModal({ isOpen, onClose, profile = 'live', onSwitchProfile }: SettingsModalProps) {
+export function SettingsModal({
+    isOpen,
+    onClose,
+    profile = 'live',
+    collectorUrl = '',
+    onSwitchProfile,
+    onSetCollectorUrl,
+}: SettingsModalProps) {
     const isMock = profile === 'mock'
+    const initialCollector = useMemo(() => collectorUrl || '', [collectorUrl])
+    const [collectorInput, setCollectorInput] = useState(initialCollector)
+    const [savingCollector, setSavingCollector] = useState(false)
+    const [overrideYaml, setOverrideYaml] = useState<string>('')
+    const [overrideYamlLoaded, setOverrideYamlLoaded] = useState(false)
+    const [savingOverride, setSavingOverride] = useState(false)
+    const [overrideLocation, setOverrideLocation] = useState<string>('')
+    const [overrideLoadError, setOverrideLoadError] = useState<string>('')
+
+    useEffect(() => {
+        if (!isOpen) return
+        setCollectorInput(initialCollector)
+    }, [isOpen, initialCollector])
+
+    useEffect(() => {
+        if (!isOpen) return
+        // Load current runtime override YAML so operators can GitOps it if needed.
+        const apiBase = typeof window !== 'undefined' ? ((window as any).__CLUSTER_INTEL_API__ || '') : ''
+        setOverrideLoadError('')
+        fetch(`${apiBase}/api/v1/config`)
+            .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
+            .then(data => {
+                const yaml = data?.runtimeOverrideYaml?.yaml ?? ''
+                setOverrideYaml(String(yaml ?? ''))
+                setOverrideYamlLoaded(true)
+                setOverrideLocation(String(data?.store?.location ?? ''))
+            })
+            .catch(err => {
+                setOverrideLoadError(err instanceof Error ? err.message : 'Failed to load config')
+                setOverrideYamlLoaded(true)
+            })
+    }, [isOpen])
+
+    const collectorDirty = collectorInput.trim() !== initialCollector.trim()
     return (
         <Modal isOpen={isOpen} onClose={onClose} title="Dashboard Settings" size="sm">
             <div className="space-y-5 text-sm">
@@ -58,8 +104,114 @@ export function SettingsModal({ isOpen, onClose, profile = 'live', onSwitchProfi
                             : 'Live mode: real cluster telemetry is analyzed. Switch to demo to present without a real cluster.'}
                     </p>
                     <p className="text-xs text-slate-600 mt-1">
-                        Note: runtime profile changes are not persisted. Restarting the analyzer reverts to the PROFILE env var default.
+                        Note: profile changes are not persisted. Restarting the analyzer always starts in Live mode; enable Demo again here if needed.
                     </p>
+                </div>
+
+                <div>
+                    <label className="block text-slate-300 mb-1 font-medium">Collector URL (Live mode)</label>
+                    <input
+                        type="text"
+                        className="w-full bg-black/20 border border-cluster-border rounded-lg p-2 text-cluster-text font-mono text-xs focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                        value={collectorInput}
+                        onChange={(e) => setCollectorInput(e.target.value)}
+                        placeholder="http://collector:8080"
+                        spellCheck={false}
+                        inputMode="url"
+                    />
+                    <div className="mt-2 flex items-center justify-between gap-3">
+                        <p className="text-xs text-slate-500">
+                            Required in Live mode. If empty, telemetry cannot be fetched.
+                        </p>
+                        <button
+                            type="button"
+                            className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-semibold border transition-colors ${collectorDirty
+                                ? 'bg-blue-600/20 border-blue-500/40 text-blue-200 hover:bg-blue-600/30'
+                                : 'bg-black/20 border-cluster-border text-slate-500 cursor-not-allowed'
+                                }`}
+                            disabled={!collectorDirty || savingCollector}
+                            onClick={async () => {
+                                if (!onSetCollectorUrl) return
+                                setSavingCollector(true)
+                                try {
+                                    await onSetCollectorUrl(collectorInput.trim())
+                                } finally {
+                                    setSavingCollector(false)
+                                }
+                            }}
+                        >
+                            <Save className={`w-3.5 h-3.5 ${savingCollector ? 'animate-pulse' : ''}`} aria-hidden="true" />
+                            Save
+                        </button>
+                    </div>
+                </div>
+
+                <div>
+                    <label className="block text-slate-300 mb-1 font-medium">Runtime configuration overrides (persisted)</label>
+                    <p className="text-xs text-slate-500 mb-2">
+                        Saved as a runtime override layer. Intended for quick recovery; commit to GitOps for permanence.
+                        {overrideLocation ? ` Stored in: ${overrideLocation}` : ''}
+                    </p>
+                    {overrideLoadError && (
+                        <p className="text-xs text-amber-300 mb-2">
+                            Could not load current overrides: {overrideLoadError}
+                        </p>
+                    )}
+                    <textarea
+                        className="w-full h-40 bg-black/20 border border-cluster-border rounded-lg p-2 text-cluster-text font-mono text-xs focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                        value={overrideYaml}
+                        onChange={(e) => setOverrideYaml(e.target.value)}
+                        placeholder={'# Example:\n# analyzer:\n#   collectorUrl: http://collector:8080\n# llm:\n#   provider: openai\n#   endpoint: https://api.openai.com/v1\n'}
+                        spellCheck={false}
+                        disabled={!overrideYamlLoaded}
+                    />
+                    <div className="mt-2 flex items-center justify-end gap-2">
+                        <button
+                            type="button"
+                            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-semibold border bg-black/20 border-cluster-border text-slate-300 hover:bg-white/5 transition-colors"
+                            onClick={() => {
+                                const blob = new Blob([overrideYaml], { type: 'text/yaml' })
+                                const url = URL.createObjectURL(blob)
+                                const a = document.createElement('a')
+                                a.href = url
+                                a.download = 'cluster-intel-runtime.yaml'
+                                a.click()
+                                URL.revokeObjectURL(url)
+                            }}
+                            disabled={!overrideYamlLoaded}
+                        >
+                            <Download className="w-3.5 h-3.5" aria-hidden="true" />
+                            Download YAML
+                        </button>
+                        <button
+                            type="button"
+                            className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-semibold border transition-colors ${savingOverride
+                                ? 'bg-blue-600/20 border-blue-500/40 text-blue-200'
+                                : 'bg-blue-600/20 border-blue-500/40 text-blue-200 hover:bg-blue-600/30'
+                                }`}
+                            disabled={!overrideYamlLoaded || savingOverride}
+                            onClick={async () => {
+                                const apiBase = typeof window !== 'undefined' ? ((window as any).__CLUSTER_INTEL_API__ || '') : ''
+                                setSavingOverride(true)
+                                setOverrideLoadError('')
+                                try {
+                                    const resp = await fetch(`${apiBase}/api/v1/config`, {
+                                        method: 'PUT',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ overrideYaml }),
+                                    })
+                                    if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+                                } catch (err) {
+                                    setOverrideLoadError(err instanceof Error ? err.message : 'Failed to save config')
+                                } finally {
+                                    setSavingOverride(false)
+                                }
+                            }}
+                        >
+                            <Save className={`w-3.5 h-3.5 ${savingOverride ? 'animate-pulse' : ''}`} aria-hidden="true" />
+                            Save overrides
+                        </button>
+                    </div>
                 </div>
 
                 <div>

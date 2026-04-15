@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-intel-runtime
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "cluster-intel.labels" . | nindent 4 }}
+    cluster-intel.io/managed: runtime-overrides
+data:
+  # Runtime override layer. Intentionally empty by default.
+  runtime.yaml: |
+

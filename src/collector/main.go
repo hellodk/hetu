@@ -35,6 +35,7 @@ type Config struct {
 	ClusterID             string        `json:"clusterId"`
 	MetricsPort           int           `json:"metricsPort"`
 	HealthPort            int           `json:"healthPort"`
+	BindAddress           string        `json:"bindAddress"`
 	ResyncPeriod          time.Duration `json:"resyncPeriod"`
 	MetricsScrapeInterval time.Duration `json:"metricsScrapeInterval"`
 	BufferSize            int           `json:"bufferSize"`
@@ -570,7 +571,7 @@ func (c *Collector) serveMetrics() {
 	mux.Handle("/metrics", promhttp.HandlerFor(c.registry, promhttp.HandlerOpts{}))
 
 	c.metricsServer = &http.Server{
-		Addr:    fmt.Sprintf(":%d", c.config.MetricsPort),
+		Addr:    fmt.Sprintf("%s:%d", c.config.BindAddress, c.config.MetricsPort),
 		Handler: mux,
 	}
 
@@ -653,7 +654,7 @@ func (c *Collector) serveHealth() {
 	})
 
 	c.healthServer = &http.Server{
-		Addr:    fmt.Sprintf(":%d", c.config.HealthPort),
+		Addr:    fmt.Sprintf("%s:%d", c.config.BindAddress, c.config.HealthPort),
 		Handler: mux,
 	}
 
@@ -699,6 +700,7 @@ func main() {
 		ClusterID:             coalesce(getEnvOrDefault("CLUSTER_ID", ""), ucfg.Cluster.ID, "default"),
 		MetricsPort:           getEnvIntOrDefault("METRICS_PORT", ucfg.Server.MetricsPort),
 		HealthPort:            getEnvIntOrDefault("HEALTH_PORT", ucfg.Server.APIPort),
+		BindAddress:           coalesce(getEnvOrDefault("BIND_ADDRESS", ""), ucfg.Server.BindAddress, "0.0.0.0"),
 		ResyncPeriod:          getDurationOrDefault("RESYNC_PERIOD", 5*time.Minute),
 		MetricsScrapeInterval: getDurationOrDefault("METRICS_SCRAPE_INTERVAL", 30*time.Second),
 		BufferSize:            getEnvIntOrDefault("BUFFER_SIZE", 10000),

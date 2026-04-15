@@ -121,10 +121,10 @@ llm:
   
   # OpenAI settings
   openai:
-    endpoint: "https://api.openai.com/v1"
-    model: "gpt-4-turbo"
-    apiKeySecret: "llm-credentials"
-    apiKeyField: "api-key"
+    endpoint: "${OPENAI_ENDPOINT:https://api.openai.com/v1}"
+    model: "${OPENAI_MODEL:gpt-4-turbo}"
+    apiKeySecret: "${OPENAI_API_KEY_SECRET:llm-credentials}"
+    apiKeyField: "${OPENAI_API_KEY_FIELD:api-key}"
   
   # Azure OpenAI settings
   azure:
@@ -136,8 +136,8 @@ llm:
   
   # Ollama settings (for air-gapped deployments)
   ollama:
-    endpoint: "http://100.89.50.27:11434"
-    model: "llama3:70b"
+    endpoint: "${OLLAMA_ENDPOINT:http://ollama:11434}"
+    model: "${OLLAMA_MODEL:llama3}"
   
   # Request settings
   settings:

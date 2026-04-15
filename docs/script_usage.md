@@ -46,12 +46,12 @@ make status              # = scripts/run-local.sh status
 
 | Command | What it does |
 |---|---|
-| `start` | Load env file → prompt for every config item → validate → start analyzer + dashboard → `wait_for_http` until both respond. In `DASHBOARD_MODE=prod` runs `npm run build` synchronously first so build failures abort `start` cleanly. |
+| `start` | Load env file → prompt for every config item → validate → start collector (live profile, local `COLLECTOR_URL` only) + analyzer + dashboard → `wait_for_http` until each responds. In `DASHBOARD_MODE=prod` runs `npm run build` synchronously first so build failures abort `start` cleanly. |
 | `stop` | Kill via pidfile + tear down the whole process group (`setsid` leader + `pgrep -P` tree walk) so re-parented children like `next-server` don't survive. SIGTERM, then SIGKILL after 1s. Cleans `/tmp/cluster-intel-logs/*.pid`. |
 | `status` | Tabular: `SERVICE / PIDFILE / PID / HTTP / URL` |
 | `restart` | `stop` then `start` — relies on `stop` truly releasing the ports |
 | `logs [name]` | `tail -F` `analyzer`, `dashboard`, `collector`, or `all` (default) |
-| `build` | Rebuild the analyzer binary if the source is newer |
+| `build` | Rebuild the analyzer and collector binaries if their sources are newer |
 | `setup` | Interactive wizard → write `env/<env>.env` (asks before overwriting) |
 | `doctor` | Pre-flight: tools, env-file, kubeconfig, port availability, binary freshness. **Never mutates state.** |
 | `lint` | Validate the env file's syntax + values without touching services |
@@ -400,9 +400,10 @@ returns nothing.
 ## What it does NOT do
 
 - Persist edits back into the env file (use `setup` to write a fresh one).
-- Start the collector. The analyzer talks to a separate collector
-  process; if you want the local stack with collector, start it yourself
-  and point `COLLECTOR_URL` at it.
+- Start a remote collector. `start` will launch a local collector only
+  when `PROFILE=live` AND `COLLECTOR_URL` points at loopback
+  (`localhost` / `127.0.0.1` / `0.0.0.0`). If you point the analyzer at
+  an in-cluster Service or another host, start that collector yourself.
 - Generate systemd units. This is for interactive dev; production goes
   through the Helm chart at `deploy/helm/cluster-intel/`.
 - Cross-host orchestration. Single-machine only.
@@ -494,8 +495,9 @@ Common cause: `npm` not installed, or `next.config.js` syntax error.
 
 ### Service starts but data is empty
 
-`PROFILE=live` requires a running collector. Either:
-- Start a collector and set `COLLECTOR_URL`, or
+`PROFILE=live` requires a running collector. The script auto-starts one
+when `COLLECTOR_URL` resolves to loopback. For a remote collector:
+- Start the collector yourself and set `COLLECTOR_URL` to its address, or
 - Switch to `PROFILE=mock` (you'll see synthetic data with a "MOCK"
   watermark).
 
@@ -517,6 +519,7 @@ the API key won't ask again (it's already set in the environment).
 | Path | Purpose |
 |---|---|
 | `bin/analyzer` | Output of `cmd_build`; rebuilt on `start` if source is newer |
+| `bin/collector` | Output of `cmd_build`; rebuilt on `start` (live + local) if source is newer |
 | `/tmp/cluster-intel-logs/{analyzer,dashboard,collector}.log` | Stdout/stderr capture |
 | `/tmp/cluster-intel-logs/{analyzer,dashboard,collector}.pid` | PID tracking |
 | `env/<env>.env` | Read on every command; written by `setup` |

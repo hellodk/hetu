@@ -18,6 +18,18 @@ import {
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
 
+// Phase 1.1: rate aggregates are computed server-side from the occurrence
+// ring buffer. `truncated` means the ring was full in the window, so the
+// real rate is ≥ the reported count.
+interface ErrorRate {
+  count1m: number
+  count5m: number
+  count1h: number
+  count24h: number
+  spark: number[]
+  truncated: boolean
+}
+
 interface ErrorGroup {
   id: number
   fingerprint: string
@@ -36,6 +48,7 @@ interface ErrorGroup {
   aiSummary: string
   sampleMessage: string
   sampleStack: string
+  rate?: ErrorRate
 }
 
 interface Occurrence {
@@ -115,6 +128,90 @@ function statusColor(status: string) {
   return 'bg-gray-700/50 text-gray-400 border-gray-600/50'
 }
 
+/* ---------- Phase 1.2: severity chip ---------- */
+
+const SEVERITY_STYLE: Record<string, { bg: string; text: string; label: string; rank: number }> = {
+  fatal: { bg: 'bg-red-900/40',    text: 'text-red-300',    label: 'FATAL', rank: 5 },
+  panic: { bg: 'bg-red-900/40',    text: 'text-red-300',    label: 'PANIC', rank: 5 },
+  error: { bg: 'bg-red-800/30',    text: 'text-red-200',    label: 'ERROR', rank: 4 },
+  warn:  { bg: 'bg-amber-900/30',  text: 'text-amber-300',  label: 'WARN',  rank: 3 },
+  warning: { bg: 'bg-amber-900/30', text: 'text-amber-300', label: 'WARN',  rank: 3 },
+  info:  { bg: 'bg-blue-900/30',   text: 'text-blue-300',   label: 'INFO',  rank: 2 },
+  debug: { bg: 'bg-gray-700/40',   text: 'text-gray-300',   label: 'DEBUG', rank: 1 },
+  trace: { bg: 'bg-gray-700/40',   text: 'text-gray-400',   label: 'TRACE', rank: 1 },
+}
+
+function SeverityChip({ level }: { level: string }) {
+  const s = SEVERITY_STYLE[level?.toLowerCase()] || { bg: 'bg-gray-700/40', text: 'text-gray-400', label: (level || '—').toUpperCase(), rank: 0 }
+  return (
+    <span
+      className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold tabular-nums ${s.bg} ${s.text} min-w-[56px]`}
+      title={`Level: ${level || 'unknown'}`}
+    >
+      {s.label}
+    </span>
+  )
+}
+
+/* ---------- Phase 1.1: sparkline + spike badge ---------- */
+
+function Sparkline({ spark, spike, truncated }: { spark: number[]; spike: boolean; truncated?: boolean }) {
+  const max = Math.max(1, ...spark)
+  return (
+    <svg
+      viewBox="0 0 60 16"
+      width={60}
+      height={16}
+      aria-label="last-hour rate (5-min buckets)"
+      role="img"
+      style={{ shapeRendering: 'crispEdges' }}
+    >
+      {spark.map((v, i) => {
+        const h = Math.max(1, (v / max) * 14)
+        const y = 15 - h
+        return (
+          <rect
+            key={i}
+            x={i * 5}
+            y={y}
+            width={4}
+            height={h}
+            rx={0.8}
+            fill={spike ? '#f59e0b' : '#6b7280'}
+            opacity={v === 0 ? 0.3 : 1}
+          />
+        )
+      })}
+      {truncated && <text x={58} y={6} textAnchor="end" fontSize={7} fill="#f59e0b" fontFamily="monospace">≥</text>}
+    </svg>
+  )
+}
+
+/**
+ * A group is "spiking" when the 5-min rate projected to an hour exceeds
+ * the observed 1h count by 2×. Equivalent to "the last 5 minutes is
+ * happening at more than 2× the hourly average". We also require at
+ * least 3 events in 5 min so one-offs don't flag.
+ */
+function isSpike(r?: ErrorRate): boolean {
+  if (!r) return false
+  if (r.count5m < 3) return false
+  const projectedHourly = r.count5m * 12
+  return projectedHourly > r.count1h * 2
+}
+
+function SpikeBadge() {
+  return (
+    <span
+      className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-semibold font-mono bg-amber-500/20 text-amber-300 border border-amber-500/40 rounded"
+      title="Recent rate >2× hourly average"
+    >
+      <Activity className="w-2.5 h-2.5" />
+      SPIKE
+    </span>
+  )
+}
+
 /* ------------------------------------------------------------------ */
 /*  Custom Recharts tooltip                                            */
 /* ------------------------------------------------------------------ */
@@ -145,6 +242,10 @@ export default function ErrorsPage() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('open')
   const [serviceFilter, setServiceFilter] = useState('')
+  const [sortBy, setSortBy] = useState<'lastSeen' | 'count' | 'severity' | 'rate5m'>('lastSeen')
+  const [pageSize, setPageSize] = useState(50)
+  const [offset, setOffset] = useState(0)
+  const [totalCount, setTotalCount] = useState(0)
   const [expandedGroups, setExpandedGroups] = useState<Set<number>>(new Set())
   const [expandedMessages, setExpandedMessages] = useState<Set<number>>(new Set())
   const [groupOccurrences, setGroupOccurrences] = useState<Record<number, Occurrence[]>>({})
@@ -160,6 +261,9 @@ export default function ErrorsPage() {
       if (statusFilter) params.set('status', statusFilter)
       if (serviceFilter) params.set('service', serviceFilter)
       if (search) params.set('search', search)
+      params.set('sort', sortBy)
+      params.set('limit', String(pageSize))
+      params.set('offset', String(offset))
 
       const [groupsData, summaryData] = await Promise.all([
         apiFetch<{ groups: ErrorGroup[]; totalCount: number }>(
@@ -168,13 +272,14 @@ export default function ErrorsPage() {
         apiFetch<ErrorSummary>('/api/v1/errors/summary'),
       ])
       setGroups(groupsData.groups || [])
+      setTotalCount(groupsData.totalCount || 0)
       setSummary(summaryData)
     } catch (e: any) {
       setError(e.message)
     } finally {
       setLoading(false)
     }
-  }, [statusFilter, serviceFilter, search])
+  }, [statusFilter, serviceFilter, search, sortBy, pageSize, offset])
 
   /* ---- Fetch LLM config ---- */
   useEffect(() => {
@@ -434,7 +539,7 @@ export default function ErrorsPage() {
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <select
           value={statusFilter}
-          onChange={e => setStatusFilter(e.target.value)}
+          onChange={e => { setOffset(0); setStatusFilter(e.target.value) }}
           className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition-colors"
         >
           <option value="">All statuses</option>
@@ -444,7 +549,7 @@ export default function ErrorsPage() {
         </select>
         <select
           value={serviceFilter}
-          onChange={e => setServiceFilter(e.target.value)}
+          onChange={e => { setOffset(0); setServiceFilter(e.target.value) }}
           className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition-colors"
         >
           <option value="">All services</option>
@@ -456,11 +561,35 @@ export default function ErrorsPage() {
             type="text"
             placeholder="Search errors..."
             value={search}
-            onChange={e => setSearch(e.target.value)}
+            onChange={e => { setOffset(0); setSearch(e.target.value) }}
             className="w-full pl-9 pr-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-colors"
           />
         </div>
-        <span className="text-sm text-gray-500">{groups.length} groups</span>
+        <select
+          value={sortBy}
+          onChange={e => { setOffset(0); setSortBy(e.target.value as any) }}
+          className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition-colors"
+          title="Sort groups by"
+        >
+          <option value="lastSeen">Sort: Last seen</option>
+          <option value="count">Sort: Total count</option>
+          <option value="rate5m">Sort: Rate (5m)</option>
+          <option value="severity">Sort: Severity</option>
+        </select>
+        <select
+          value={pageSize}
+          onChange={e => { setOffset(0); setPageSize(parseInt(e.target.value, 10)) }}
+          className="bg-gray-800 border border-gray-700 rounded-lg px-2 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+          title="Page size"
+        >
+          <option value="25">25 / page</option>
+          <option value="50">50 / page</option>
+          <option value="100">100 / page</option>
+          <option value="0">All</option>
+        </select>
+        <span className="text-sm text-gray-500 tabular-nums">
+          {totalCount === 0 ? 0 : offset + 1}–{Math.min(offset + groups.length, totalCount)} of {totalCount}
+        </span>
       </div>
 
       {/* ---- Error banner ---- */}
@@ -512,6 +641,7 @@ export default function ErrorsPage() {
                     {/* Title + metadata */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                        <SeverityChip level={g.level} />
                         <Link
                           href={`/errors/${g.id}`}
                           onClick={e => e.stopPropagation()}
@@ -523,6 +653,7 @@ export default function ErrorsPage() {
                         {g.exceptionType && (
                           <span className="text-xs text-orange-400/70 font-mono">{g.exceptionType}</span>
                         )}
+                        {isSpike(g.rate) && <SpikeBadge />}
                       </div>
                       <div className="flex items-center gap-2 flex-wrap text-xs">
                         <span className="px-1.5 py-0.5 bg-blue-900/30 text-blue-300 rounded border border-blue-700/30">
@@ -546,8 +677,30 @@ export default function ErrorsPage() {
                           <Clock className="w-3 h-3" />
                           last {timeSince(g.lastSeen)}
                         </span>
+                        {g.rate && (g.rate.count5m > 0 || g.rate.count1h > 0) && (
+                          <>
+                            <span className="text-gray-600">|</span>
+                            <span
+                              className="text-gray-400 font-mono tabular-nums"
+                              title={`${g.rate.count1m} / min · ${g.rate.count5m} in 5m · ${g.rate.count1h} in 1h · ${g.rate.count24h} in 24h${g.rate.truncated ? ' (≥ — ring buffer full)' : ''}`}
+                            >
+                              <span className="text-amber-300">{g.rate.count5m}</span>
+                              <span className="text-gray-600">/5m</span>
+                              <span className="mx-1 text-gray-600">·</span>
+                              <span className="text-amber-200">{g.rate.count1h}</span>
+                              <span className="text-gray-600">/1h</span>
+                            </span>
+                          </>
+                        )}
                       </div>
                     </div>
+
+                    {/* Sparkline (last-hour 5-min buckets) */}
+                    {g.rate && g.rate.spark && (
+                      <div className="shrink-0 self-center px-1" aria-hidden={false}>
+                        <Sparkline spark={g.rate.spark} spike={isSpike(g.rate)} truncated={g.rate.truncated} />
+                      </div>
+                    )}
 
                     {/* Count badge (prominent) */}
                     <div className="shrink-0 flex flex-col items-end gap-1.5">
@@ -705,6 +858,29 @@ export default function ErrorsPage() {
               </div>
             )
           })}
+        </div>
+      )}
+
+      {/* ---- Pagination controls ---- */}
+      {!loading && groups.length > 0 && pageSize > 0 && totalCount > pageSize && (
+        <div className="flex items-center justify-between mt-4 px-1">
+          <button
+            onClick={() => setOffset(Math.max(0, offset - pageSize))}
+            disabled={offset === 0}
+            className="px-3 py-1.5 text-sm bg-gray-800 border border-gray-700 rounded-lg text-gray-300 hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            ← Previous
+          </button>
+          <span className="text-sm text-gray-500 tabular-nums font-mono">
+            Page {Math.floor(offset / pageSize) + 1} of {Math.max(1, Math.ceil(totalCount / pageSize))}
+          </span>
+          <button
+            onClick={() => setOffset(offset + pageSize)}
+            disabled={offset + pageSize >= totalCount}
+            className="px-3 py-1.5 text-sm bg-gray-800 border border-gray-700 rounded-lg text-gray-300 hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            Next →
+          </button>
         </div>
       )}
 
