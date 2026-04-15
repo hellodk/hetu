@@ -1,0 +1,176 @@
+- generic [ref=e2]:
+  - complementary [ref=e3]:
+    - generic [ref=e4]:
+      - img [ref=e5]
+      - generic [ref=e9]:
+        - generic [ref=e10]: Cluster Intel
+        - generic [ref=e11]: prod · us-east-1
+    - navigation [ref=e12]:
+      - generic [ref=e13] [cursor=pointer]:
+        - img [ref=e14]
+        - text: Overview
+      - generic [ref=e19] [cursor=pointer]:
+        - img [ref=e20]
+        - text: Errors
+      - generic [ref=e23] [cursor=pointer]:
+        - img [ref=e24]
+        - text: Incidents & RCA
+        - generic [ref=e26]: "1"
+      - generic [ref=e28] [cursor=pointer]:
+        - img [ref=e29]
+        - text: Optimization
+      - generic [ref=e32] [cursor=pointer]:
+        - img [ref=e33]
+        - text: Security
+      - generic [ref=e35] [cursor=pointer]:
+        - img [ref=e36]
+        - text: Anomalies
+      - generic [ref=e38] [cursor=pointer]:
+        - img [ref=e39]
+        - text: Executive
+        - generic [ref=e42]: NEW
+      - generic [ref=e43]: Workloads
+      - generic [ref=e44] [cursor=pointer]: Pods
+      - generic [ref=e45] [cursor=pointer]: Deployments
+      - generic [ref=e46] [cursor=pointer]: StatefulSets
+      - generic [ref=e47] [cursor=pointer]: DaemonSets
+      - generic [ref=e48]: Platform
+      - generic [ref=e49] [cursor=pointer]: LB Logs
+      - generic [ref=e50] [cursor=pointer]: Settings
+  - main [ref=e51]:
+    - generic [ref=e52]:
+      - generic [ref=e53]:
+        - generic [ref=e54]: PROD · us-east-1 · 1 cluster · 32 pods
+        - heading "K8s Cluster Intelligence" [level=1] [ref=e55]
+      - generic [ref=e56]:
+        - generic [ref=e57]: LIVE · refreshed 4s ago
+        - button "⌘ K Search" [ref=e59]:
+          - generic [ref=e60]: ⌘
+          - text: K Search
+        - button "Request AI analysis" [ref=e61]
+    - generic [ref=e62]:
+      - generic [ref=e63]:
+        - generic [ref=e64]: Overall health
+        - generic [ref=e65]:
+          - img [ref=e66]
+          - generic [ref=e70]:
+            - generic [ref=e71]: "74"
+            - generic [ref=e72]: of 100
+        - generic [ref=e73]:
+          - generic [ref=e74]: +3 since last week
+          - generic [ref=e76]: 24h trend · steady
+      - generic [ref=e77]:
+        - generic [ref=e78]:
+          - generic [ref=e79]: ATTENTION
+          - generic [ref=e80]: Calico VXLAN storm, 3 nodes affected
+          - generic [ref=e81]: Auto-drain kicked in 14m ago. 1 replica pending reschedule. Ingress is unaffected.
+          - generic [ref=e82]:
+            - generic [ref=e83]: INC-348 · kube-system
+            - generic [ref=e84]: Investigate →
+        - generic [ref=e85]:
+          - generic [ref=e86]: SAVINGS READY
+          - generic [ref=e87]: 3 right-sizing recs, $420/mo
+          - generic [ref=e88]: "Guaranteed-QoS workloads over-requesting by 2.4×. Safe to trim; reviewed by LLM pass #14."
+          - generic [ref=e89]:
+            - generic [ref=e90]: optimizer · confidence 0.86
+            - generic [ref=e91]: Review patch →
+        - generic [ref=e92]:
+          - generic [ref=e93]: WEEK AT A GLANCE
+          - generic [ref=e94]: Reliability held steady
+          - generic [ref=e95]: One incident resolved in minutes. Nothing on the runway that needs your eyes. Full exec brief available.
+          - generic [ref=e96]:
+            - generic [ref=e97]: since Apr 9
+            - generic [ref=e98]: Open exec view →
+    - generic [ref=e99]:
+      - generic [ref=e100]:
+        - generic [ref=e101]:
+          - img [ref=e102]
+          - generic [ref=e106]: "75"
+        - generic [ref=e107]:
+          - generic [ref=e108]: Reliability
+          - generic [ref=e109]: Good
+          - generic [ref=e110]: weighted 35% · 1 open signal
+      - generic [ref=e111]:
+        - generic [ref=e112]:
+          - img [ref=e113]
+          - generic [ref=e117]: "0"
+        - generic [ref=e118]:
+          - generic [ref=e119]: Security
+          - generic [ref=e120]: Critical
+          - generic [ref=e121]: 2 CIS-critical · 10 findings
+      - generic [ref=e122]:
+        - generic [ref=e123]:
+          - img [ref=e124]
+          - generic [ref=e128]: "78"
+        - generic [ref=e129]:
+          - generic [ref=e130]: Cost efficiency
+          - generic [ref=e131]: Good
+          - generic [ref=e132]: $420/mo pending · 3 recs
+      - generic [ref=e133]:
+        - generic [ref=e134]:
+          - img [ref=e135]
+          - generic [ref=e139]: "55"
+        - generic [ref=e140]:
+          - generic [ref=e141]: Architecture
+          - generic [ref=e142]: Fair
+          - generic [ref=e143]: 4 single-replica · 2 no-PDB
+    - generic [ref=e144]:
+      - generic [ref=e145]:
+        - generic [ref=e146]:
+          - generic [ref=e147]:
+            - generic [ref=e148]: LIVE TIMELINE
+            - generic [ref=e149]: Recent events
+          - generic [ref=e150]: auto-refreshing
+        - generic [ref=e153]:
+          - generic [ref=e154]:
+            - generic [ref=e155]: 16:24:08
+            - generic [ref=e156]:
+              - generic [ref=e157]: Calico VXLAN resync cascade
+              - generic [ref=e158]: calico-node-2bba1 · kube-system · auto-drain initiated
+            - generic [ref=e159]: CRIT
+          - generic [ref=e161]:
+            - generic [ref=e162]: 16:22:41
+            - generic [ref=e163]:
+              - generic [ref=e164]: coredns latency spike
+              - generic [ref=e165]: coredns-7c57d76b7f-vsctd · p99 412ms → 1.1s over 5m
+            - generic [ref=e166]: WARN
+          - generic [ref=e168]:
+            - generic [ref=e169]: 16:19:02
+            - generic [ref=e170]:
+              - generic [ref=e171]: AI analysis completed — INC-347
+              - generic [ref=e172]: "root cause: misconfigured affinity on kube-proxy DS · confidence 0.81"
+            - generic [ref=e173]: INFO
+          - generic [ref=e175]:
+            - generic [ref=e176]: 16:12:55
+            - generic [ref=e177]:
+              - generic [ref=e178]: "Optimizer applied — cost recommendation #R-112"
+              - generic [ref=e179]: monitoring-prometheus-node-exporter · –46% memory requests · $62/mo
+            - generic [ref=e180]: OK
+          - generic [ref=e182]:
+            - generic [ref=e183]: 16:04:12
+            - generic [ref=e184]:
+              - generic [ref=e185]: Near-dup scanner consolidated 4 error groups
+              - generic [ref=e186]: shadow mode · operator approval pending
+            - generic [ref=e187]: SHADOW
+      - generic [ref=e188]:
+        - generic [ref=e189]: CLUSTER
+        - generic [ref=e190]: Resource posture
+        - generic [ref=e191]:
+          - generic [ref=e193]:
+            - generic [ref=e194]: CPU
+            - generic [ref=e195]: 38% of 16c
+          - generic [ref=e199]:
+            - generic [ref=e200]: Memory
+            - generic [ref=e201]: 71% of 64Gi
+          - generic [ref=e205]:
+            - generic [ref=e206]: Pod capacity
+            - generic [ref=e207]: 32 / 110
+          - generic [ref=e211]:
+            - generic [ref=e212]: Ephemeral
+            - generic [ref=e213]: 22% of 200Gi
+        - generic [ref=e216]:
+          - generic [ref=e217]: Pod status
+          - generic [ref=e218]:
+            - generic [ref=e219]: Healthy 32
+            - generic [ref=e221]: Pending 0
+            - generic [ref=e223]: Unhealthy 0

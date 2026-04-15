@@ -261,29 +261,70 @@ this feature** passing end-to-end.
 
 ## Final baseline
 
-| Check | Before errors plan | After audit followups |
-|---|---|---|
-| Go test functions | 112 | **143** |
-| New error-feature tests | 0 | **31** (all in `errors_test.go`) |
-| Full suite | green | green (0 failures) |
-| golangci-lint issues | 50 | **0** |
-| Dashboard TypeScript | clean | clean |
-| Dashboard ESLint | broken | **clean** (2 legacy warnings in pre-existing files) |
+| Check | Before errors plan | v2 followup | v3 followup |
+|---|---|---|---|
+| Go test functions | 112 | 143 | **147** |
+| New error-feature tests | 0 | 31 | **35** (all in `errors_test.go`) |
+| Full suite | green | green | green (0 failures) |
+| golangci-lint issues | 50 | 0 | **0** |
+| Dashboard TypeScript | clean | clean | clean |
+| Dashboard ESLint | broken | clean | clean |
 
 Every red-flag item from the original audit now has a test or a
-structural guarantee behind it. Residual known limitations:
+structural guarantee behind it.
 
-- **Rate spike heuristic is `count5m*12 > count1h*2 AND count5m≥3`** —
-  tuned by eye, not calibrated against real spike data. May need a
-  hysteresis band once it's running.
-- **Shadow mode requires human review.** The plan's proposed
-  "operator flips to auto after a week" is process, not code.
-- **Embedding scorer not yet wired to any production LLM endpoint by
-  default** — Ollama's native `/api/embeddings` takes a different body,
-  so Ollama operators must point the scorer at the OpenAI-compatible
-  adapter (`/v1/embeddings`). Documented inline in `errors_embeddings.go`.
-  Cache-eviction IS wired: scanner passes the live-group keep-set to
-  the scorer at every tick (`TestNearDup_ScanCallsScorerEvict`).
+---
+
+## v2 residuals — status after follow-up commits
+
+| v2 residual | v3 status | Evidence |
+|---|---|---|
+| Rate-spike heuristic tuned by eye | ✅ **hysteresis added** | `spikeState` per-fp remembers last-fired rate. Subsequent scans skip unless current rate > 1.5× last-fired OR 30 min have passed. `TestScanTriggers_HysteresisSkipsStableSpike` verifies. |
+| Shadow-mode rollout is process, not code | ✅ **review API shipped** | `POST /near-duplicates/{id}/{accept,reject}` lets operators decide one-by-one; `GET /near-duplicates/stats` returns per-band (0.85–0.90, 0.90–0.95, 0.95+) accept-rates so flipping to auto is data-driven. `TestReviewAPI_AcceptRejectAndStats` covers the full round-trip. |
+| Ollama operators must use `/v1` adapter | ✅ **native schema supported** | `EmbeddingScorer` now speaks both OpenAI (`POST /embeddings` with `{input}` → `{data:[{embedding}]}`) and Ollama native (`POST /api/embeddings` with `{prompt}` → `{embedding}`). `NewEmbeddingScorerAuto` picks from URL (`/v1/…` or openai.com/azure.com → openai; otherwise ollama). Tests: `TestEmbeddingScorer_OllamaNativeSchema`, `TestNewEmbeddingScorerAuto_DetectsAPIShape`. |
+
+Plus one gap I found in my own work, now closed:
+
+| Gap | Status | Evidence |
+|---|---|---|
+| `EmbeddingScorer` shipped but no activation path — operators would have had to edit code | ✅ **env-driven activation** | `configureNearDupFromEnv` reads `ERRORS_NEARDUP_{MODE,THRESHOLD}` + `ERRORS_EMBEDDING_{ENDPOINT,MODEL,API_KEY,API}`. Wired from `main.go` after aggregator setup. When endpoint+model absent, the scanner runs with the token-set cosine fallback. |
+
+## Live verification (v3)
+
+After an analyzer restart, one `60s` tick of the background loop
+produced metrics under `cluster_intel_errors_*`:
+
+```
+cluster_intel_errors_groups_active     200
+cluster_intel_errors_ingest_total     9982
+cluster_intel_errors_scan_ticks_total    1       ← background loop pulse
+cluster_intel_errors_scan_fired_total{trigger="rateSpike"}     1
+cluster_intel_errors_scan_fired_total{trigger="umbrellaFault"} 1
+```
+
+All three new endpoints return 200:
+
+```
+GET  /api/v1/errors/near-duplicates                  → 200
+GET  /api/v1/errors/near-duplicates/stats            → 200
+POST /api/v1/errors/near-duplicates/scan             → 200
+```
+
+## Residual known limitations (v3)
+
+- **Scoring thresholds (0.85 similarity, 1.5× hysteresis, 30-min
+  hysteresis window) are still eyeballed.** The shadow-mode review
+  stats endpoint is how we'll calibrate — it's now a data problem, not
+  a code problem.
+- **Accepting a rejected suggestion requires a fresh scan.** Reject
+  clears the breadcrumb; the scanner needs to run again (next 60s
+  tick or manual `POST /scan`) before the same pair would be surfaced
+  again. Documented, not a bug.
+- **Embedding cache eviction runs only when the scanner runs.** If
+  `ERRORS_NEARDUP_MODE=off`, the scanner short-circuits before the
+  evict hook — but in that mode there are no cached vectors either,
+  so the impact is zero. Only relevant if someone adds a non-scanner
+  code path that fills the scorer cache.
 
 ---
 

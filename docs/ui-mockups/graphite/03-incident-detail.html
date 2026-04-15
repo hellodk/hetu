@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>INC-348 — Calico VXLAN resync cascade · Cluster Intel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,500;0,6..72,600;1,6..72,400&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="tokens.css" />
+<style>
+  .page { display: grid; grid-template-columns: 220px 1fr 320px; min-height: 100vh; }
+
+  .sidebar {
+    border-right: 1px solid var(--line);
+    padding: 20px 16px;
+    background: var(--surface-0);
+    position: sticky; top: 0; height: 100vh;
+  }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 10px; border-radius: 8px;
+    color: var(--text-md); font-size: 13px; font-weight: 500;
+    cursor: pointer;
+  }
+  .nav-item:hover { background: var(--surface-2); color: var(--text-hi); }
+  .nav-item.active { background: color-mix(in oklab, var(--accent) 12%, transparent); color: var(--text-hi); }
+  .nav-item svg { width: 16px; height: 16px; stroke-width: 1.5; }
+
+  .main { padding: 24px 36px 64px; }
+
+  .crumbs { font-size: 12px; color: var(--text-lo); margin-bottom: 14px; }
+  .crumbs a { color: var(--text-md); }
+  .crumbs .sep { margin: 0 8px; color: var(--text-lo); }
+
+  .hero {
+    position: relative;
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+    padding: 36px;
+    margin-bottom: 24px;
+    background:
+      
+      var(--surface-1);
+    overflow: hidden;
+  }
+  .hero::before {
+    content: ""; position: absolute; left: 0; top: 0; bottom: 0;
+    width: 4px; background: var(--sev-crit); box-shadow: 0 0 40px 4px var(--sev-crit-glow);
+  }
+
+  .meta-strip {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 20px; margin-top: 28px;
+    padding-top: 24px; border-top: 1px solid var(--line);
+  }
+  .meta-cell .label { display: block; margin-bottom: 6px; }
+  .meta-cell .num   { font-size: 22px; font-weight: 600; letter-spacing: -0.02em; }
+
+  .section { margin-bottom: 28px; }
+  .section-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 12px;
+  }
+
+  .rca-card {
+    padding: 24px; border-radius: var(--r-md);
+    background: var(--surface-1); border: 1px solid var(--line);
+  }
+
+  .yaml-block {
+    background: var(--surface-0); border: 1px solid var(--line);
+    border-radius: var(--r-sm);
+    padding: 16px 18px;
+    font-family: 'JetBrains Mono', monospace; font-size: 12.5px;
+    color: var(--text-md); overflow-x: auto;
+    line-height: 1.6;
+  }
+  .yaml-block .k { color: #2732a8; }
+  .yaml-block .s { color: #2a7f5a; }
+  .yaml-block .c { color: var(--text-lo); font-style: italic; }
+
+  .signal-row {
+    display: grid; grid-template-columns: 110px 1fr auto;
+    gap: 16px; padding: 12px 16px; align-items: center;
+    border-bottom: 1px solid var(--line);
+  }
+  .signal-row:last-child { border-bottom: none; }
+  .signal-row:hover { background: var(--surface-2); }
+
+  .aside { padding: 24px 20px; border-left: 1px solid var(--line); background: var(--surface-0); }
+  .related-item {
+    padding: 12px 14px; border-radius: 8px;
+    display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: center;
+    cursor: pointer; transition: background var(--d-fast) var(--ease);
+  }
+  .related-item:hover { background: var(--surface-2); }
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <!-- Sidebar (collapsed-visual) -->
+  <aside class="sidebar">
+    <div style="display: flex; align-items: center; gap: 10px; padding: 4px 10px 20px;">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="url(#logo-g)" stroke-width="1.6">
+        <defs><linearGradient id="logo-g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#141516"/><stop offset="1" stop-color="#4a56c4"/></linearGradient></defs>
+        <path d="M12 2 2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
+      </svg>
+      <div>
+        <div style="font-weight: 600; font-size: 14px;">Cluster Intel</div>
+        <div class="caption mono">prod · us-east-1</div>
+      </div>
+    </div>
+    <nav style="display: flex; flex-direction: column; gap: 2px;">
+      <div class="nav-item">Overview</div>
+      <div class="nav-item">Errors</div>
+      <div class="nav-item active">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/></svg>
+        Incidents &amp; RCA
+      </div>
+      <div class="nav-item">Optimization</div>
+      <div class="nav-item">Security</div>
+      <div class="nav-item">Anomalies</div>
+      <div class="nav-item">Executive</div>
+    </nav>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+
+    <!-- Breadcrumbs -->
+    <div class="crumbs">
+      <a>Incidents</a><span class="sep">/</span><span style="color: var(--text-hi);">INC-348</span>
+      <span style="float: right;">
+        <span class="kbd">j</span> prev · <span class="kbd">k</span> next
+      </span>
+    </div>
+
+    <!-- Hero -->
+    <section class="hero">
+      <div style="display: flex; gap: 16px; align-items: center; margin-bottom: 14px; flex-wrap: wrap;">
+        <span class="pill pill-crit"><span class="dot dot-crit"></span>CRITICAL</span>
+        <span class="pill" style="background: var(--surface-2); border-color: var(--line); color: var(--text-md);">OPEN · auto-drain complete</span>
+        <span class="caption mono" style="margin-left: auto;">INC-348 · ingested 2026-04-14 08:42:11 UTC</span>
+      </div>
+
+      <h1 class="display-l" style="margin-bottom: 12px;">Calico VXLAN resync cascade, 3 nodes affected</h1>
+      <p class="body" style="max-width: 74ch; font-size: 15px;">
+        A VXLAN fabric resync triggered by a transient Tailscale DERP flap caused BGP sessions
+        on three Calico nodes to churn. Cluster-intel's auto-drain contained the blast radius.
+        No customer-facing traffic was lost.
+      </p>
+
+      <div class="meta-strip">
+        <div class="meta-cell">
+          <span class="label">DURATION</span>
+          <span class="num">14m 22s</span>
+          <div class="caption">08:42 → 08:56 UTC</div>
+        </div>
+        <div class="meta-cell">
+          <span class="label">SIGNALS</span>
+          <span class="num">3 · <span style="color: var(--text-lo); font-size: 15px;">across 8 sources</span></span>
+          <div class="caption">correlated by fault-key</div>
+        </div>
+        <div class="meta-cell">
+          <span class="label">AFFECTED</span>
+          <span class="num">3 nodes · 12 pods</span>
+          <div class="caption">all re-scheduled</div>
+        </div>
+        <div class="meta-cell">
+          <span class="label">AI CONFIDENCE</span>
+          <span class="num" style="color: var(--accent);">0.87</span>
+          <div class="caption">vs heuristic floor 0.55</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- RCA -->
+    <section class="section">
+      <div class="section-header">
+        <div>
+          <div class="label">ROOT CAUSE · AI-GENERATED</div>
+          <div class="h1" style="margin-top: 4px;">What we think happened</div>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn">Edit summary</button>
+          <button class="btn">Re-analyze</button>
+        </div>
+      </div>
+
+      <div class="rca-card">
+        <p class="body" style="font-size: 15.5px; line-height: 1.6; margin-bottom: 16px;">
+          At 08:42 UTC the Tailscale DERP relay on node <span class="mono" style="color: var(--text-hi);">calico-node-2bba1</span>
+          dropped packets for ~11s. Calico's BGP session timer is 10s, so sessions flapped across
+          three peers in quick succession. Each peer triggered a VXLAN FDB flush; the resulting
+          re-learn storm spiked east-west latency.
+        </p>
+        <p class="body" style="font-size: 15.5px; line-height: 1.6; margin-bottom: 16px;">
+          Auto-drain kicked in at T+6m once the pod-health scorer crossed the drain threshold on
+          the first affected node. Remaining two nodes were drained preemptively. Workloads
+          re-scheduled cleanly onto the four healthy nodes. No customer traffic was shed thanks
+          to the ingress tier being on separate dedicated nodes.
+        </p>
+        <div class="hairline" style="padding-top: 14px; display: flex; justify-content: space-between; align-items: center;">
+          <div class="caption">
+            Grounded in 14 signals from prometheus, 3 pod events, and recent incident
+            <a style="color: var(--accent);">docs/incident-investigation-2026-02-22.md</a>.
+          </div>
+          <span class="caption mono">analyzer v7.3.0 · 2.1s</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Suggested fix -->
+    <section class="section">
+      <div class="section-header">
+        <div>
+          <div class="label">SUGGESTED REMEDIATION</div>
+          <div class="h1" style="margin-top: 4px;">Raise BGP hold timer; harden DERP fallback</div>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn">Copy YAML</button>
+          <button class="btn btn-primary">Open PR draft</button>
+        </div>
+      </div>
+
+      <div class="yaml-block">
+<pre style="margin: 0;"><span class="c"># calico-bgp-config — raise hold_time from 10s → 30s to absorb DERP flaps</span>
+<span class="k">apiVersion:</span> <span class="s">crd.projectcalico.org/v1</span>
+<span class="k">kind:</span> <span class="s">BGPConfiguration</span>
+<span class="k">metadata:</span>
+  <span class="k">name:</span> <span class="s">default</span>
+<span class="k">spec:</span>
+  <span class="k">nodeToNodeMeshEnabled:</span> <span class="s">true</span>
+  <span class="k">asNumber:</span> <span class="s">64512</span>
+  <span class="k">bindMode:</span> <span class="s">NodeIP</span>
+  <span class="k">serviceClusterIPs:</span>
+    <span class="c"># removed 10s default</span>
+  <span class="k">holdTimeSeconds:</span> <span class="s">30</span>   <span class="c"># was 10 — absorbs typical DERP flap envelope</span></pre>
+      </div>
+    </section>
+
+    <!-- Signal trail -->
+    <section class="section">
+      <div class="section-header">
+        <div>
+          <div class="label">SIGNAL TRAIL</div>
+          <div class="h1" style="margin-top: 4px;">What we saw, in order</div>
+        </div>
+        <span class="caption">correlated by fault-key <span class="mono">kube-system/calico-node/vxlan-resync</span></span>
+      </div>
+
+      <div class="card" style="padding: 0;">
+        <div class="signal-row rail rail-warn" style="padding-left: 20px;">
+          <span class="mono caption">08:42:08</span>
+          <div>
+            <div class="h3">DERP packet loss spiked to 38%</div>
+            <div class="caption">tailscale-exporter · node calico-node-2bba1</div>
+          </div>
+          <span class="pill pill-warn"><span class="dot dot-warn"></span>WARN</span>
+        </div>
+        <div class="signal-row rail rail-high" style="padding-left: 20px;">
+          <span class="mono caption">08:42:19</span>
+          <div>
+            <div class="h3">Calico BGP session flapped on 3 peers</div>
+            <div class="caption">calico-felix log · BGPSessionFlap × 3 within 4s</div>
+          </div>
+          <span class="pill pill-high"><span class="dot dot-high"></span>HIGH</span>
+        </div>
+        <div class="signal-row rail rail-crit" style="padding-left: 20px;">
+          <span class="mono caption">08:42:55</span>
+          <div>
+            <div class="h3">East-west p99 latency 8ms → 480ms</div>
+            <div class="caption">kube-proxy metrics · 3 nodes above threshold</div>
+          </div>
+          <span class="pill pill-crit"><span class="dot dot-crit"></span>CRIT</span>
+        </div>
+        <div class="signal-row rail rail-info" style="padding-left: 20px;">
+          <span class="mono caption">08:48:03</span>
+          <div>
+            <div class="h3">Auto-drain initiated on calico-node-2bba1</div>
+            <div class="caption">cluster-intel · pod-health scorer crossed drain threshold</div>
+          </div>
+          <span class="pill pill-info"><span class="dot dot-info"></span>ACTION</span>
+        </div>
+        <div class="signal-row rail rail-ok" style="padding-left: 20px;">
+          <span class="mono caption">08:56:33</span>
+          <div>
+            <div class="h3">All affected pods re-scheduled · latency restored</div>
+            <div class="caption">remaining 4 nodes absorbed the load at 62% headroom</div>
+          </div>
+          <span class="pill pill-ok"><span class="dot dot-ok"></span>OK</span>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Right aside -->
+  <aside class="aside">
+
+    <div class="section">
+      <div class="label" style="margin-bottom: 10px;">TIMELINE</div>
+      <svg width="100%" height="120" viewBox="0 0 280 120" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="t-g" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0" stop-color="#9b1c2e" stop-opacity="0.4"/>
+            <stop offset="1" stop-color="#9b1c2e" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        <path d="M0,100 L40,100 L60,98 L80,96 L100,50 L120,30 L135,28 L155,40 L180,70 L220,92 L260,98 L280,98"
+              fill="none" stroke="#ff4d6a" stroke-width="2" stroke-linejoin="round"/>
+        <path d="M0,100 L40,100 L60,98 L80,96 L100,50 L120,30 L135,28 L155,40 L180,70 L220,92 L260,98 L280,98 L280,120 L0,120 Z"
+              fill="url(#t-g)"/>
+        <line x1="100" y1="10" x2="100" y2="120" stroke="rgba(155,28,46,0.35)" stroke-dasharray="2 3"/>
+        <line x1="220" y1="10" x2="220" y2="120" stroke="rgba(42,127,90,0.35)" stroke-dasharray="2 3"/>
+      </svg>
+      <div style="display: flex; justify-content: space-between; font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text-lo); margin-top: 4px;">
+        <span>08:40</span><span>START</span><span>08:48</span><span>RESOLVE</span><span>09:00</span>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="label" style="margin-bottom: 10px;">AFFECTED RESOURCES</div>
+      <div style="display: flex; flex-direction: column; gap: 2px;">
+        <div style="padding: 8px 10px; border-radius: 6px; font-size: 13px;"><span class="mono" style="color: var(--text-hi);">calico-node-2bba1</span><div class="caption">kube-system · drained</div></div>
+        <div style="padding: 8px 10px; border-radius: 6px; font-size: 13px;"><span class="mono" style="color: var(--text-hi);">calico-node-1pp7r</span><div class="caption">kube-system · drained</div></div>
+        <div style="padding: 8px 10px; border-radius: 6px; font-size: 13px;"><span class="mono" style="color: var(--text-hi);">kube-proxy-gnthp</span><div class="caption">kube-system · rescheduled</div></div>
+        <div style="padding: 8px 10px; border-radius: 6px; font-size: 13px;"><span class="mono" style="color: var(--text-hi);">coredns-7c57d76b7f-4fz96</span><div class="caption">kube-system · rescheduled</div></div>
+        <div class="caption" style="padding: 6px 10px;">+ 8 more</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="label" style="margin-bottom: 10px;">RELATED INCIDENTS</div>
+      <div class="related-item">
+        <span class="dot dot-crit" style="width:8px;height:8px;border-radius:50%;"></span>
+        <div>
+          <div class="h3">INC-242 · Tailscale DERP storm</div>
+          <div class="caption">2026-02-22 · same fault-key</div>
+        </div>
+      </div>
+      <div class="related-item">
+        <span class="dot dot-high" style="width:8px;height:8px;border-radius:50%;"></span>
+        <div>
+          <div class="h3">INC-189 · Calico BGP flap</div>
+          <div class="caption">2026-01-11 · adjacent fault</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="label" style="margin-bottom: 10px;">RUNBOOKS</div>
+      <div class="related-item">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent-soft)" stroke-width="1.5"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        <div>
+          <div class="h3">Calico fabric recovery</div>
+          <div class="caption">last edited 3 weeks ago</div>
+        </div>
+      </div>
+      <div class="related-item">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent-soft)" stroke-width="1.5"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        <div>
+          <div class="h3">When to trust auto-drain</div>
+          <div class="caption">last edited 2 days ago</div>
+        </div>
+      </div>
+    </div>
+
+  </aside>
+
+</div>
+</body>
+</html>

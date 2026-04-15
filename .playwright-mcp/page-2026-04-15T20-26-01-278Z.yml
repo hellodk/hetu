@@ -1,0 +1,122 @@
+- main [ref=e2]:
+  - generic [ref=e3]:
+    - generic [ref=e4]: Cluster Intel · UI revamp · theme chooser
+    - heading "Pick the mood. Then I'll build it." [level=1] [ref=e5]
+    - paragraph [ref=e6]: Same pages, same data, same SRE-first information architecture. Four different answers to "modern and magical." Click any card to see the four representative pages rendered live, with real motion. The shared plan and tokens live next to each theme's folder.
+  - generic [ref=e7]:
+    - article [ref=e8]:
+      - generic [ref=e9]:
+        - generic [ref=e11]: 01 · RESTRAINED
+        - heading "Calm signal" [level=2] [ref=e12]
+        - paragraph [ref=e13]: Near-black. One violet accent. Severity ladder does all the talking. The SRE default — dense on data, quiet on ornament. Closest to where the product is today, but sharper.
+        - generic [ref=e14]:
+          - generic [ref=e15]: dark
+          - generic [ref=e16]: violet accent
+          - generic [ref=e17]: Inter + Mono
+          - generic [ref=e18]: restrained motion
+        - navigation [ref=e19]:
+          - link "Overview ↗" [ref=e20] [cursor=pointer]:
+            - /url: calm-signal/01-overview.html
+            - text: Overview
+            - generic [ref=e21]: ↗
+          - link "Executive ↗" [ref=e22] [cursor=pointer]:
+            - /url: calm-signal/02-executive.html
+            - text: Executive
+            - generic [ref=e23]: ↗
+          - link "Incident ↗" [ref=e24] [cursor=pointer]:
+            - /url: calm-signal/03-incident-detail.html
+            - text: Incident
+            - generic [ref=e25]: ↗
+          - link "Design system ↗" [ref=e26] [cursor=pointer]:
+            - /url: calm-signal/00-design-system.html
+            - text: Design system
+            - generic [ref=e27]: ↗
+    - article [ref=e28]:
+      - generic [ref=e29]:
+        - generic [ref=e31]: 02 · MAGICAL
+        - heading "Aurora" [level=2] [ref=e32]
+        - paragraph [ref=e33]: Dark, but alive. A slow mesh of teal, magenta and violet drifts behind the page. Space Grotesk display, iridescent hero ring. The "wow" demo surface — still strict on severity.
+        - generic [ref=e34]:
+          - generic [ref=e35]: dark
+          - generic [ref=e36]: triadic accents
+          - generic [ref=e37]: Space Grotesk
+          - generic [ref=e38]: aurora drift
+        - navigation [ref=e39]:
+          - link "Overview ↗" [ref=e40] [cursor=pointer]:
+            - /url: aurora/01-overview.html
+            - text: Overview
+            - generic [ref=e41]: ↗
+          - link "Executive ↗" [ref=e42] [cursor=pointer]:
+            - /url: aurora/02-executive.html
+            - text: Executive
+            - generic [ref=e43]: ↗
+          - link "Incident ↗" [ref=e44] [cursor=pointer]:
+            - /url: aurora/03-incident-detail.html
+            - text: Incident
+            - generic [ref=e45]: ↗
+          - link "Design system ↗" [ref=e46] [cursor=pointer]:
+            - /url: aurora/00-design-system.html
+            - text: Design system
+            - generic [ref=e47]: ↗
+    - article [ref=e48]:
+      - generic [ref=e49]:
+        - generic [ref=e51]: 03 · EDITORIAL
+        - heading "Graphite" [level=2] [ref=e52]
+        - paragraph [ref=e53]: Warm paper. Serif display. Swiss hairlines. Built to read like a printed briefing. Motion almost entirely absent — the only moving thing is the breathing live dot. Print-safe severity palette.
+        - generic [ref=e54]:
+          - generic [ref=e55]: light
+          - generic [ref=e56]: ink accent
+          - generic [ref=e57]: Newsreader serif
+          - generic [ref=e58]: minimal motion
+        - navigation [ref=e59]:
+          - link "Overview ↗" [ref=e60] [cursor=pointer]:
+            - /url: graphite/01-overview.html
+            - text: Overview
+            - generic [ref=e61]: ↗
+          - link "Executive ↗" [ref=e62] [cursor=pointer]:
+            - /url: graphite/02-executive.html
+            - text: Executive
+            - generic [ref=e63]: ↗
+          - link "Incident ↗" [ref=e64] [cursor=pointer]:
+            - /url: graphite/03-incident-detail.html
+            - text: Incident
+            - generic [ref=e65]: ↗
+          - link "Design system ↗" [ref=e66] [cursor=pointer]:
+            - /url: graphite/00-design-system.html
+            - text: Design system
+            - generic [ref=e67]: ↗
+    - article [ref=e68]:
+      - generic [ref=e69]:
+        - generic [ref=e71]: 04 · WOW
+        - heading "Prism" [level=2] [ref=e72]
+        - paragraph [ref=e73]: Pure white, refracted. Conic-gradient hero ring rotates behind the number. Floating coloured orbs drift in the background. Fraunces serif display with optical sizing. Bento-grid exec view. Generous but purposeful motion.
+        - generic [ref=e74]:
+          - generic [ref=e75]: white
+          - generic [ref=e76]: full spectrum
+          - generic [ref=e77]: Fraunces serif
+          - generic [ref=e78]: cinematic motion
+        - navigation [ref=e79]:
+          - link "Overview ↗" [ref=e80] [cursor=pointer]:
+            - /url: prism/01-overview.html
+            - text: Overview
+            - generic [ref=e81]: ↗
+          - link "Executive ↗" [ref=e82] [cursor=pointer]:
+            - /url: prism/02-executive.html
+            - text: Executive
+            - generic [ref=e83]: ↗
+          - link "Incident ↗" [ref=e84] [cursor=pointer]:
+            - /url: prism/03-incident-detail.html
+            - text: Incident
+            - generic [ref=e85]: ↗
+          - link "Design system ↗" [ref=e86] [cursor=pointer]:
+            - /url: prism/00-design-system.html
+            - text: Design system
+            - generic [ref=e87]: ↗
+  - generic [ref=e88]:
+    - generic [ref=e89]:
+      - text: All mockups are fully self-contained HTML. Tweak
+      - code [ref=e90]: "{theme}/tokens.css"
+      - text: to iterate a palette; the 4 pages re-skin instantly.
+    - generic [ref=e91]:
+      - text: Cluster Intel · revamp v1 ·
+      - code [ref=e92]: docs/ui-mockups/

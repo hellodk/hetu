@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Cluster Intel — aurora · design system</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="tokens.css" />
+</head>
+<body>
+<main class="max-w-[1280px] mx-auto p-10" style="padding: 40px;">
+
+  <header style="margin-bottom: 48px;">
+    <div class="label" style="margin-bottom: 12px;">Cluster Intel · aurora theme · design system</div>
+    <h1 class="display-l" style="margin-bottom: 8px;">A calm field, with aurora over it.</h1>
+    <p class="body" style="max-width: 68ch;">
+      Dark-only. A drifting mesh of teal, magenta and violet sits behind every
+      page — slow, never competes with data. Space Grotesk for display, Inter
+      for body, JetBrains Mono for numbers. Severity colours stay strict.
+    </p>
+  </header>
+
+  <!-- ========== Surface ladder ========== -->
+  <section style="margin-bottom: 56px;">
+    <div class="label" style="margin-bottom: 16px;">Surfaces</div>
+    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;">
+      <div class="card" style="padding: 20px; background: var(--surface-0);">
+        <div class="h3">surface-0</div>
+        <div class="mono caption" style="margin-top: 4px;">#06060e</div>
+        <div class="body-sm" style="margin-top: 10px;">Page canvas</div>
+      </div>
+      <div class="card" style="padding: 20px; background: var(--surface-1);">
+        <div class="h3">surface-1</div>
+        <div class="mono caption" style="margin-top: 4px;">#0c0d1a</div>
+        <div class="body-sm" style="margin-top: 10px;">Cards, primary blocks</div>
+      </div>
+      <div class="card" style="padding: 20px; background: var(--surface-2);">
+        <div class="h3">surface-2</div>
+        <div class="mono caption" style="margin-top: 4px;">#151729</div>
+        <div class="body-sm" style="margin-top: 10px;">Elevated (popovers)</div>
+      </div>
+      <div class="card" style="padding: 20px; background: var(--surface-3);">
+        <div class="h3">surface-3</div>
+        <div class="mono caption" style="margin-top: 4px;">#1e2138</div>
+        <div class="body-sm" style="margin-top: 10px;">Hover, active</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== Severity ladder ========== -->
+  <section style="margin-bottom: 56px;">
+    <div class="label" style="margin-bottom: 16px;">Severity ladder — used only for state, never decoratively</div>
+    <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px;">
+      <div class="card rail rail-ok"   style="padding: 16px 16px 16px 24px;"><div class="h3">ok</div>    <div class="mono caption">#4ae5a3</div></div>
+      <div class="card rail rail-info" style="padding: 16px 16px 16px 24px;"><div class="h3">info</div>  <div class="mono caption">#60b8ff</div></div>
+      <div class="card rail rail-warn" style="padding: 16px 16px 16px 24px;"><div class="h3">warn</div>  <div class="mono caption">#ffcb5c</div></div>
+      <div class="card rail rail-high" style="padding: 16px 16px 16px 24px;"><div class="h3">high</div>  <div class="mono caption">#ff8a65</div></div>
+      <div class="card rail rail-crit" style="padding: 16px 16px 16px 24px;"><div class="h3">crit</div>  <div class="mono caption">#ff5c7a</div></div>
+    </div>
+    <div style="margin-top: 20px; display: flex; gap: 10px; flex-wrap: wrap;">
+      <span class="pill pill-ok"><span class="dot dot-ok"></span>Healthy</span>
+      <span class="pill pill-info"><span class="dot dot-info"></span>Informational</span>
+      <span class="pill pill-warn"><span class="dot dot-warn"></span>Warning</span>
+      <span class="pill pill-high"><span class="dot dot-high"></span>High</span>
+      <span class="pill pill-crit"><span class="dot dot-crit"></span>Critical</span>
+      <span class="pill pill-accent"><span class="dot dot-accent"></span>Live</span>
+    </div>
+  </section>
+
+  <!-- ========== Hero accent ========== -->
+  <section style="margin-bottom: 56px;">
+    <div class="label" style="margin-bottom: 16px;">Hero accent — the only other hue. Used to mean "this is live / this is THE thing"</div>
+    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; align-items: stretch;">
+      <div class="card" style="padding: 24px;">
+        <div class="h3" style="color: var(--accent-soft);">accent</div>
+        <div class="mono caption" style="margin-top: 4px;">#5cf2e1</div>
+        <div class="body-sm" style="margin-top: 10px;">Live dot, ⌘K chip, hero ring gradient, primary CTA hover.</div>
+      </div>
+      <div class="card" style="padding: 24px; display: flex; align-items: center; gap: 16px;">
+        <span class="live-dot"></span>
+        <div><div class="h3">Live</div><div class="caption">Breathes at refresh cadence</div></div>
+      </div>
+      <div class="card" style="padding: 24px; text-align: center;">
+        <button class="btn btn-primary">Request AI analysis</button>
+        <div class="caption" style="margin-top: 10px;">Primary action — glow on hover</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== Type scale ========== -->
+  <section style="margin-bottom: 56px;">
+    <div class="label" style="margin-bottom: 16px;">Type — Inter + JetBrains Mono for numbers</div>
+    <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 32px; align-items: end;">
+      <div>
+        <div class="display-xxl num">98.7</div>
+        <div class="caption" style="margin-top: 6px;">display-xxl · 72 / tabular num · cluster score hero</div>
+      </div>
+      <div>
+        <div class="display-l" style="margin-bottom: 16px;">Reliability held steady</div>
+        <div class="h1" style="margin-bottom: 10px;">Incidents & RCA</div>
+        <div class="h2" style="margin-bottom: 8px;">Affected resources</div>
+        <div class="h3" style="margin-bottom: 8px;">Top services by error count</div>
+        <div class="body">
+          Calico VXLAN resync cascade across three nodes. Resolved in 14 minutes
+          after automatic node drain kicked in.
+        </div>
+        <div class="body-sm" style="margin-top: 6px;">Body small · tables, metadata.</div>
+        <div class="caption" style="margin-top: 6px;">Caption · 5m ago</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== Ring ========== -->
+  <section style="margin-bottom: 56px;">
+    <div class="label" style="margin-bottom: 16px;">Hero ring — critical aura example</div>
+    <div style="display: flex; gap: 48px; align-items: center; flex-wrap: wrap;">
+
+      <!-- OK -->
+      <div style="text-align: center;">
+        <div class="ring" style="width: 180px; height: 180px;">
+          <svg width="180" height="180" viewBox="0 0 200 200">
+            <circle class="ring-track" cx="100" cy="100" r="90" fill="none" stroke-width="10"></circle>
+            <circle class="ring-fill animate" cx="100" cy="100" r="90" fill="none" stroke-width="10"
+                    style="stroke: var(--sev-ok); stroke-dasharray: 565.48; stroke-dashoffset: 73.5;"></circle>
+          </svg>
+          <div class="ring-label">
+            <div>
+              <div class="display-l num count-in" style="color: var(--sev-ok);">87</div>
+              <div class="label" style="margin-top: 4px;">Healthy</div>
+            </div>
+          </div>
+        </div>
+        <div class="caption" style="margin-top: 10px;">ok · stroke = sev-ok</div>
+      </div>
+
+      <!-- CRIT with aura pulse -->
+      <div style="text-align: center;">
+        <div class="ring aura-crit" style="width: 180px; height: 180px;">
+          <svg width="180" height="180" viewBox="0 0 200 200">
+            <circle class="ring-track" cx="100" cy="100" r="90" fill="none" stroke-width="10"></circle>
+            <circle class="ring-fill animate" cx="100" cy="100" r="90" fill="none" stroke-width="10"
+                    style="stroke: var(--sev-crit); stroke-dasharray: 565.48; stroke-dashoffset: 339.3;"></circle>
+          </svg>
+          <div class="ring-label">
+            <div>
+              <div class="display-l num count-in" style="color: var(--sev-crit);">40</div>
+              <div class="label" style="margin-top: 4px;">Critical</div>
+            </div>
+          </div>
+        </div>
+        <div class="caption" style="margin-top: 10px;">crit · aura-pulse 2.4s</div>
+      </div>
+
+      <!-- ACCENT (live) -->
+      <div style="text-align: center;">
+        <div class="ring aura-accent" style="width: 180px; height: 180px;">
+          <svg width="180" height="180" viewBox="0 0 200 200">
+            <defs>
+              <linearGradient id="g-accent" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0"   stop-color="#5cf2e1"/>
+                <stop offset="1"   stop-color="#ff5ea5"/>
+              </linearGradient>
+            </defs>
+            <circle class="ring-track" cx="100" cy="100" r="90" fill="none" stroke-width="10"></circle>
+            <circle class="ring-fill animate" cx="100" cy="100" r="90" fill="none" stroke-width="10"
+                    style="stroke: url(#g-accent); stroke-dasharray: 565.48; stroke-dashoffset: 146;"></circle>
+          </svg>
+          <div class="ring-label">
+            <div>
+              <div class="display-l num count-in">74</div>
+              <div class="label" style="margin-top: 4px;">Overall</div>
+            </div>
+          </div>
+        </div>
+        <div class="caption" style="margin-top: 10px;">overall · accent gradient</div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ========== Command palette preview ========== -->
+  <section style="margin-bottom: 56px;">
+    <div class="label" style="margin-bottom: 16px;">Command palette (⌘K)</div>
+    <div class="glass" style="max-width: 640px; border-radius: var(--r-lg); padding: 12px;">
+      <div style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--line);">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color: var(--text-md);"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input placeholder="Search pods, incidents, findings…"
+               style="flex:1; background: transparent; border: none; outline: none; color: var(--text-hi); font-size: 15px;"
+               value="calico" />
+        <span class="kbd">esc</span>
+      </div>
+      <div style="padding: 6px;">
+        <div class="label" style="padding: 8px 10px;">Incidents</div>
+        <div style="padding: 10px 12px; border-radius: 8px; background: var(--surface-2); display: flex; justify-content: space-between; align-items: center;">
+          <div style="display:flex; align-items:center; gap: 10px;">
+            <span class="dot dot-crit" style="width:8px;height:8px;border-radius:50%;"></span>
+            <div>
+              <div class="h3">INC-348 — Calico VXLAN resync cascade</div>
+              <div class="caption">3 signals · 14m open · kube-system</div>
+            </div>
+          </div>
+          <span class="kbd">↵</span>
+        </div>
+        <div class="label" style="padding: 8px 10px; margin-top: 4px;">Pods</div>
+        <div style="padding: 10px 12px; color: var(--text-md); font-size: 13px;">
+          calico-node-2bba1 · kube-system
+          <span class="caption" style="margin-left: 8px;">Running · 3 containers</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== Motion reference ========== -->
+  <section style="margin-bottom: 56px;">
+    <div class="label" style="margin-bottom: 16px;">Motion — all gated by prefers-reduced-motion</div>
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;">
+      <div class="card" style="padding: 20px;">
+        <div class="h3">live-breathe</div>
+        <div class="caption" style="margin-bottom: 16px;">2.4s · on ambient live dot</div>
+        <span class="live-dot" style="width:14px;height:14px;"></span>
+      </div>
+      <div class="card" style="padding: 20px;">
+        <div class="h3">aura-pulse</div>
+        <div class="caption" style="margin-bottom: 16px;">2.4s · on critical ring</div>
+        <div class="aura-crit" style="width: 40px; height: 40px; border-radius: 50%; background: color-mix(in oklab, var(--sev-crit) 30%, var(--surface-2));"></div>
+      </div>
+      <div class="card" style="padding: 20px;">
+        <div class="h3">shimmer</div>
+        <div class="caption" style="margin-bottom: 16px;">3.2s · on live sparklines</div>
+        <div class="shimmer" style="height: 2px; border-radius: 1px;"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== Buttons & kbd ========== -->
+  <section style="margin-bottom: 24px;">
+    <div class="label" style="margin-bottom: 16px;">Primitives</div>
+    <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
+      <button class="btn">Refresh</button>
+      <button class="btn btn-primary">Request AI analysis</button>
+      <span class="kbd">⌘ K</span>
+      <span class="kbd">↵</span>
+      <span class="kbd">esc</span>
+      <span class="kbd">g i</span>
+    </div>
+  </section>
+
+  <footer class="hairline" style="padding-top: 16px; color: var(--text-lo); font-size: 12px;">
+    Tokens live in <span class="mono">tokens.css</span>. Every page in <span class="mono">docs/ui-mockups/</span> imports it.
+  </footer>
+
+</main>
+</body>
+</html>

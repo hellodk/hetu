@@ -44,11 +44,24 @@ import (
 	"io"
 	"math"
 	"net/http"
+	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/rs/zerolog/log"
+)
+
+// EmbeddingAPI describes how the scorer talks to the embedding backend.
+// Two shapes today — OpenAI-compatible (`POST /embeddings` with
+// {input, model}, response {data:[{embedding}]}) and Ollama native
+// (`POST /api/embeddings` with {prompt, model}, response {embedding}).
+type EmbeddingAPI string
+
+const (
+	EmbeddingAPIOpenAI EmbeddingAPI = "openai"
+	EmbeddingAPIOllama EmbeddingAPI = "ollama"
 )
 
 // EmbeddingScorer is a pluggable NearDupScorer backed by a real
@@ -57,6 +70,7 @@ type EmbeddingScorer struct {
 	endpoint string
 	model    string
 	apiKey   string
+	api      EmbeddingAPI
 	client   *http.Client
 	timeout  time.Duration
 
@@ -71,26 +85,52 @@ type EmbeddingScorer struct {
 }
 
 // NewEmbeddingScorer builds a scorer that posts to
-// `{endpoint}/embeddings`. The exact shape is the OpenAI /embeddings
-// schema — Ollama's native /api/embeddings takes a different payload,
-// so Ollama users should configure the endpoint to hit its
-// OpenAI-compatible adapter at `http://…/v1`.
+// `{endpoint}/embeddings` (OpenAI-compatible). A nil http.Client
+// defaults to a 15-second timeout client. apiKey may be empty for
+// unauthenticated local servers.
 //
-// A nil http.Client defaults to a 15-second timeout client. apiKey may
-// be empty for unauthenticated local servers.
+// Audit v2 #2 — for Ollama's native /api/embeddings schema use
+// NewEmbeddingScorerForAPI(..., EmbeddingAPIOllama). Auto-detection
+// heuristic in NewEmbeddingScorerAuto picks the right shape from the
+// endpoint URL.
 func NewEmbeddingScorer(endpoint, model, apiKey string, client *http.Client) *EmbeddingScorer {
+	return NewEmbeddingScorerForAPI(endpoint, model, apiKey, EmbeddingAPIOpenAI, client)
+}
+
+// NewEmbeddingScorerForAPI explicitly selects the request/response shape.
+func NewEmbeddingScorerForAPI(endpoint, model, apiKey string, api EmbeddingAPI, client *http.Client) *EmbeddingScorer {
 	if client == nil {
 		client = &http.Client{Timeout: 15 * time.Second}
+	}
+	if api == "" {
+		api = EmbeddingAPIOpenAI
 	}
 	return &EmbeddingScorer{
 		endpoint: strings.TrimRight(endpoint, "/"),
 		model:    model,
 		apiKey:   apiKey,
+		api:      api,
 		client:   client,
 		timeout:  15 * time.Second,
 		cache:    map[string][]float64{},
 		fallback: cosineTokenSet,
 	}
+}
+
+// NewEmbeddingScorerAuto picks the API shape from the endpoint URL:
+//   - "…/v1"     → OpenAI-compatible (most remote providers; Ollama's
+//     OpenAI adapter when operators prefer that path)
+//   - anything else → Ollama native (covers bare "http://ollama:11434")
+//
+// Operators who want a specific shape should call NewEmbeddingScorerForAPI.
+func NewEmbeddingScorerAuto(endpoint, model, apiKey string, client *http.Client) *EmbeddingScorer {
+	api := EmbeddingAPIOllama
+	trimmed := strings.TrimRight(endpoint, "/")
+	if strings.HasSuffix(trimmed, "/v1") || strings.Contains(trimmed, "openai.com") ||
+		strings.Contains(trimmed, "azure.com") {
+		api = EmbeddingAPIOpenAI
+	}
+	return NewEmbeddingScorerForAPI(endpoint, model, apiKey, api, client)
 }
 
 // Score implements NearDupScorer. The inputs are sorted token slices
@@ -145,18 +185,34 @@ func (s *EmbeddingScorer) vectorFor(tokens []string) ([]float64, error) {
 	return v, nil
 }
 
-// fetchEmbedding posts to the OpenAI-compatible embeddings endpoint and
-// returns the first vector from the response.
+// fetchEmbedding posts to the configured embeddings endpoint and
+// returns the first vector from the response. Audit v2 #2 — now
+// speaks both OpenAI-compatible and Ollama native schemas.
 func (s *EmbeddingScorer) fetchEmbedding(ctx context.Context, text string) ([]float64, error) {
-	type reqBody struct {
-		Input string `json:"input"`
-		Model string `json:"model"`
+	var path string
+	var buf []byte
+	var err error
+	switch s.api {
+	case EmbeddingAPIOllama:
+		path = "/api/embeddings"
+		type reqBody struct {
+			Model  string `json:"model"`
+			Prompt string `json:"prompt"`
+		}
+		buf, err = json.Marshal(reqBody{Model: s.model, Prompt: text})
+	default: // OpenAI-compatible
+		path = "/embeddings"
+		type reqBody struct {
+			Input string `json:"input"`
+			Model string `json:"model"`
+		}
+		buf, err = json.Marshal(reqBody{Input: text, Model: s.model})
 	}
-	buf, err := json.Marshal(reqBody{Input: text, Model: s.model})
 	if err != nil {
 		return nil, err
 	}
-	req, err := http.NewRequestWithContext(ctx, "POST", s.endpoint+"/embeddings", bytes.NewReader(buf))
+
+	req, err := http.NewRequestWithContext(ctx, "POST", s.endpoint+path, bytes.NewReader(buf))
 	if err != nil {
 		return nil, err
 	}
@@ -174,6 +230,20 @@ func (s *EmbeddingScorer) fetchEmbedding(ctx context.Context, text string) ([]fl
 		body, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("embeddings HTTP %d: %s", resp.StatusCode, truncBody(body, 200))
 	}
+
+	if s.api == EmbeddingAPIOllama {
+		var out struct {
+			Embedding []float64 `json:"embedding"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+			return nil, fmt.Errorf("decode ollama embeddings response: %w", err)
+		}
+		if len(out.Embedding) == 0 {
+			return nil, fmt.Errorf("ollama embeddings response empty")
+		}
+		return out.Embedding, nil
+	}
+
 	var out struct {
 		Data []struct {
 			Embedding []float64 `json:"embedding"`
@@ -248,4 +318,65 @@ func truncBody(b []byte, n int) string {
 		return string(b)
 	}
 	return string(b[:n]) + "…"
+}
+
+// configureNearDupFromEnv reads ERRORS_NEARDUP_* + ERRORS_EMBEDDING_*
+// env vars and activates near-dup detection on the aggregator. No-op
+// when ERRORS_NEARDUP_MODE is unset or "off".
+//
+// Separated from NewEmbeddingScorer so unit tests can construct a
+// scorer with a mock client without going through env vars.
+func configureNearDupFromEnv(ea *ErrorAggregator) {
+	mode := strings.TrimSpace(os.Getenv("ERRORS_NEARDUP_MODE"))
+	if mode == "" || strings.EqualFold(mode, "off") {
+		return
+	}
+	var m NearDupMode
+	switch strings.ToLower(mode) {
+	case "shadow":
+		m = NearDupShadow
+	case "auto":
+		m = NearDupAuto
+	default:
+		log.Warn().Str("ERRORS_NEARDUP_MODE", mode).
+			Msg("near-dup: unknown mode (want off|shadow|auto); staying off")
+		return
+	}
+
+	threshold := 0.85
+	if v := os.Getenv("ERRORS_NEARDUP_THRESHOLD"); v != "" {
+		if f, err := strconv.ParseFloat(v, 64); err == nil && f > 0 && f <= 1 {
+			threshold = f
+		}
+	}
+
+	endpoint := os.Getenv("ERRORS_EMBEDDING_ENDPOINT")
+	model := os.Getenv("ERRORS_EMBEDDING_MODEL")
+	if endpoint == "" || model == "" {
+		// No embedding config — keep default token-set scorer.
+		ea.ConfigureNearDupMode(m, threshold, nil)
+		log.Info().Str("mode", string(m)).Float64("threshold", threshold).
+			Msg("near-dup: activated with token-set cosine scorer (no embedding config)")
+		return
+	}
+
+	apiKey := os.Getenv("ERRORS_EMBEDDING_API_KEY")
+	apiChoice := strings.ToLower(os.Getenv("ERRORS_EMBEDDING_API"))
+	var scorer *EmbeddingScorer
+	switch apiChoice {
+	case "openai":
+		scorer = NewEmbeddingScorerForAPI(endpoint, model, apiKey, EmbeddingAPIOpenAI, nil)
+	case "ollama":
+		scorer = NewEmbeddingScorerForAPI(endpoint, model, apiKey, EmbeddingAPIOllama, nil)
+	default: // "auto" or unset
+		scorer = NewEmbeddingScorerAuto(endpoint, model, apiKey, nil)
+	}
+	ea.AttachEmbeddingScorer(m, threshold, scorer)
+	log.Info().
+		Str("mode", string(m)).
+		Float64("threshold", threshold).
+		Str("endpoint", endpoint).
+		Str("model", model).
+		Str("api", string(scorer.api)).
+		Msg("near-dup: activated with embedding-backed scorer")
 }

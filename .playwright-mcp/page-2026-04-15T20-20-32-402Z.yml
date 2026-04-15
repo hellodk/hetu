@@ -1,0 +1,171 @@
+- generic [ref=e2]:
+  - complementary [ref=e3]:
+    - generic [ref=e6]:
+      - generic [ref=e7]: Cluster Intel
+      - generic [ref=e8]: prod · us-east-1
+    - navigation [ref=e9]:
+      - generic [ref=e10] [cursor=pointer]:
+        - img [ref=e11]
+        - text: Overview
+      - generic [ref=e16] [cursor=pointer]:
+        - img [ref=e17]
+        - text: Errors
+      - generic [ref=e20] [cursor=pointer]:
+        - img [ref=e21]
+        - text: Incidents & RCA
+        - generic [ref=e23]: "1"
+      - generic [ref=e25] [cursor=pointer]:
+        - img [ref=e26]
+        - text: Optimization
+      - generic [ref=e29] [cursor=pointer]:
+        - img [ref=e30]
+        - text: Security
+      - generic [ref=e32] [cursor=pointer]:
+        - img [ref=e33]
+        - text: Anomalies
+      - generic [ref=e35] [cursor=pointer]:
+        - img [ref=e36]
+        - text: Executive
+        - generic [ref=e39]: NEW
+      - generic [ref=e40]: Workloads
+      - generic [ref=e41] [cursor=pointer]: Pods
+      - generic [ref=e42] [cursor=pointer]: Deployments
+      - generic [ref=e43] [cursor=pointer]: StatefulSets
+      - generic [ref=e44] [cursor=pointer]: DaemonSets
+      - generic [ref=e45]: Platform
+      - generic [ref=e46] [cursor=pointer]: LB Logs
+      - generic [ref=e47] [cursor=pointer]: Settings
+  - main [ref=e48]:
+    - generic [ref=e49]:
+      - generic [ref=e50]:
+        - generic [ref=e51]: prod · us-east-1 · 1 cluster · 32 pods
+        - heading "Cluster health, at a glance" [level=1] [ref=e52]
+      - generic [ref=e53]:
+        - generic [ref=e54]: LIVE · 4s ago
+        - button "⌘K Search" [ref=e56]
+        - button "Request AI analysis" [ref=e57]
+    - generic [ref=e58]:
+      - generic [ref=e59]:
+        - generic [ref=e60]: Overall health
+        - generic [ref=e63]:
+          - img [ref=e64]
+          - generic [ref=e68]:
+            - generic [ref=e69]: "74"
+            - generic [ref=e70]: of 100
+        - generic [ref=e71]:
+          - generic [ref=e72]:
+            - img [ref=e73]
+            - text: +3 vs last week
+          - generic [ref=e75]: 24h trend · steady
+      - generic [ref=e76]:
+        - generic [ref=e77]:
+          - generic [ref=e78]: ATTENTION
+          - generic [ref=e79]: Calico VXLAN storm, 3 nodes affected
+          - generic [ref=e80]: Auto-drain kicked in 14m ago. 1 replica pending reschedule. Ingress is unaffected.
+          - generic [ref=e81]:
+            - generic [ref=e82]: INC-348 · kube-system
+            - generic [ref=e83]: Investigate →
+        - generic [ref=e84]:
+          - generic [ref=e85]:
+            - generic [ref=e86]: SAVINGS READY
+            - generic [ref=e87]: $420/mo pending
+            - generic [ref=e88]: 3 right-sizing recs · confidence 0.86
+            - generic [ref=e89]: Review patch →
+          - generic [ref=e90]:
+            - generic [ref=e91]: WEEK AT A GLANCE
+            - generic [ref=e92]: Reliability held
+            - generic [ref=e93]: One incident, resolved in 14m. Nothing on runway.
+            - generic [ref=e94]: Open exec view →
+    - generic [ref=e95]:
+      - generic [ref=e96]:
+        - generic [ref=e97]:
+          - img [ref=e98]
+          - generic [ref=e102]: "75"
+        - generic [ref=e103]:
+          - generic [ref=e104]: Reliability
+          - generic [ref=e105]: Good
+          - generic [ref=e106]: weighted 35% · 1 signal
+      - generic [ref=e107]:
+        - generic [ref=e108]:
+          - img [ref=e109]
+          - generic [ref=e113]: "0"
+        - generic [ref=e114]:
+          - generic [ref=e115]: Security
+          - generic [ref=e116]: Critical
+          - generic [ref=e117]: 2 CIS-critical · 10 findings
+      - generic [ref=e118]:
+        - generic [ref=e119]:
+          - img [ref=e120]
+          - generic [ref=e124]: "78"
+        - generic [ref=e125]:
+          - generic [ref=e126]: Cost efficiency
+          - generic [ref=e127]: Good
+          - generic [ref=e128]: $420/mo pending
+      - generic [ref=e129]:
+        - generic [ref=e130]:
+          - img [ref=e131]
+          - generic [ref=e135]: "55"
+        - generic [ref=e136]:
+          - generic [ref=e137]: Architecture
+          - generic [ref=e138]: Fair
+          - generic [ref=e139]: 4 single-replica · 2 no-PDB
+    - generic [ref=e140]:
+      - generic [ref=e141]:
+        - generic [ref=e142]:
+          - generic [ref=e143]:
+            - generic [ref=e144]: live timeline
+            - generic [ref=e145]: Recent events
+          - generic [ref=e146]: auto-refreshing
+        - generic [ref=e149]:
+          - generic [ref=e150]:
+            - generic [ref=e151]: 16:24:08
+            - generic [ref=e152]:
+              - generic [ref=e153]: Calico VXLAN resync cascade
+              - generic [ref=e154]: calico-node-2bba1 · auto-drain initiated
+            - generic [ref=e155]: CRIT
+          - generic [ref=e157]:
+            - generic [ref=e158]: 16:22:41
+            - generic [ref=e159]:
+              - generic [ref=e160]: coredns latency spike
+              - generic [ref=e161]: coredns-7c57d76b7f-vsctd · p99 412ms → 1.1s
+            - generic [ref=e162]: WARN
+          - generic [ref=e164]:
+            - generic [ref=e165]: 16:19:02
+            - generic [ref=e166]:
+              - generic [ref=e167]: AI analysis completed — INC-347
+              - generic [ref=e168]: "root cause: affinity misconfig · confidence 0.81"
+            - generic [ref=e169]: INFO
+          - generic [ref=e171]:
+            - generic [ref=e172]: 16:12:55
+            - generic [ref=e173]:
+              - generic [ref=e174]: Optimizer applied — R-112
+              - generic [ref=e175]: node-exporter · –46% memory · $62/mo
+            - generic [ref=e176]: OK
+          - generic [ref=e178]:
+            - generic [ref=e179]: 16:04:12
+            - generic [ref=e180]:
+              - generic [ref=e181]: Near-dup scanner consolidated 4 error groups
+              - generic [ref=e182]: shadow mode · operator approval pending
+            - generic [ref=e183]: SHADOW
+      - generic [ref=e184]:
+        - generic [ref=e185]: cluster
+        - generic [ref=e186]: Resource posture
+        - generic [ref=e187]:
+          - generic [ref=e189]:
+            - generic [ref=e190]: CPU
+            - generic [ref=e191]: 38% of 16c
+          - generic [ref=e195]:
+            - generic [ref=e196]: Memory
+            - generic [ref=e197]: 71% of 64Gi
+          - generic [ref=e201]:
+            - generic [ref=e202]: Pod capacity
+            - generic [ref=e203]: 32 / 110
+          - generic [ref=e207]:
+            - generic [ref=e208]: Ephemeral
+            - generic [ref=e209]: 22% of 200Gi
+        - generic [ref=e212]:
+          - generic [ref=e213]: Pod status
+          - generic [ref=e214]:
+            - generic [ref=e215]: Healthy 32
+            - generic [ref=e217]: Pending 0
+            - generic [ref=e219]: Unhealthy 0

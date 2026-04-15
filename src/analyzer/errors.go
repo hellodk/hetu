@@ -74,6 +74,13 @@ type ErrorGroup struct {
 	MergeSuggestion *MergeSuggestion `json:"mergeSuggestion,omitempty"`
 }
 
+// spikeEntry is the per-fp hysteresis record: what 5-minute count the
+// last spike trigger fired at, and when.
+type spikeEntry struct {
+	count5m int
+	firedAt time.Time
+}
+
 // MergeRef is a breadcrumb pointing at a group that was merged into
 // another. The /merge endpoint records the source so an operator can
 // later split if the merge was wrong.
@@ -310,6 +317,14 @@ type ErrorAggregator struct {
 	// guard against re-firing analysis on the same group too often.
 	lastTriggered map[string]time.Time
 
+	// Audit v2 #1: spike hysteresis. Track the rate at which we last
+	// fired a spike trigger for each fp. On subsequent scans we only
+	// re-fire when current-rate > 1.5x last-fired OR 30 min have
+	// passed. Without this, a sustained spike fires every 10 min
+	// (per-fp throttle expiry) even though the condition hasn't
+	// really changed.
+	spikeState map[string]spikeEntry
+
 	// Phase 1.6: Prometheus instruments. Optional — when nil, the
 	// helpers no-op. Registered by initErrorMetrics() in main.go.
 	mIngest  prometheus.Counter
@@ -317,6 +332,9 @@ type ErrorAggregator struct {
 	mActive  prometheus.Gauge
 	mLLMLat  prometheus.Histogram
 	mLLMSkip *prometheus.CounterVec
+	// Audit v2 #5: background loop pulse + per-tick outcomes.
+	mScanTicks prometheus.Counter
+	mScanFired *prometheus.CounterVec // trigger=rateSpike|umbrellaFault|nearDupSuggestion
 
 	// Phase 2.2: near-duplicate config + cached scanner state.
 	// Defaults to off; ConfigureNearDup enables.
@@ -329,6 +347,7 @@ func NewErrorAggregator() *ErrorAggregator {
 		groups:        make(map[string]*ErrorGroup),
 		occurrences:   make(map[string][]ErrorOccurrence),
 		lastTriggered: make(map[string]time.Time),
+		spikeState:    make(map[string]spikeEntry),
 		nextID:        1,
 		maxOccur:      50,
 	}
@@ -388,7 +407,38 @@ func (ea *ErrorAggregator) AttachMetrics(reg *prometheus.Registry, namespace str
 		Namespace: ns, Subsystem: "errors",
 		Name: "llm_skipped_total", Help: "LLM analyses skipped, by reason",
 	}, []string{"reason"})
-	reg.MustRegister(ea.mIngest, ea.mEvict, ea.mActive, ea.mLLMLat, ea.mLLMSkip)
+	ea.mScanTicks = prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: ns, Subsystem: "errors",
+		Name: "scan_ticks_total", Help: "Background near-dup/spike scanner tick count",
+	})
+	ea.mScanFired = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: ns, Subsystem: "errors",
+		Name: "scan_fired_total", Help: "Scanner hits by trigger kind",
+	}, []string{"trigger"})
+	reg.MustRegister(
+		ea.mIngest, ea.mEvict, ea.mActive, ea.mLLMLat, ea.mLLMSkip,
+		ea.mScanTicks, ea.mScanFired,
+	)
+}
+
+// ObserveScanTick records a background-loop tick and the count of
+// triggers it fired. Exposed for the main loop so the aggregator
+// package doesn't need to own the ticker.
+func (ea *ErrorAggregator) ObserveScanTick(spikes, umbrellas, suggestions int) {
+	if ea.mScanTicks != nil {
+		ea.mScanTicks.Inc()
+	}
+	if ea.mScanFired != nil {
+		if spikes > 0 {
+			ea.mScanFired.WithLabelValues("rateSpike").Add(float64(spikes))
+		}
+		if umbrellas > 0 {
+			ea.mScanFired.WithLabelValues("umbrellaFault").Add(float64(umbrellas))
+		}
+		if suggestions > 0 {
+			ea.mScanFired.WithLabelValues("nearDupSuggestion").Add(float64(suggestions))
+		}
+	}
 }
 
 // ObserveLLMLatency / IncLLMSkipped — exposed for the analyser hook
@@ -424,12 +474,35 @@ func (ea *ErrorAggregator) ScanTriggers() (spikes, umbrellas int) {
 		return 0, 0
 	}
 
+	const hysteresisMult = 1.5
+	const hysteresisMaxAge = 30 * time.Minute
+
 	for _, g := range ea.groups {
 		r := ea.rateUnlocked(g.Fingerprint)
-		if r.Count5m >= 3 && r.Count5m*12 > r.Count1h*2 {
-			ea.triggerAnalysis(g, "rateSpike")
-			spikes++
+		if r.Count5m < 3 || r.Count5m*12 <= r.Count1h*2 {
+			// Below threshold — decay state so the next genuine spike
+			// (after quiet) re-fires cleanly.
+			if prev, ok := ea.spikeState[g.Fingerprint]; ok &&
+				time.Since(prev.firedAt) > hysteresisMaxAge {
+				delete(ea.spikeState, g.Fingerprint)
+			}
+			continue
 		}
+		// Hysteresis: skip when a previous spike was already analysed
+		// and the rate hasn't meaningfully changed since.
+		if prev, ok := ea.spikeState[g.Fingerprint]; ok {
+			ageSince := time.Since(prev.firedAt)
+			if ageSince < hysteresisMaxAge &&
+				float64(r.Count5m) < float64(prev.count5m)*hysteresisMult {
+				if ea.mLLMSkip != nil {
+					ea.mLLMSkip.WithLabelValues("hysteresis").Inc()
+				}
+				continue
+			}
+		}
+		ea.triggerAnalysis(g, "rateSpike")
+		ea.spikeState[g.Fingerprint] = spikeEntry{count5m: r.Count5m, firedAt: time.Now()}
+		spikes++
 	}
 
 	byFault := map[string][]*ErrorGroup{}
@@ -674,6 +747,12 @@ func (ea *ErrorAggregator) RegisterRoutes(mux *http.ServeMux) {
 	// Phase 2.2
 	mux.HandleFunc("GET /api/v1/errors/near-duplicates", ea.handleNearDuplicates)
 	mux.HandleFunc("POST /api/v1/errors/near-duplicates/scan", ea.handleNearDupScan)
+	// Audit v2 #3 — shadow-mode review endpoints. Operators accept or
+	// reject suggestions one at a time; stats expose accept-rate per
+	// score band so the flip-to-auto decision is data-driven.
+	mux.HandleFunc("POST /api/v1/errors/near-duplicates/{id}/accept", ea.handleNearDupAccept)
+	mux.HandleFunc("POST /api/v1/errors/near-duplicates/{id}/reject", ea.handleNearDupReject)
+	mux.HandleFunc("GET /api/v1/errors/near-duplicates/stats", ea.handleNearDupStats)
 }
 
 func (ea *ErrorAggregator) handleNearDuplicates(w http.ResponseWriter, r *http.Request) {
@@ -694,6 +773,145 @@ func (ea *ErrorAggregator) handleNearDuplicates(w http.ResponseWriter, r *http.R
 func (ea *ErrorAggregator) handleNearDupScan(w http.ResponseWriter, r *http.Request) {
 	report := ea.ScanNearDuplicates()
 	writeJSON(w, report)
+}
+
+// handleNearDupAccept performs the merge suggested on group {id}.
+// Records the operator's decision in the review-stats band for later
+// accept-rate reporting. The merge itself goes through the same code
+// path as a manual /merge-into/ — MergedFrom breadcrumb, occurrence
+// pooling, source deletion — so a subsequent /split still works.
+func (ea *ErrorAggregator) handleNearDupAccept(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+
+	ea.mu.Lock()
+	var src *ErrorGroup
+	var srcFP string
+	for fp, g := range ea.groups {
+		if g.ID == id {
+			src = g
+			srcFP = fp
+			break
+		}
+	}
+	if src == nil || src.MergeSuggestion == nil {
+		ea.mu.Unlock()
+		http.Error(w, "group has no pending suggestion", http.StatusNotFound)
+		return
+	}
+	suggestion := *src.MergeSuggestion
+	// Record the accept BEFORE executing so a crash mid-merge still
+	// captures operator intent.
+	ea.recordReviewDecisionLocked(suggestion.Score, true)
+	ea.mu.Unlock()
+
+	// Reuse the existing auto-merge path (takes its own lock).
+	ea.autoMergeBySuggestion(MergeSuggestion{
+		TargetID:    suggestion.TargetID,
+		Score:       suggestion.Score,
+		SuggestedAt: suggestion.SuggestedAt,
+		Reason:      "source=" + srcFP,
+	})
+	writeJSON(w, map[string]any{
+		"merged":   true,
+		"sourceId": id,
+		"targetId": suggestion.TargetID,
+		"score":    suggestion.Score,
+	})
+}
+
+// handleNearDupReject clears the MergeSuggestion breadcrumb from a
+// group and records the operator's decision in the review-stats band.
+// The two groups remain separate — the scanner will not re-suggest the
+// same pair until one of them is merged, split, or the fingerprint
+// changes.
+func (ea *ErrorAggregator) handleNearDupReject(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	ea.mu.Lock()
+	defer ea.mu.Unlock()
+
+	var src *ErrorGroup
+	for _, g := range ea.groups {
+		if g.ID == id {
+			src = g
+			break
+		}
+	}
+	if src == nil || src.MergeSuggestion == nil {
+		http.Error(w, "group has no pending suggestion", http.StatusNotFound)
+		return
+	}
+	score := src.MergeSuggestion.Score
+	src.MergeSuggestion = nil
+	ea.recordReviewDecisionLocked(score, false)
+
+	writeJSON(w, map[string]any{
+		"rejected": true,
+		"sourceId": id,
+		"score":    score,
+	})
+}
+
+// handleNearDupStats returns the per-band accept-rate so the operator
+// can tell whether auto-merging the 0.85-0.90 band is safe or whether
+// only 0.95+ has a low false-positive rate.
+func (ea *ErrorAggregator) handleNearDupStats(w http.ResponseWriter, r *http.Request) {
+	ea.mu.RLock()
+	defer ea.mu.RUnlock()
+	bands := make([]map[string]any, 0, 4)
+	if ea.nearDup != nil {
+		// Stable order regardless of map iteration.
+		order := []string{"0.95+", "0.90-0.95", "0.85-0.90", "<0.85"}
+		for _, name := range order {
+			b := ea.nearDup.reviewStats[name]
+			if b == nil {
+				bands = append(bands, map[string]any{
+					"band": name, "accepted": 0, "rejected": 0, "acceptRate": nil,
+				})
+				continue
+			}
+			total := b.Accepted + b.Rejected
+			var rate any = nil
+			if total > 0 {
+				rate = float64(b.Accepted) / float64(total)
+			}
+			bands = append(bands, map[string]any{
+				"band": name, "accepted": b.Accepted, "rejected": b.Rejected, "acceptRate": rate,
+			})
+		}
+	}
+	writeJSON(w, map[string]any{
+		"bands": bands,
+	})
+}
+
+// recordReviewDecisionLocked updates per-band stats. Caller holds
+// ea.mu (write).
+func (ea *ErrorAggregator) recordReviewDecisionLocked(score float64, accepted bool) {
+	if ea.nearDup == nil {
+		ea.nearDup = defaultNearDup()
+	}
+	if ea.nearDup.reviewStats == nil {
+		ea.nearDup.reviewStats = map[string]*reviewBand{}
+	}
+	band := reviewBandFor(score)
+	b, ok := ea.nearDup.reviewStats[band]
+	if !ok {
+		b = &reviewBand{Band: band}
+		ea.nearDup.reviewStats[band] = b
+	}
+	if accepted {
+		b.Accepted++
+	} else {
+		b.Rejected++
+	}
 }
 
 // handleSummary returns aggregated error statistics with per-reason breakdown.

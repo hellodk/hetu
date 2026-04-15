@@ -1,0 +1,266 @@
+/* ==========================================================================
+   Cluster Intel — revamp design tokens + signature motion
+   Loaded by every mockup in docs/ui-mockups/.
+   Dark-first. Light mode is a faithful inversion, not the priority.
+   ========================================================================== */
+
+:root {
+  /* Surface ladder --------------------------------------------------------- */
+  --surface-0: #07080b;
+  --surface-1: #0f1117;
+  --surface-2: #161922;
+  --surface-3: #1f2330;
+
+  /* Hairlines & text ------------------------------------------------------- */
+  --line:     rgba(148, 163, 184, 0.09);
+  --line-str: rgba(148, 163, 184, 0.16);
+  --text-hi:  #e7eaf2;
+  --text-md:  #a8b0bf;
+  --text-lo:  #6a7384;
+
+  /* Hero accent (exactly one, used sparingly) ----------------------------- */
+  --accent:       #7c6cff;
+  --accent-soft:  #a99bff;
+  --accent-glow:  rgba(124, 108, 255, 0.35);
+
+  /* Severity ladder — the ONLY other hues in the product ------------------ */
+  --sev-ok:       #3ecf8e;
+  --sev-info:     #5aa8ff;
+  --sev-warn:     #f4b740;
+  --sev-high:     #ff7a45;
+  --sev-crit:     #ff4d6a;
+  --sev-crit-glow: rgba(255, 77, 106, 0.35);
+
+  /* Motion ---------------------------------------------------------------- */
+  --ease:        cubic-bezier(.22, .61, .36, 1);
+  --ease-out:    cubic-bezier(.16, 1, .3, 1);
+  --d-fast:      120ms;
+  --d-med:       240ms;
+  --d-slow:      600ms;
+
+  /* Radius & shadow ------------------------------------------------------- */
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-xl: 24px;
+  --shadow-1: 0 1px 0 rgba(255,255,255,0.02) inset, 0 1px 2px rgba(0,0,0,0.4);
+  --shadow-2: 0 8px 32px rgba(0,0,0,0.45), 0 1px 0 rgba(255,255,255,0.03) inset;
+}
+
+/* Base --------------------------------------------------------------------- */
+html, body {
+  background: var(--surface-0);
+  color: var(--text-hi);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-feature-settings: 'ss01', 'cv11';
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  letter-spacing: -0.005em;
+}
+
+body {
+  /* subtle radial spot — the only decorative gradient in the product */
+  background-image:
+    radial-gradient(1200px 800px at 75% -10%, rgba(124,108,255,0.06), transparent 60%),
+    radial-gradient(900px 700px at 5% 100%, rgba(62,207,142,0.03), transparent 70%);
+}
+
+/* Typography --------------------------------------------------------------- */
+.num, .mono {
+  font-family: 'JetBrains Mono', 'Geist Mono', 'Menlo', monospace;
+  font-feature-settings: 'tnum', 'zero', 'ss02';
+}
+
+.display-xxl { font-size: 72px; line-height: 1.0;  letter-spacing: -0.04em; font-weight: 600; }
+.display-xl  { font-size: 56px; line-height: 1.05; letter-spacing: -0.035em; font-weight: 600; }
+.display-l   { font-size: 44px; line-height: 1.1;  letter-spacing: -0.03em; font-weight: 600; }
+.display-m   { font-size: 32px; line-height: 1.15; letter-spacing: -0.025em; font-weight: 600; }
+
+.h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.02em; }
+.h2 { font-size: 17px; font-weight: 600; letter-spacing: -0.015em; }
+.h3 { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; color: var(--text-hi); }
+
+.body     { font-size: 14px; color: var(--text-md); line-height: 1.55; }
+.body-sm  { font-size: 13px; color: var(--text-md); line-height: 1.5; }
+.label    { font-size: 11px; color: var(--text-lo); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 500; }
+.caption  { font-size: 12px; color: var(--text-lo); }
+
+/* Surfaces ----------------------------------------------------------------- */
+.card {
+  background: var(--surface-1);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  transition: background var(--d-fast) var(--ease), border-color var(--d-fast) var(--ease);
+}
+.card:hover { background: var(--surface-2); border-color: var(--line-str); }
+
+.card-quiet { background: transparent; border: 1px solid var(--line); }
+
+.glass {
+  background: rgba(11, 13, 18, 0.72);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid var(--line-str);
+  box-shadow: var(--shadow-2);
+}
+
+.hairline { border-top: 1px solid var(--line); }
+.hairline-v { border-left: 1px solid var(--line); }
+
+/* Severity pills & dots --------------------------------------------------- */
+.pill  { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px;
+         font-size: 11px; font-weight: 500; letter-spacing: 0.02em; border: 1px solid transparent; }
+.pill .dot { width: 6px; height: 6px; border-radius: 50%; }
+
+.pill-ok   { color: var(--sev-ok);   border-color: color-mix(in oklab, var(--sev-ok)   40%, transparent); background: color-mix(in oklab, var(--sev-ok)   12%, transparent); }
+.pill-info { color: var(--sev-info); border-color: color-mix(in oklab, var(--sev-info) 40%, transparent); background: color-mix(in oklab, var(--sev-info) 12%, transparent); }
+.pill-warn { color: var(--sev-warn); border-color: color-mix(in oklab, var(--sev-warn) 40%, transparent); background: color-mix(in oklab, var(--sev-warn) 12%, transparent); }
+.pill-high { color: var(--sev-high); border-color: color-mix(in oklab, var(--sev-high) 40%, transparent); background: color-mix(in oklab, var(--sev-high) 12%, transparent); }
+.pill-crit { color: var(--sev-crit); border-color: color-mix(in oklab, var(--sev-crit) 40%, transparent); background: color-mix(in oklab, var(--sev-crit) 12%, transparent); }
+.pill-accent { color: var(--accent-soft); border-color: color-mix(in oklab, var(--accent) 45%, transparent); background: color-mix(in oklab, var(--accent) 14%, transparent); }
+
+.dot-ok   { background: var(--sev-ok); }
+.dot-info { background: var(--sev-info); }
+.dot-warn { background: var(--sev-warn); }
+.dot-high { background: var(--sev-high); }
+.dot-crit { background: var(--sev-crit); }
+.dot-accent { background: var(--accent); }
+
+/* Buttons ------------------------------------------------------------------ */
+.btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 8px 14px; border-radius: var(--r-sm);
+  font-size: 13px; font-weight: 500;
+  background: var(--surface-2); color: var(--text-hi);
+  border: 1px solid var(--line-str);
+  transition: all var(--d-fast) var(--ease);
+}
+.btn:hover { background: var(--surface-3); border-color: rgba(148,163,184,0.22); }
+
+.btn-primary {
+  background: color-mix(in oklab, var(--accent) 18%, var(--surface-2));
+  border-color: color-mix(in oklab, var(--accent) 35%, transparent);
+  color: var(--text-hi);
+}
+.btn-primary:hover {
+  background: color-mix(in oklab, var(--accent) 26%, var(--surface-2));
+  border-color: color-mix(in oklab, var(--accent) 55%, transparent);
+  box-shadow: 0 0 0 4px var(--accent-glow);
+}
+
+.kbd {
+  font-family: 'JetBrains Mono', monospace; font-size: 11px;
+  padding: 2px 6px; border-radius: 4px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--line-str);
+  color: var(--text-md);
+}
+
+/* ==========================================================================
+   Signature motion
+   All gated by prefers-reduced-motion.
+   ========================================================================== */
+
+/* Ambient live dot — breathes at data-refresh cadence ---------------------- */
+@keyframes live-breathe {
+  0%,100% { opacity: 1;    box-shadow: 0 0 0 0 var(--accent-glow); }
+  50%     { opacity: 0.65; box-shadow: 0 0 0 6px transparent; }
+}
+.live-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--accent); position: relative;
+  animation: live-breathe 2.4s var(--ease) infinite;
+}
+
+/* Aura-pulse on critical score ring ---------------------------------------- */
+@keyframes aura-pulse {
+  0%,100% { box-shadow: 0 0 0 0   var(--sev-crit-glow),
+                        0 0 40px 0 color-mix(in oklab, var(--sev-crit) 18%, transparent); }
+  50%     { box-shadow: 0 0 0 16px transparent,
+                        0 0 60px 0 color-mix(in oklab, var(--sev-crit) 26%, transparent); }
+}
+.aura-crit { animation: aura-pulse 2.4s var(--ease) infinite; }
+
+@keyframes aura-accent {
+  0%,100% { box-shadow: 0 0 0 0   var(--accent-glow); }
+  50%     { box-shadow: 0 0 0 12px transparent; }
+}
+.aura-accent { animation: aura-accent 3s var(--ease) infinite; }
+
+/* Count-up on mount -------------------------------------------------------- */
+@keyframes count-rise {
+  from { opacity: 0; transform: translateY(6px); filter: blur(2px); }
+  to   { opacity: 1; transform: none; filter: blur(0); }
+}
+.count-in { animation: count-rise var(--d-slow) var(--ease-out) both; }
+
+/* Shimmer on live sparklines ---------------------------------------------- */
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.shimmer {
+  background: linear-gradient(90deg,
+    transparent 0%,
+    color-mix(in oklab, var(--accent) 24%, transparent) 50%,
+    transparent 100%);
+  background-size: 200% 100%;
+  animation: shimmer 3.2s linear infinite;
+}
+
+/* Ring --------------------------------------------------------------------- */
+.ring {
+  position: relative;
+  display: inline-grid; place-items: center;
+  border-radius: 50%;
+}
+.ring svg { transform: rotate(-90deg); }
+.ring .ring-track  { stroke: color-mix(in oklab, var(--text-lo) 30%, transparent); }
+.ring .ring-fill   { stroke-linecap: round; transition: stroke-dashoffset 1s var(--ease-out); }
+@keyframes ring-draw {
+  from { stroke-dashoffset: 565.48; }   /* circumference of r=90 */
+}
+.ring .ring-fill.animate { animation: ring-draw 1.1s var(--ease-out) both; }
+
+.ring-label {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  text-align: center;
+}
+
+/* Reduced motion ----------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+  .shimmer { background: transparent; }
+}
+
+/* Utility ------------------------------------------------------------------ */
+.grid-dots {
+  background-image: radial-gradient(circle at 1px 1px, var(--line) 1px, transparent 0);
+  background-size: 18px 18px;
+}
+
+.focus-ring:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--surface-0), 0 0 0 4px var(--accent);
+  border-radius: var(--r-sm);
+}
+
+.tabular { font-variant-numeric: tabular-nums; }
+.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Severity rail (vertical edge accent on cards) ---------------------------- */
+.rail { position: relative; padding-left: 16px; }
+.rail::before {
+  content: ""; position: absolute; left: 0; top: 10%; bottom: 10%;
+  width: 3px; border-radius: 3px;
+}
+.rail-ok::before   { background: var(--sev-ok); }
+.rail-info::before { background: var(--sev-info); }
+.rail-warn::before { background: var(--sev-warn); }
+.rail-high::before { background: var(--sev-high); }
+.rail-crit::before { background: var(--sev-crit); box-shadow: 0 0 20px 0 var(--sev-crit-glow); }
+.rail-accent::before { background: var(--accent); box-shadow: 0 0 20px 0 var(--accent-glow); }

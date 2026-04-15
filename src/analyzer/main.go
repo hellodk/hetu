@@ -603,6 +603,9 @@ func (a *Analyzer) errorsBackgroundLoop(ctx context.Context) {
 			// we log a summary of so operators can see what it found.
 			report := a.errorAggregator.ScanNearDuplicates()
 			spikes, umbrellas := a.errorAggregator.ScanTriggers()
+			// Audit v2 #5 — always record the pulse so /metrics can
+			// prove the loop is alive even when nothing fired.
+			a.errorAggregator.ObserveScanTick(spikes, umbrellas, len(report.Suggestions))
 			if len(report.Suggestions) > 0 || spikes > 0 || umbrellas > 0 {
 				log.Info().
 					Int("nearDupSuggestions", len(report.Suggestions)).
@@ -3042,6 +3045,21 @@ func main() {
 	// gate via the existing rcaEngine.tokensUsed accounting; if the LLM
 	// is unconfigured, every call short-circuits.
 	analyzer.errorAggregator.AttachAnalyzer(analyzer.runErrorGroupAnalysis)
+
+	// Audit v2 #4 (new gap) — operator-facing activation for the
+	// embedding-backed near-dup scorer. Controlled by env vars so
+	// operators don't have to edit code to flip the feature on:
+	//
+	//   ERRORS_NEARDUP_MODE            off|shadow|auto   (default off)
+	//   ERRORS_NEARDUP_THRESHOLD       0.0..1.0          (default 0.85)
+	//   ERRORS_EMBEDDING_ENDPOINT      URL of embeddings backend
+	//   ERRORS_EMBEDDING_MODEL         model name
+	//   ERRORS_EMBEDDING_API_KEY       optional bearer token
+	//   ERRORS_EMBEDDING_API           openai|ollama|auto (default auto)
+	//
+	// When endpoint+model are both set, the scorer is wired; otherwise
+	// the scanner falls back to the deterministic token-set cosine.
+	configureNearDupFromEnv(analyzer.errorAggregator)
 
 	rcaLLMCfg := ucfg.LLM
 	if config.LLMBackend != "" {

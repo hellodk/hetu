@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Cluster Intel — prism · executive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,500,100,0;0,9..144,600,100,0&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="tokens.css" />
+<style>
+  .page { max-width: 1320px; margin: 0 auto; padding: 48px 48px 96px; }
+
+  .header-row {
+    display: flex; justify-content: space-between; align-items: flex-end;
+    margin-bottom: 40px; gap: 24px;
+  }
+  .eyebrow { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-lo); font-weight: 600; margin-bottom: 12px; }
+
+  /* ---- Hero ---- */
+  .hero {
+    position: relative;
+    display: grid; grid-template-columns: 1.1fr 1.2fr; gap: 40px;
+    padding: 40px 44px;
+    margin-bottom: 28px;
+    border-radius: var(--r-xl);
+    background: rgba(255,255,255,0.75);
+    backdrop-filter: blur(24px) saturate(160%);
+    -webkit-backdrop-filter: blur(24px) saturate(160%);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow-hero);
+    align-items: center;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: ""; position: absolute;
+    top: -120px; right: -60px;
+    width: 320px; height: 320px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(139,92,246,0.3), transparent 70%);
+    pointer-events: none;
+  }
+  .hero::after {
+    content: ""; position: absolute;
+    bottom: -80px; left: 30%;
+    width: 280px; height: 280px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(6,182,212,0.22), transparent 70%);
+    pointer-events: none;
+  }
+  .hero > * { position: relative; z-index: 1; }
+
+  /* ---- Bento ---- */
+  .bento {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    grid-auto-rows: minmax(160px, auto);
+    gap: 16px;
+  }
+  .bento-card {
+    padding: 24px 26px; border-radius: var(--r-md);
+    background: var(--surface-1); border: 1px solid var(--line);
+    box-shadow: var(--shadow-1);
+    display: flex; flex-direction: column;
+    transition: all var(--d-med) var(--ease);
+    position: relative; overflow: hidden;
+  }
+  .bento-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-2); }
+
+  /* Sizes */
+  .span-3 { grid-column: span 3; }
+  .span-2 { grid-column: span 2; }
+  .span-4 { grid-column: span 4; }
+  .row-2  { grid-row:    span 2; }
+
+  /* Tinted backgrounds via top-left gradient wash */
+  .tint-coral     { background: linear-gradient(135deg, rgba(255,107,107,0.08) 0%, transparent 50%), var(--surface-1); }
+  .tint-cyan      { background: linear-gradient(135deg, rgba(6,182,212,0.08)  0%, transparent 50%), var(--surface-1); }
+  .tint-violet    { background: linear-gradient(135deg, rgba(139,92,246,0.10) 0%, transparent 50%), var(--surface-1); }
+  .tint-sunflower { background: linear-gradient(135deg, rgba(251,191,36,0.12) 0%, transparent 50%), var(--surface-1); }
+  .tint-emerald   { background: linear-gradient(135deg, rgba(16,185,129,0.10) 0%, transparent 50%), var(--surface-1); }
+
+  .delta-up   { color: var(--emerald); font-weight: 600; }
+  .delta-down { color: var(--sev-crit); font-weight: 600; }
+  .delta-flat { color: var(--text-lo); font-weight: 600; }
+
+  .mini-bar {
+    height: 10px; border-radius: 5px; background: var(--surface-3);
+    position: relative; overflow: hidden;
+  }
+  .mini-bar > span {
+    position: absolute; inset: 0 auto 0 0;
+    border-radius: 5px;
+  }
+
+  /* Large spectrum number */
+  .num-big {
+    font-family: 'Fraunces', Georgia, serif; font-variation-settings: 'SOFT' 100, 'opsz' 144;
+    font-weight: 500; font-size: 96px; line-height: 1;
+    letter-spacing: -0.04em;
+  }
+
+  .runway-item {
+    display: grid; grid-template-columns: auto 1fr auto; gap: 10px;
+    padding: 10px 0; align-items: center;
+  }
+  .runway-item + .runway-item { border-top: 1px solid var(--line); }
+</style>
+</head>
+<body>
+
+<main class="page">
+
+  <!-- Header -->
+  <div class="header-row">
+    <div>
+      <div class="eyebrow">Weekly briefing · Apr 9 — Apr 16 · prod us-east-1</div>
+      <h1 class="display-l" style="margin-top: 6px;">
+        Mostly quiet. <span class="spectrum-text">One thing to know.</span>
+      </h1>
+      <div class="body" style="max-width: 68ch; margin-top: 12px;">
+        Generated at 16:24 UTC · grounded in 7d metrics, 14 LLM analyses, 3 incident reports.
+      </div>
+    </div>
+    <div style="display: flex; gap: 10px;">
+      <button class="btn">Export PDF</button>
+      <button class="btn">Email team</button>
+      <button class="btn btn-primary">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+        Refresh
+      </button>
+    </div>
+  </div>
+
+  <!-- Hero -->
+  <section class="hero">
+    <div>
+      <div class="eyebrow">Overall health · 7-day average</div>
+      <div style="display: flex; align-items: baseline; gap: 28px; margin-top: 10px;">
+        <div class="num-big count-in tabular spectrum-text">76</div>
+        <div>
+          <div class="pill pill-ok">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="18 15 12 9 6 15"/></svg>
+            +4 vs prior week
+          </div>
+          <div class="caption" style="margin-top: 10px;">best since Feb 22 recovery</div>
+        </div>
+      </div>
+      <p class="body" style="max-width: 42ch; margin-top: 22px; font-size: 15.5px;">
+        Reliability held. One incident — <strong style="color: var(--text-hi);">Calico VXLAN resync</strong> —
+        resolved in <strong style="color: var(--emerald);">14 minutes</strong> with no user impact.
+        Security score remains <strong style="color: var(--sev-crit);">critical</strong>: the same two
+        CIS findings from last week still need ownership.
+      </p>
+    </div>
+    <div>
+      <svg width="100%" height="180" viewBox="0 0 400 180" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="exec-fill" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0"   stop-color="#8b5cf6" stop-opacity="0.38"/>
+            <stop offset="0.5" stop-color="#06b6d4" stop-opacity="0.2"/>
+            <stop offset="1"   stop-color="#ffffff" stop-opacity="0"/>
+          </linearGradient>
+          <linearGradient id="exec-stroke" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0"   stop-color="#8b5cf6"/>
+            <stop offset="0.5" stop-color="#06b6d4"/>
+            <stop offset="1"   stop-color="#10b981"/>
+          </linearGradient>
+        </defs>
+        <!-- grid -->
+        <g stroke="#e6e8ef" stroke-dasharray="2 4">
+          <line x1="0" y1="40"  x2="400" y2="40"/>
+          <line x1="0" y1="90"  x2="400" y2="90"/>
+          <line x1="0" y1="140" x2="400" y2="140"/>
+        </g>
+        <!-- area -->
+        <path d="M0,110 L50,105 L100,108 L150,112 L200,96 L250,138 L260,144 L280,128 L320,55 L360,48 L400,42 L400,180 L0,180 Z"
+              fill="url(#exec-fill)"/>
+        <!-- line -->
+        <path d="M0,110 L50,105 L100,108 L150,112 L200,96 L250,138 L260,144 L280,128 L320,55 L360,48 L400,42"
+              fill="none" stroke="url(#exec-stroke)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+        <!-- incident marker -->
+        <circle cx="255" cy="141" r="6" fill="#ef4444" stroke="#fff" stroke-width="2"/>
+        <circle cx="255" cy="141" r="14" fill="none" stroke="#ef4444" stroke-opacity="0.3"/>
+      </svg>
+      <div style="display: flex; justify-content: space-between; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-lo); margin-top: 6px;">
+        <span>Thu 9</span><span>Fri</span><span>Sat</span><span>Sun</span><span>Mon</span><span style="color: var(--sev-crit); font-weight: 600;">Tue · INC-348</span><span>Wed</span><span>Today</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Bento grid -->
+  <section class="bento cascade">
+
+    <!-- 1. What happened (wide + colored) -->
+    <article class="bento-card span-3 rail rail-crit tint-coral card-glow-coral">
+      <div class="eyebrow" style="color: var(--sev-crit);">What happened</div>
+      <div class="display-m" style="margin: 12px 0 8px;">
+        <span class="num">1</span> incident · <span class="num">14m</span> downtime
+      </div>
+      <p class="body" style="flex: 1;">
+        Tuesday 08:42 UTC — Calico VXLAN resync storm across 3 nodes.
+        Auto-drain contained it. No customer traffic shed. Full RCA complete.
+      </p>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line);">
+        <span class="caption mono">INC-348</span>
+        <a class="caption" style="color: var(--violet); font-weight: 600;">See RCA →</a>
+      </div>
+    </article>
+
+    <!-- 2. What we prevented -->
+    <article class="bento-card span-3 rail rail-emerald tint-emerald card-glow-emerald">
+      <div class="eyebrow" style="color: #065f46;">What we prevented</div>
+      <div class="display-m" style="margin: 12px 0 8px;">
+        <span class="num">7</span> AI catches · <span class="num spectrum-text">$62</span>/mo
+      </div>
+      <p class="body" style="flex: 1;">
+        Optimizer trimmed node-exporter memory (–46%) with no page.
+        Near-dup scanner folded 4 noisy error groups so on-call didn't see dupes.
+      </p>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line);">
+        <span class="caption">confidence avg 0.83</span>
+        <a class="caption" style="color: var(--violet); font-weight: 600;">Audit log →</a>
+      </div>
+    </article>
+
+    <!-- 3. Open now (tall, orange) -->
+    <article class="bento-card span-2 row-2 rail rail-sunflower tint-sunflower card-glow-sunflower">
+      <div class="eyebrow" style="color: #854d0e;">Open now</div>
+      <div class="num-big" style="font-size: 72px; margin: 10px 0 0;">2</div>
+      <div class="caption" style="margin-bottom: 14px;">critical · 8 high</div>
+      <p class="body" style="flex: 1;">
+        Both CIS-5.1 findings (privileged containers) belong to
+        <strong style="color: var(--text-hi);">prometheus-operator</strong>.
+        Remediation PR draft ready.
+      </p>
+      <div style="margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line);">
+        <div class="caption mono" style="margin-bottom: 8px;">CIS-5.1</div>
+        <a class="caption" style="color: var(--violet); font-weight: 600;">Assign owner →</a>
+      </div>
+    </article>
+
+    <!-- 4. Cost posture (prominent) -->
+    <article class="bento-card span-4 rail rail-accent tint-violet card-glow-violet">
+      <div class="eyebrow" style="color: #5b21b6;">Cost posture</div>
+      <div style="display: flex; align-items: end; gap: 28px; margin: 12px 0 4px;">
+        <div>
+          <div class="num-big spectrum-text">$420</div>
+          <div class="caption">potential · 3 approved recs</div>
+        </div>
+        <div style="flex: 1;">
+          <svg width="100%" height="56" viewBox="0 0 240 56" preserveAspectRatio="none">
+            <defs>
+              <linearGradient id="cost-fill" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0"   stop-color="#10b981" stop-opacity="0.4"/>
+                <stop offset="1"   stop-color="#10b981" stop-opacity="0"/>
+              </linearGradient>
+            </defs>
+            <path d="M0,46 L30,42 L60,38 L90,34 L120,30 L150,24 L180,18 L210,12 L240,8 L240,56 L0,56 Z"
+                  fill="url(#cost-fill)"/>
+            <path d="M0,46 L30,42 L60,38 L90,34 L120,30 L150,24 L180,18 L210,12 L240,8"
+                  fill="none" stroke="#10b981" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div>
+          <div style="color: var(--emerald); font-family: 'JetBrains Mono', monospace; font-weight: 600; font-size: 26px;">$62</div>
+          <div class="caption">applied this week</div>
+        </div>
+      </div>
+    </article>
+
+    <!-- 5. Trend vs last week -->
+    <article class="bento-card span-3 tint-cyan card-glow-cyan">
+      <div class="eyebrow">Trend vs last week</div>
+      <div style="margin: 16px 0 0; display: flex; flex-direction: column; gap: 14px;">
+        <div>
+          <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 4px;">
+            <span style="font-weight: 500;">Reliability</span><span class="num delta-up">+2 · 75</span>
+          </div>
+          <div class="mini-bar"><span style="width: 75%; background: var(--emerald);"></span></div>
+        </div>
+        <div>
+          <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 4px;">
+            <span style="font-weight: 500;">Security</span><span class="num delta-flat">± 0 · 0</span>
+          </div>
+          <div class="mini-bar"><span style="width: 2%; background: var(--sev-crit);"></span></div>
+        </div>
+        <div>
+          <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 4px;">
+            <span style="font-weight: 500;">Cost efficiency</span><span class="num delta-up">+6 · 78</span>
+          </div>
+          <div class="mini-bar"><span style="width: 78%; background: linear-gradient(90deg, var(--cyan), var(--emerald));"></span></div>
+        </div>
+        <div>
+          <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 4px;">
+            <span style="font-weight: 500;">Architecture</span><span class="num delta-down">−1 · 55</span>
+          </div>
+          <div class="mini-bar"><span style="width: 55%; background: var(--sunflower);"></span></div>
+        </div>
+      </div>
+    </article>
+
+    <!-- 6. Runway -->
+    <article class="bento-card span-3 tint-violet card-glow-violet">
+      <div class="eyebrow">On the runway</div>
+      <div class="h1" style="margin: 10px 0 12px;">3 changes queued</div>
+      <div style="flex: 1;">
+        <div class="runway-item">
+          <span class="pill pill-accent">SEC</span>
+          <div class="body-sm" style="color: var(--text-hi);">Drop privileged flag on prometheus-operator</div>
+          <span class="caption mono">ETA Fri</span>
+        </div>
+        <div class="runway-item">
+          <span class="pill pill-ok">COST</span>
+          <div class="body-sm" style="color: var(--text-hi);">Apply $420/mo right-sizing batch</div>
+          <span class="caption mono">ETA Mon</span>
+        </div>
+        <div class="runway-item">
+          <span class="pill pill-info">REL</span>
+          <div class="body-sm" style="color: var(--text-hi);">Add PDB to ai-deep-analysis StatefulSet</div>
+          <span class="caption mono">ETA Tue</span>
+        </div>
+      </div>
+      <div class="caption" style="margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line);">
+        Nothing scheduled requires exec approval.
+      </div>
+    </article>
+
+  </section>
+
+  <div class="hairline" style="margin-top: 32px; padding-top: 16px; display: flex; justify-content: space-between; color: var(--text-lo); font-size: 12px;">
+    <span>Prepared for leadership · refresh-on-demand · share link with <span class="kbd">⌘ S</span></span>
+    <span class="mono">generator: cluster-intel v7.3.0</span>
+  </div>
+
+</main>
+
+</body>
+</html>

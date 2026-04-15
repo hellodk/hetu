@@ -759,6 +759,203 @@ func TestEmbeddingScorer_FallsBackOnHTTPError(t *testing.T) {
 }
 
 // ----------------------------------------------------------------------------
+// Audit v2 #1 — spike hysteresis
+// ----------------------------------------------------------------------------
+
+func TestScanTriggers_HysteresisSkipsStableSpike(t *testing.T) {
+	ea := NewErrorAggregator()
+	fired := make(chan string, 16)
+	ea.AttachAnalyzer(func(g *ErrorGroup, trigger string) { fired <- trigger })
+
+	// Seed the group + a spike-level rate (5 recent events).
+	now := time.Now()
+	ea.Ingest(IngestEvent{Service: "s", Namespace: "n", Level: "error", Reason: "ex",
+		Fingerprint: "fp", Message: "x"})
+	ea.mu.Lock()
+	ea.occurrences["fp"] = []ErrorOccurrence{
+		{Timestamp: now.Add(-3 * time.Minute)},
+		{Timestamp: now.Add(-2 * time.Minute)},
+		{Timestamp: now.Add(-90 * time.Second)},
+		{Timestamp: now.Add(-1 * time.Minute)},
+		{Timestamp: now.Add(-30 * time.Second)},
+	}
+	// Clear new-group breadcrumb + per-fp throttle so the FIRST scan fires.
+	delete(ea.lastTriggered, "fp")
+	ea.mu.Unlock()
+
+	// Drain newGroup.
+	time.Sleep(20 * time.Millisecond)
+	for len(fired) > 0 {
+		<-fired
+	}
+
+	// First scan fires the spike.
+	spikes, _ := ea.ScanTriggers()
+	if spikes != 1 {
+		t.Fatalf("first scan spikes=%d, want 1", spikes)
+	}
+	// Drain the goroutine's output.
+	time.Sleep(30 * time.Millisecond)
+	for len(fired) > 0 {
+		<-fired
+	}
+
+	// Clear the per-fp throttle (simulating 10 min later) but KEEP the
+	// spike state. The rate hasn't grown, so hysteresis should skip.
+	ea.mu.Lock()
+	delete(ea.lastTriggered, "fp")
+	ea.mu.Unlock()
+	spikes2, _ := ea.ScanTriggers()
+	if spikes2 != 0 {
+		t.Fatalf("stable spike should be skipped by hysteresis; got spikes=%d", spikes2)
+	}
+}
+
+// ----------------------------------------------------------------------------
+// Audit v2 #2 — Ollama native /api/embeddings shape
+// ----------------------------------------------------------------------------
+
+// fakeOllamaEmbeddingServer mimics Ollama's /api/embeddings response.
+func fakeOllamaEmbeddingServer(t *testing.T, path *string) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if path != nil {
+			*path = r.URL.Path
+		}
+		var req struct {
+			Model  string `json:"model"`
+			Prompt string `json:"prompt"`
+		}
+		json.NewDecoder(r.Body).Decode(&req)
+		vec := []float64{1.0, 0.0, 0.0}
+		if strings.Contains(req.Prompt, "refused") {
+			vec = []float64{1.0, 1.0, 0.0}
+		}
+		json.NewEncoder(w).Encode(map[string]any{"embedding": vec})
+	}))
+}
+
+func TestEmbeddingScorer_OllamaNativeSchema(t *testing.T) {
+	var path string
+	srv := fakeOllamaEmbeddingServer(t, &path)
+	defer srv.Close()
+
+	s := NewEmbeddingScorerForAPI(srv.URL, "nomic-embed-text", "", EmbeddingAPIOllama, nil)
+	a := tokenize("connection refused upstream")
+	_, _ = s.vectorFor(a) // force a round-trip
+	if path != "/api/embeddings" {
+		t.Fatalf("Ollama mode hit wrong path: %q, want /api/embeddings", path)
+	}
+}
+
+func TestNewEmbeddingScorerAuto_DetectsAPIShape(t *testing.T) {
+	openai := NewEmbeddingScorerAuto("https://api.openai.com/v1", "m", "k", nil)
+	if openai.api != EmbeddingAPIOpenAI {
+		t.Fatalf("openai URL → api=%q, want openai", openai.api)
+	}
+	ollama := NewEmbeddingScorerAuto("http://ollama:11434", "m", "", nil)
+	if ollama.api != EmbeddingAPIOllama {
+		t.Fatalf("bare Ollama URL → api=%q, want ollama", ollama.api)
+	}
+	v1 := NewEmbeddingScorerAuto("http://ollama:11434/v1", "m", "", nil)
+	if v1.api != EmbeddingAPIOpenAI {
+		t.Fatalf("/v1 URL → api=%q, want openai", v1.api)
+	}
+}
+
+// ----------------------------------------------------------------------------
+// Audit v2 #3 — review stats / accept / reject
+// ----------------------------------------------------------------------------
+
+func TestReviewAPI_AcceptRejectAndStats(t *testing.T) {
+	ea := NewErrorAggregator()
+	ea.ConfigureNearDupMode(NearDupShadow, 0.5, nil)
+
+	// Two near-dup pairs so we have two suggestions to act on.
+	ea.Ingest(IngestEvent{Service: "s", Namespace: "n", Level: "error", Reason: "ex",
+		Fingerprint: "a1", Message: "connection refused upstream database"})
+	time.Sleep(2 * time.Millisecond)
+	ea.Ingest(IngestEvent{Service: "s", Namespace: "n", Level: "error", Reason: "ex",
+		Fingerprint: "a2", Message: "connect connection refused upstream database server"})
+	time.Sleep(2 * time.Millisecond)
+	ea.Ingest(IngestEvent{Service: "s", Namespace: "n", Level: "error", Reason: "ex",
+		Fingerprint: "b1", Message: "disk full path"})
+	time.Sleep(2 * time.Millisecond)
+	ea.Ingest(IngestEvent{Service: "s", Namespace: "n", Level: "error", Reason: "ex",
+		Fingerprint: "b2", Message: "disk full path quota"})
+
+	ea.ScanNearDuplicates()
+
+	mux := http.NewServeMux()
+	ea.RegisterRoutes(mux)
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	// Find the two groups that have pending suggestions.
+	var pending []*ErrorGroup
+	ea.mu.RLock()
+	for _, g := range ea.groups {
+		if g.MergeSuggestion != nil {
+			pending = append(pending, g)
+		}
+	}
+	ea.mu.RUnlock()
+	if len(pending) < 2 {
+		t.Fatalf("setup: expected ≥2 pending suggestions, got %d", len(pending))
+	}
+
+	// Accept the first, reject the second.
+	postNoBody := func(url string) int {
+		resp, err := http.Post(url, "application/json", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		return resp.StatusCode
+	}
+	acceptURL := srv.URL + "/api/v1/errors/near-duplicates/" + strconv.FormatInt(pending[0].ID, 10) + "/accept"
+	rejectURL := srv.URL + "/api/v1/errors/near-duplicates/" + strconv.FormatInt(pending[1].ID, 10) + "/reject"
+	if c := postNoBody(acceptURL); c != 200 {
+		t.Fatalf("accept → HTTP %d", c)
+	}
+	if c := postNoBody(rejectURL); c != 200 {
+		t.Fatalf("reject → HTTP %d", c)
+	}
+
+	// Stats: one accept and one reject should show up somewhere.
+	resp, err := http.Get(srv.URL + "/api/v1/errors/near-duplicates/stats")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	var body struct {
+		Bands []struct {
+			Band     string `json:"band"`
+			Accepted int    `json:"accepted"`
+			Rejected int    `json:"rejected"`
+		} `json:"bands"`
+	}
+	json.NewDecoder(resp.Body).Decode(&body)
+	var totalA, totalR int
+	for _, b := range body.Bands {
+		totalA += b.Accepted
+		totalR += b.Rejected
+	}
+	if totalA != 1 || totalR != 1 {
+		t.Fatalf("stats totals: accepted=%d rejected=%d, want 1/1", totalA, totalR)
+	}
+
+	// The accepted source group must be gone (merged), the rejected one
+	// must still exist but without the suggestion.
+	if _, ok := ea.groups[pending[0].Fingerprint]; ok {
+		t.Fatalf("accepted group should have been merged away")
+	}
+	if g, ok := ea.groups[pending[1].Fingerprint]; !ok || g.MergeSuggestion != nil {
+		t.Fatalf("rejected group must remain with MergeSuggestion cleared; got %+v", g)
+	}
+}
+
+// ----------------------------------------------------------------------------
 // Phase 2.2 — near-duplicate detection
 // ----------------------------------------------------------------------------
 

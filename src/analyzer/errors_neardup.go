@@ -89,14 +89,48 @@ type nearDupConfig struct {
 	ScorerEvict func(keep map[string]struct{}) int
 	scanLimit   int // skip scans when len(groups) exceeds this
 	lastRun     atomic.Int64
+
+	// Audit v2 #3 — shadow-mode review stats. Operators accept or
+	// reject suggestions one by one; the stats bucket decisions by
+	// score band so we know whether 0.85 is too aggressive, whether
+	// 0.95+ is always safe, etc. Data-driven input for the flip-to-auto
+	// decision.
+	reviewStats map[string]*reviewBand // key = threshold band
+}
+
+// reviewBand tallies operator decisions at a given score band so the
+// caller can compute accept-rate per band (e.g. is 0.85-0.90 worth
+// auto-merging or is it false-positive-heavy?).
+type reviewBand struct {
+	Band     string `json:"band"`
+	Accepted int    `json:"accepted"`
+	Rejected int    `json:"rejected"`
 }
 
 func defaultNearDup() *nearDupConfig {
 	return &nearDupConfig{
-		Mode:      NearDupOff,
-		Threshold: 0.85,
-		Scorer:    cosineTokenSet,
-		scanLimit: 200,
+		Mode:        NearDupOff,
+		Threshold:   0.85,
+		Scorer:      cosineTokenSet,
+		scanLimit:   200,
+		reviewStats: map[string]*reviewBand{},
+	}
+}
+
+// reviewBandFor maps a score to one of four bands (matches the typical
+// thresholds operators care about: barely-over-threshold through
+// near-identical). Keep the buckets short — too many and the data gets
+// too thin to act on.
+func reviewBandFor(score float64) string {
+	switch {
+	case score >= 0.95:
+		return "0.95+"
+	case score >= 0.90:
+		return "0.90-0.95"
+	case score >= 0.85:
+		return "0.85-0.90"
+	default:
+		return "<0.85"
 	}
 }
 

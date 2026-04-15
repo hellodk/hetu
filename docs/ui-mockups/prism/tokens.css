@@ -1,0 +1,408 @@
+/* ==========================================================================
+   Cluster Intel — PRISM theme tokens
+   "Make it wow." Pure white canvas, full-spectrum accents, conic-gradient
+   hero ring, floating gradient orbs drifting behind, oversized serif display
+   with optical sizing. Animations are generous but never tacky. Data is
+   still the star; colour is the theatre.
+   ========================================================================== */
+
+:root {
+  /* Paper ladder ---------------------------------------------------------- */
+  --paper:     #ffffff;
+  --surface-0: #ffffff;
+  --surface-1: #ffffff;
+  --surface-2: #f8f9fc;          /* elevated / popovers */
+  --surface-3: #f0f2f8;          /* hover / active */
+
+  /* Ink ------------------------------------------------------------------- */
+  --text-hi: #0a0c1a;
+  --text-md: #4b5166;
+  --text-lo: #8b92a8;
+
+  /* Hairlines ------------------------------------------------------------- */
+  --line:     rgba(10, 12, 26, 0.06);
+  --line-str: rgba(10, 12, 26, 0.14);
+
+  /* CHROMA PALETTE — the prism itself ------------------------------------- */
+  --coral:       #ff6b6b;
+  --coral-soft:  #ffb4b4;
+  --cyan:        #06b6d4;
+  --cyan-soft:   #67e8f9;
+  --violet:      #8b5cf6;
+  --violet-soft: #c4b5fd;
+  --sunflower:   #fbbf24;
+  --sunflower-soft: #fde68a;
+  --emerald:     #10b981;
+  --emerald-soft:#6ee7b7;
+  --rose:        #ec4899;
+  --rose-soft:   #f9a8d4;
+
+  /* "Accent" is the whole spectrum. Back-compat alias for non-spectrum bits */
+  --accent:      var(--violet);
+  --accent-soft: var(--violet-soft);
+  --accent-glow: rgba(139, 92, 246, 0.22);
+
+  /* Severity — saturated (not muted like graphite) ------------------------ */
+  --sev-ok:       #10b981;
+  --sev-info:     #06b6d4;
+  --sev-warn:     #fbbf24;
+  --sev-high:     #f97316;
+  --sev-crit:     #ef4444;
+  --sev-crit-glow: rgba(239, 68, 68, 0.25);
+
+  /* Motion ---------------------------------------------------------------- */
+  --ease:     cubic-bezier(.22, .61, .36, 1);
+  --ease-out: cubic-bezier(.16, 1, .3, 1);
+  --ease-spring: cubic-bezier(.5, -0.2, .2, 1.4);    /* gentle overshoot */
+  --d-fast: 120ms;
+  --d-med:  240ms;
+  --d-slow: 600ms;
+  --d-hero: 1200ms;
+
+  /* Radius & shadow ------------------------------------------------------- */
+  --r-sm: 8px;
+  --r-md: 14px;
+  --r-lg: 22px;
+  --r-xl: 32px;
+  --shadow-1: 0 1px 3px rgba(10, 12, 26, 0.05), 0 0 0 1px rgba(10, 12, 26, 0.04);
+  --shadow-2: 0 20px 50px -20px rgba(10, 12, 26, 0.16), 0 4px 12px rgba(10, 12, 26, 0.04);
+  --shadow-hero: 0 40px 80px -30px rgba(139, 92, 246, 0.22), 0 12px 40px -12px rgba(255, 107, 107, 0.14);
+}
+
+/* Base --------------------------------------------------------------------- */
+html, body {
+  background: var(--paper);
+  color: var(--text-hi);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-feature-settings: 'ss01', 'cv11';
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  letter-spacing: -0.01em;
+}
+
+/* ============ THE ORBS — three giant blurred gradient discs drift slowly
+   behind everything. On pure white they feel like stage lighting. ============ */
+body {
+  position: relative;
+  isolation: isolate;
+  overflow-x: hidden;
+}
+body::before {
+  content: "";
+  position: fixed; inset: -10%;
+  z-index: -2;
+  background:
+    radial-gradient(closest-side at 85% 8%,  rgba(139, 92, 246, 0.22), transparent 60%),
+    radial-gradient(closest-side at 8%  88%, rgba(6, 182, 212, 0.20),  transparent 60%),
+    radial-gradient(closest-side at 55% 50%, rgba(255, 107, 107, 0.16),transparent 55%),
+    radial-gradient(closest-side at 95% 92%, rgba(251, 191, 36, 0.18), transparent 60%);
+  filter: blur(30px) saturate(130%);
+  animation: orb-drift 30s var(--ease) infinite alternate;
+  pointer-events: none;
+}
+body::after {
+  /* very faint dot grid — keeps the white from feeling empty */
+  content: "";
+  position: fixed; inset: 0;
+  z-index: -1;
+  background-image: radial-gradient(circle at 1px 1px, rgba(10, 12, 26, 0.035) 1px, transparent 0);
+  background-size: 22px 22px;
+  pointer-events: none;
+}
+@keyframes orb-drift {
+  0%   { transform: translate3d(0, 0, 0)        rotate(0deg) scale(1); }
+  50%  { transform: translate3d(-3%, 4%, 0)     rotate(6deg) scale(1.05); }
+  100% { transform: translate3d(4%, -3%, 0)     rotate(-4deg) scale(0.97); }
+}
+
+/* Typography --------------------------------------------------------------- */
+.num, .mono {
+  font-family: 'JetBrains Mono', 'Geist Mono', 'Menlo', monospace;
+  font-feature-settings: 'tnum', 'zero', 'ss02';
+}
+
+/* Display uses Fraunces — variable serif with optical sizing.
+   At big sizes it goes soft + contrasted; at small sizes it stays crisp. */
+.display-xxl,
+.display-xl,
+.display-l,
+.display-m {
+  font-family: 'Fraunces', 'Iowan Old Style', Georgia, serif;
+  font-weight: 500;
+  font-variation-settings: 'SOFT' 100, 'WONK' 0, 'opsz' 144;
+}
+.display-xxl { font-size: 104px; line-height: 0.94; letter-spacing: -0.035em; }
+.display-xl  { font-size: 72px;  line-height: 1.02; letter-spacing: -0.03em; }
+.display-l   { font-size: 56px;  line-height: 1.06; letter-spacing: -0.025em; }
+.display-m   { font-size: 38px;  line-height: 1.14; letter-spacing: -0.02em; }
+
+.h1 { font-size: 24px; font-weight: 600; letter-spacing: -0.02em; }
+.h2 { font-size: 17px; font-weight: 600; letter-spacing: -0.015em; }
+.h3 { font-size: 14px; font-weight: 600; letter-spacing: -0.008em; color: var(--text-hi); }
+
+.body     { font-size: 14.5px; color: var(--text-md); line-height: 1.6; }
+.body-sm  { font-size: 13px;   color: var(--text-md); line-height: 1.55; }
+.label    { font-size: 11px;   color: var(--text-lo); text-transform: uppercase; letter-spacing: 0.12em; font-weight: 600; }
+.caption  { font-size: 12px;   color: var(--text-lo); }
+
+/* Spectrum text — for use on hero numbers or accent words */
+.spectrum-text {
+  background: linear-gradient(135deg, var(--coral), var(--sunflower) 30%, var(--emerald) 55%, var(--cyan) 75%, var(--violet));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  background-size: 200% 200%;
+  animation: spectrum-shift 12s var(--ease) infinite alternate;
+}
+@keyframes spectrum-shift {
+  0%   { background-position: 0% 50%; }
+  100% { background-position: 100% 50%; }
+}
+
+/* Surfaces ----------------------------------------------------------------- */
+.card {
+  background: var(--surface-1);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-1);
+  transition:
+    transform var(--d-med) var(--ease),
+    box-shadow var(--d-med) var(--ease),
+    border-color var(--d-fast) var(--ease);
+  will-change: transform;
+}
+.card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-2);
+  border-color: var(--line-str);
+}
+
+.card-quiet { background: transparent; border: 1px solid var(--line); box-shadow: none; }
+
+.glass {
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid var(--line-str);
+  box-shadow: var(--shadow-2);
+}
+
+.hairline   { border-top: 1px solid var(--line); }
+.hairline-v { border-left: 1px solid var(--line); }
+
+/* Colour-tinted cards — hover sheds a coloured glow matching the rail.
+   Selector style: put .card-glow-{color} on any card.                        */
+.card-glow-coral:hover     { box-shadow: 0 24px 40px -18px rgba(255,107,107,0.28), 0 0 0 1px rgba(255,107,107,0.22); }
+.card-glow-cyan:hover      { box-shadow: 0 24px 40px -18px rgba(6,182,212,0.28),  0 0 0 1px rgba(6,182,212,0.22); }
+.card-glow-violet:hover    { box-shadow: 0 24px 40px -18px rgba(139,92,246,0.30), 0 0 0 1px rgba(139,92,246,0.24); }
+.card-glow-sunflower:hover { box-shadow: 0 24px 40px -18px rgba(251,191,36,0.32), 0 0 0 1px rgba(251,191,36,0.22); }
+.card-glow-emerald:hover   { box-shadow: 0 24px 40px -18px rgba(16,185,129,0.28), 0 0 0 1px rgba(16,185,129,0.22); }
+.card-glow-rose:hover      { box-shadow: 0 24px 40px -18px rgba(236,72,153,0.28), 0 0 0 1px rgba(236,72,153,0.22); }
+
+/* Severity pills & dots --------------------------------------------------- */
+.pill {
+  display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px;
+  border-radius: 999px; font-size: 11px; font-weight: 600; letter-spacing: 0.02em;
+  border: 1px solid transparent;
+}
+.pill .dot { width: 6px; height: 6px; border-radius: 50%; }
+
+.pill-ok   { color: #065f46; background: #d1fae5; border-color: #a7f3d0; }
+.pill-info { color: #075985; background: #cffafe; border-color: #a5f3fc; }
+.pill-warn { color: #854d0e; background: #fef3c7; border-color: #fde68a; }
+.pill-high { color: #9a3412; background: #ffedd5; border-color: #fed7aa; }
+.pill-crit { color: #991b1b; background: #fee2e2; border-color: #fecaca; }
+.pill-accent { color: #5b21b6; background: #ede9fe; border-color: #ddd6fe; }
+
+.dot-ok     { background: var(--sev-ok); }
+.dot-info   { background: var(--sev-info); }
+.dot-warn   { background: var(--sev-warn); }
+.dot-high   { background: var(--sev-high); }
+.dot-crit   { background: var(--sev-crit); }
+.dot-accent { background: var(--accent); }
+
+/* Buttons ------------------------------------------------------------------ */
+.btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 9px 14px; border-radius: var(--r-sm);
+  font-size: 13px; font-weight: 500;
+  background: var(--surface-1); color: var(--text-hi);
+  border: 1px solid var(--line-str);
+  box-shadow: var(--shadow-1);
+  transition: all var(--d-fast) var(--ease);
+}
+.btn:hover {
+  background: var(--surface-3);
+  border-color: var(--text-lo);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(10, 12, 26, 0.08);
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--violet), var(--coral) 60%, var(--sunflower));
+  background-size: 200% 200%;
+  background-position: 0% 0%;
+  color: white;
+  border: none;
+  box-shadow: 0 8px 24px -10px rgba(139, 92, 246, 0.5), 0 0 0 1px rgba(139, 92, 246, 0.1);
+  animation: btn-gradient-drift 6s var(--ease) infinite alternate;
+}
+@keyframes btn-gradient-drift {
+  0%   { background-position: 0% 0%; }
+  100% { background-position: 100% 100%; }
+}
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 36px -12px rgba(139, 92, 246, 0.6), 0 0 0 2px rgba(255, 107, 107, 0.25);
+}
+
+.kbd {
+  font-family: 'JetBrains Mono', monospace; font-size: 11px;
+  padding: 2px 6px; border-radius: 4px;
+  background: var(--surface-3); border: 1px solid var(--line-str);
+  color: var(--text-md);
+}
+
+/* ==========================================================================
+   SIGNATURE MOTION
+   ========================================================================== */
+
+/* Live dot — breathes with coloured aura */
+@keyframes live-breathe-prism {
+  0%,100% { opacity: 1;    box-shadow: 0 0 0 0 rgba(139,92,246,0.45), 0 0 14px rgba(6,182,212,0.5); }
+  50%     { opacity: 0.7;  box-shadow: 0 0 0 8px transparent,          0 0 8px  rgba(6,182,212,0.25); }
+}
+.live-dot {
+  width: 9px; height: 9px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--violet), var(--cyan));
+  animation: live-breathe-prism 2.4s var(--ease) infinite;
+}
+
+/* Aura-pulse on critical — red */
+@keyframes aura-pulse-crit {
+  0%,100% { box-shadow: 0 0 0 0   var(--sev-crit-glow), 0 0 48px 0 rgba(239,68,68,0.18); }
+  50%     { box-shadow: 0 0 0 18px transparent,          0 0 72px 0 rgba(239,68,68,0.28); }
+}
+.aura-crit { animation: aura-pulse-crit 2.4s var(--ease) infinite; }
+
+/* Aura-accent — cycles through two accents */
+@keyframes aura-pulse-accent {
+  0%,100% { box-shadow: 0 0 0 0  rgba(139,92,246,0.32), 0 0 80px 0 rgba(139,92,246,0.14); }
+  50%     { box-shadow: 0 0 0 18px transparent,          0 0 110px 0 rgba(6,182,212,0.16); }
+}
+.aura-accent { animation: aura-pulse-accent 3.2s var(--ease) infinite; }
+
+/* Count-in — dramatic rise with a little overshoot */
+@keyframes count-rise-prism {
+  from { opacity: 0; transform: translateY(14px) scale(0.94); filter: blur(4px); }
+  60%  { opacity: 1; transform: translateY(-3px) scale(1.01); filter: blur(0); }
+  to   { opacity: 1; transform: none; filter: blur(0); }
+}
+.count-in { animation: count-rise-prism var(--d-hero) var(--ease-spring) both; }
+
+/* Cascade — for lists that should stagger-fade in on mount */
+@keyframes cascade-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: none; }
+}
+.cascade > * {
+  opacity: 0;
+  animation: cascade-in 600ms var(--ease-out) both;
+}
+.cascade > *:nth-child(1) { animation-delay:  80ms; }
+.cascade > *:nth-child(2) { animation-delay: 160ms; }
+.cascade > *:nth-child(3) { animation-delay: 240ms; }
+.cascade > *:nth-child(4) { animation-delay: 320ms; }
+.cascade > *:nth-child(5) { animation-delay: 400ms; }
+.cascade > *:nth-child(6) { animation-delay: 480ms; }
+.cascade > *:nth-child(7) { animation-delay: 560ms; }
+.cascade > *:nth-child(8) { animation-delay: 640ms; }
+
+/* Shimmer — still present for live sparklines but with full spectrum */
+@keyframes shimmer-prism {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+.shimmer {
+  background: linear-gradient(90deg,
+    transparent 0%,
+    var(--coral) 30%,
+    var(--violet) 50%,
+    var(--cyan) 70%,
+    transparent 100%);
+  background-size: 200% 100%;
+  animation: shimmer-prism 3.2s linear infinite;
+  opacity: 0.6;
+}
+
+/* ==========================================================================
+   THE HERO RING — the signature moment
+   Conic gradient stroke cycles ALL accents. Slow rotation so it barely
+   moves but always looks new.
+   ========================================================================== */
+.ring { position: relative; display: inline-grid; place-items: center; border-radius: 50%; }
+.ring svg { transform: rotate(-90deg); }
+.ring .ring-track { stroke: #e6e8ef; }
+.ring .ring-fill  { stroke-linecap: round; transition: stroke-dashoffset 1s var(--ease-out); }
+@keyframes ring-draw { from { stroke-dashoffset: 565.48; } }
+.ring .ring-fill.animate { animation: ring-draw 1.3s var(--ease-out) both; }
+
+.ring-spin {
+  animation: ring-spin 60s linear infinite;
+  transform-origin: center;
+}
+@keyframes ring-spin { to { transform: rotate(360deg); } }
+
+.ring-label {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  text-align: center;
+}
+
+/* Reduced motion ----------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+  body::before { display: none; }
+  .shimmer { background: transparent; opacity: 1; }
+  .spectrum-text { color: var(--text-hi); background: none; -webkit-background-clip: unset; }
+}
+
+/* Utility ------------------------------------------------------------------ */
+.grid-dots {
+  background-image: radial-gradient(circle at 1px 1px, var(--line) 1px, transparent 0);
+  background-size: 18px 18px;
+}
+
+.focus-ring:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--paper), 0 0 0 4px var(--violet);
+  border-radius: var(--r-sm);
+}
+
+.tabular { font-variant-numeric: tabular-nums; }
+.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Severity rail — 4px, gradient on rail-accent ---------------------------- */
+.rail { position: relative; padding-left: 18px; }
+.rail::before {
+  content: ""; position: absolute; left: 0; top: 10%; bottom: 10%;
+  width: 4px; border-radius: 4px;
+}
+.rail-ok::before     { background: var(--sev-ok); }
+.rail-info::before   { background: var(--sev-info); }
+.rail-warn::before   { background: var(--sev-warn); }
+.rail-high::before   { background: var(--sev-high); }
+.rail-crit::before   { background: var(--sev-crit); box-shadow: 0 0 16px 0 var(--sev-crit-glow); }
+.rail-accent::before {
+  background: linear-gradient(180deg, var(--violet), var(--coral), var(--sunflower));
+  box-shadow: 0 0 20px 0 rgba(139,92,246,0.3);
+}
+.rail-coral::before     { background: var(--coral); }
+.rail-cyan::before      { background: var(--cyan); }
+.rail-violet::before    { background: var(--violet); }
+.rail-sunflower::before { background: var(--sunflower); }
+.rail-emerald::before   { background: var(--emerald); }
+.rail-rose::before      { background: var(--rose); }
