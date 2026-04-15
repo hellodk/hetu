@@ -82,8 +82,13 @@ type nearDupConfig struct {
 	Mode      NearDupMode
 	Threshold float64
 	Scorer    NearDupScorer
-	scanLimit int // skip scans when len(groups) exceeds this
-	lastRun   atomic.Int64
+	// ScorerEvict is an optional hook: when non-nil, it is called after
+	// each scan with the set of cacheKeys belonging to currently-live
+	// groups so the scorer can drop stale entries. Lets embedding-backed
+	// scorers' vector cache stay bounded over long runtimes.
+	ScorerEvict func(keep map[string]struct{}) int
+	scanLimit   int // skip scans when len(groups) exceeds this
+	lastRun     atomic.Int64
 }
 
 func defaultNearDup() *nearDupConfig {
@@ -113,6 +118,27 @@ func (ea *ErrorAggregator) ConfigureNearDupMode(mode NearDupMode, threshold floa
 	}
 	if scorer != nil {
 		ea.nearDup.Scorer = scorer
+	}
+}
+
+// AttachEmbeddingScorer installs an embedding-backed NearDupScorer AND
+// registers its cache-evict hook so the scorer's per-fingerprint vector
+// cache stays bounded. Equivalent to ConfigureNearDupMode plus an
+// internal wiring step — operators should prefer this when using the
+// embedding path.
+func (ea *ErrorAggregator) AttachEmbeddingScorer(mode NearDupMode, threshold float64, scorer *EmbeddingScorer) {
+	ea.mu.Lock()
+	defer ea.mu.Unlock()
+	if ea.nearDup == nil {
+		ea.nearDup = defaultNearDup()
+	}
+	ea.nearDup.Mode = mode
+	if threshold > 0 && threshold <= 1 {
+		ea.nearDup.Threshold = threshold
+	}
+	if scorer != nil {
+		ea.nearDup.Scorer = scorer.Score
+		ea.nearDup.ScorerEvict = scorer.Evict
 	}
 }
 
@@ -244,7 +270,25 @@ func (ea *ErrorAggregator) ScanNearDuplicates() *NearDupReport {
 		})
 	}
 	cfg.lastRun.Store(time.Now().Unix())
+
+	// Build the "keep" set of cacheKeys for the scorer's vector cache
+	// while we still hold the lock (needs access to ea.groups).
+	var keep map[string]struct{}
+	if cfg.ScorerEvict != nil {
+		keep = make(map[string]struct{}, len(all))
+		for _, e := range all {
+			keep[cacheKey(e.tokens)] = struct{}{}
+		}
+	}
+	scorerEvict := cfg.ScorerEvict
 	ea.mu.Unlock()
+
+	// Drop stale vectors — out of band so cache lock doesn't nest under ea.mu.
+	if scorerEvict != nil {
+		if removed := scorerEvict(keep); removed > 0 {
+			log.Debug().Int("removed", removed).Msg("near-dup scorer: vector cache evicted")
+		}
+	}
 
 	// Auto-merge OUTSIDE the lock — autoMergeBySuggestion takes the
 	// lock itself. Shadow mode skips this entirely.

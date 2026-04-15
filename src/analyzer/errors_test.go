@@ -603,6 +603,162 @@ func TestRecsForTarget_MatchOrderAndPrecedence(t *testing.T) {
 }
 
 // ----------------------------------------------------------------------------
+// Audit #1 — embedding NearDupScorer
+// ----------------------------------------------------------------------------
+
+// fakeEmbeddingServer returns a deterministic vector for each input
+// token set: one dimension per distinct vocabulary word in a fixed map.
+// That lets the test design "semantically similar" inputs (same words,
+// different wording) and verify they score closer than unrelated ones.
+func fakeEmbeddingServer(t *testing.T, calls *int) *httptest.Server {
+	t.Helper()
+	// Vocabulary chosen so synonyms share most dimensions.
+	vocab := map[string]int{
+		"connection": 0, "refused": 1, "failed": 1, // synonym: same axis
+		"upstream":   2,
+		"database":   3,
+		"permission": 4,
+		"denied":     5,
+		"access":     5, // synonym
+		"filesystem": 6,
+		"path":       7,
+	}
+	const dim = 8
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if calls != nil {
+			*calls++
+		}
+		var req struct {
+			Input string `json:"input"`
+		}
+		json.NewDecoder(r.Body).Decode(&req)
+		vec := make([]float64, dim)
+		for _, tok := range strings.Fields(strings.ToLower(req.Input)) {
+			if d, ok := vocab[tok]; ok {
+				vec[d]++
+			}
+		}
+		resp := map[string]any{
+			"data": []map[string]any{{"embedding": vec}},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+	}))
+}
+
+func TestEmbeddingScorer_SynonymsScoreHigherThanUnrelated(t *testing.T) {
+	var calls int
+	srv := fakeEmbeddingServer(t, &calls)
+	defer srv.Close()
+
+	s := NewEmbeddingScorer(srv.URL, "test", "", nil)
+	a := tokenize("connection refused upstream database")
+	b := tokenize("connection failed upstream database") // one synonym swap
+	c := tokenize("permission denied filesystem path")   // unrelated
+
+	sim := s.Score(a, b)
+	unrel := s.Score(a, c)
+	if !(sim > unrel) {
+		t.Fatalf("synonym pair should score higher than unrelated: sim=%v unrel=%v", sim, unrel)
+	}
+	if sim < 0.9 {
+		// With vocab designed so "refused" and "failed" share a dimension,
+		// a/b should score very close to 1.0.
+		t.Fatalf("expected sim ≥ 0.9 for synonym pair, got %v", sim)
+	}
+}
+
+func TestEmbeddingScorer_CachesPerTokenSet(t *testing.T) {
+	var calls int
+	srv := fakeEmbeddingServer(t, &calls)
+	defer srv.Close()
+
+	s := NewEmbeddingScorer(srv.URL, "test", "", nil)
+	a := tokenize("connection refused upstream")
+	b := tokenize("connection refused upstream") // same tokens
+
+	_ = s.Score(a, b)
+	callsAfterFirst := calls
+	_ = s.Score(a, b)
+	if calls != callsAfterFirst {
+		t.Fatalf("second Score with same tokens should hit cache; calls went %d → %d", callsAfterFirst, calls)
+	}
+	if s.CacheSize() != 1 {
+		t.Fatalf("cacheSize=%d, want 1 (identical inputs)", s.CacheSize())
+	}
+}
+
+func TestEmbeddingScorer_EvictDropsStale(t *testing.T) {
+	var calls int
+	srv := fakeEmbeddingServer(t, &calls)
+	defer srv.Close()
+
+	s := NewEmbeddingScorer(srv.URL, "test", "", nil)
+	// Seed 3 cache entries.
+	s.Score(tokenize("aaa"), tokenize("aaa"))
+	s.Score(tokenize("bbb"), tokenize("bbb"))
+	s.Score(tokenize("ccc"), tokenize("ccc"))
+	if s.CacheSize() != 3 {
+		t.Fatalf("setup: cache size = %d, want 3", s.CacheSize())
+	}
+	// Keep only "aaa"
+	keep := map[string]struct{}{
+		cacheKey(tokenize("aaa")): {},
+	}
+	removed := s.Evict(keep)
+	if removed != 2 || s.CacheSize() != 1 {
+		t.Fatalf("Evict removed %d / remaining %d; want 2 removed / 1 remaining", removed, s.CacheSize())
+	}
+}
+
+func TestNearDup_ScanCallsScorerEvict(t *testing.T) {
+	// Wire an aggregator with a scorer whose Evict we can observe.
+	ea := NewErrorAggregator()
+	var evictCalled int
+	var evictLastKeep int
+	ea.mu.Lock()
+	ea.nearDup = &nearDupConfig{
+		Mode:      NearDupShadow,
+		Threshold: 0.5,
+		Scorer:    cosineTokenSet,
+		ScorerEvict: func(keep map[string]struct{}) int {
+			evictCalled++
+			evictLastKeep = len(keep)
+			return 0
+		},
+		scanLimit: 200,
+	}
+	ea.mu.Unlock()
+
+	ea.Ingest(IngestEvent{Service: "s", Namespace: "n", Level: "error", Reason: "ex",
+		Fingerprint: "a", Message: "connection refused"})
+	ea.Ingest(IngestEvent{Service: "s", Namespace: "n", Level: "error", Reason: "ex",
+		Fingerprint: "b", Message: "disk full"})
+
+	_ = ea.ScanNearDuplicates()
+	if evictCalled != 1 {
+		t.Fatalf("ScorerEvict should be called once per scan; got %d", evictCalled)
+	}
+	if evictLastKeep != 2 {
+		t.Fatalf("keep set should have 2 entries (one per live group); got %d", evictLastKeep)
+	}
+}
+
+func TestEmbeddingScorer_FallsBackOnHTTPError(t *testing.T) {
+	// Point at an unreachable server so the HTTP call fails fast.
+	s := NewEmbeddingScorer("http://127.0.0.1:1/bad", "test", "", &http.Client{
+		Timeout: 200 * time.Millisecond,
+	})
+	a := tokenize("connection refused upstream database")
+	b := tokenize("connection refused upstream database")
+	got := s.Score(a, b)
+	// Identical inputs via cosineTokenSet fallback = 1.0.
+	if got < 0.99 {
+		t.Fatalf("expected fallback to give identical-inputs score ≈ 1, got %v", got)
+	}
+}
+
+// ----------------------------------------------------------------------------
 // Phase 2.2 — near-duplicate detection
 // ----------------------------------------------------------------------------
 

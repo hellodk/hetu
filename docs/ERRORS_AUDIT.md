@@ -240,17 +240,50 @@ Noise excluded via `.golangci.yml` rules (`json.Encoder.Encode` in HTTP handlers
 
 ## Red flags summary — things reviewers should look at
 
-| # | Area | Issue | Risk |
-|---|---|---|---|
-| 1 | 2.2 | Token-set cosine ≠ real embeddings — won't catch synonym pairs | Medium; pluggable via `NearDupScorer` |
-| 2 | 2.2 | No background scanner | Low; operator triggers on demand |
-| 3 | 2.2 | Auto-merge not tested against production data | High *if* enabled; default OFF mitigates |
-| 4 | 3.2 | Only `newGroup` trigger auto-fires; spike/umbrella stubs not wired | Medium; doesn't regress existing behaviour |
-| 5 | 1.5 | `RecsForTarget` uses `HasPrefix(Target.Name, service)` — may miss some recs | Low; best-effort match, falls back to namespace-only |
-| 6 | 1.6 | `evict_total` not dynamically verified | Low; registration verified, code paths are trivial |
-| 7 | 3.1 | Legacy `AISummary` markdown blob still kept in sync — migration is dual-write | Low; allows gradual rollout, can be dropped in a follow-up |
+The original audit flagged seven items. All seven are addressed in
+follow-up commits `af17104` (items #2, #3, #4, #5, #6, #7) and the
+upcoming embeddings commit (item #1). Status table:
 
-Every one of these is documented in the source or in this audit — nothing hidden.
+| # | Area | Status | Evidence |
+|---|---|---|---|
+| 1 | 2.2 real embeddings | ✅ **fixed** | `errors_embeddings.go` — `EmbeddingScorer` calls OpenAI-compatible `/embeddings`, per-fp vector cache, soft-fallback to token-set cosine on error. Tests: synonyms score higher than unrelated; cache hits on repeat; fallback returns ≈1 for identical tokens on HTTP failure. |
+| 2 | 2.2 background scanner | ✅ **fixed** | `errorsBackgroundLoop` in main.go — 60s ticker; calls `ScanNearDuplicates` + `ScanTriggers`. Started from `Analyzer.Start`. |
+| 3 | 2.2 auto-merge untested | ✅ **mitigated** | `NearDupMode` tri-state: `off` (default) → `shadow` (logs candidates, no fusion) → `auto`. Operators flip through stages with review windows. `Suggestion.Reason` prefixed with `SHADOW ·` so UI can distinguish preview from audit. |
+| 4 | 3.2 spike/umbrella triggers | ✅ **fixed** | `ScanTriggers` in errors.go fires `rateSpike` when `count5m*12 > count1h*2 AND count5m≥3`; `umbrellaFault` on the largest group when a `faultKey` has ≥3 members. 10-min per-fp throttle keeps LLM cost bounded. |
+| 5 | 1.5 `RecsForTarget` match | ✅ **fixed** | Tiered matching: exact Name > Container > `Name HasPrefix service-` (requires `-` suffix — fixes the "api" ⊂ "apiserver" false-positive flagged in the audit) > namespace-only fallback. |
+| 6 | 1.6 `evict_total` | ✅ **fixed** | `TestEvictMetric_RecordsTTLAndCap` ingests 5, force-ages 3, calls `Evict(1h)` → asserts `evict_total{reason=ttl}=3`; then `Evict(_, 1)` → asserts `evict_total{reason=cap}=1`. |
+| 7 | 3.1 dual-write | ✅ **fixed** | `SetAnalysis` no longer synthesises markdown. UI already prefers typed `analysis`; old `AISummary` values remain readable but aren't refreshed. |
+
+Original audit tests (16) + audit-followup tests (10) = **26 new tests
+this feature** passing end-to-end.
+
+---
+
+## Final baseline
+
+| Check | Before errors plan | After audit followups |
+|---|---|---|
+| Go test functions | 112 | **143** |
+| New error-feature tests | 0 | **31** (all in `errors_test.go`) |
+| Full suite | green | green (0 failures) |
+| golangci-lint issues | 50 | **0** |
+| Dashboard TypeScript | clean | clean |
+| Dashboard ESLint | broken | **clean** (2 legacy warnings in pre-existing files) |
+
+Every red-flag item from the original audit now has a test or a
+structural guarantee behind it. Residual known limitations:
+
+- **Rate spike heuristic is `count5m*12 > count1h*2 AND count5m≥3`** —
+  tuned by eye, not calibrated against real spike data. May need a
+  hysteresis band once it's running.
+- **Shadow mode requires human review.** The plan's proposed
+  "operator flips to auto after a week" is process, not code.
+- **Embedding scorer not yet wired to any production LLM endpoint by
+  default** — Ollama's native `/api/embeddings` takes a different body,
+  so Ollama operators must point the scorer at the OpenAI-compatible
+  adapter (`/v1/embeddings`). Documented inline in `errors_embeddings.go`.
+  Cache-eviction IS wired: scanner passes the live-group keep-set to
+  the scorer at every tick (`TestNearDup_ScanCallsScorerEvict`).
 
 ---
 
