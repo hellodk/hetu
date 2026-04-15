@@ -1,12 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, Boxes, Server, Network, Database,
   Shield, Gauge, ChevronDown, ChevronRight, Menu, X, Bug, Globe, Zap, TrendingDown,
-  Activity, Settings
+  Activity, Settings, Sun, Moon, Monitor
 } from 'lucide-react'
 
 interface NavSection {
@@ -79,6 +79,33 @@ export function Navigation() {
   const pathname = usePathname()
   const [openSections, setOpenSections] = useState<Set<string>>(new Set(['Workloads']))
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('system')
+
+  const themeIcon = useMemo(() => {
+    if (theme === 'light') return <Sun className="w-4 h-4" />
+    if (theme === 'dark') return <Moon className="w-4 h-4" />
+    return <Monitor className="w-4 h-4" />
+  }, [theme])
+
+  useEffect(() => {
+    try {
+      const stored = (localStorage.getItem('ci_theme') as 'light' | 'dark' | 'system' | null) || 'system'
+      setTheme(stored)
+    } catch {
+      // ignore
+    }
+  }, [])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('ci_theme', theme)
+    } catch {
+      // ignore
+    }
+    const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+    const shouldDark = theme === 'dark' || (theme === 'system' && prefersDark)
+    document.documentElement.classList.toggle('dark', shouldDark)
+  }, [theme])
 
   const toggle = (name: string) => {
     setOpenSections(prev => {
@@ -97,11 +124,35 @@ export function Navigation() {
   const nav = (
     <nav className="flex flex-col h-full">
       {/* Top links */}
-      <div className="p-4 border-b border-white/10">
+      <div className="p-4 border-b border-cluster-border">
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <div className="text-xs font-semibold tracking-wide text-cluster-muted uppercase">
+            Navigation
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="sr-only" htmlFor="theme">
+              Theme
+            </label>
+            <div className="flex items-center gap-1.5 text-xs text-cluster-muted">
+              {themeIcon}
+              <select
+                id="theme"
+                value={theme}
+                onChange={(e) => setTheme(e.target.value as 'light' | 'dark' | 'system')}
+                className="bg-transparent text-xs text-cluster-muted hover:text-cluster-text focus:outline-none cursor-pointer"
+                aria-label="Theme"
+              >
+                <option value="system">System</option>
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
+              </select>
+            </div>
+          </div>
+        </div>
         <Link
           href="/"
           className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-            pathname === '/' ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-white/10'
+            pathname === '/' ? 'bg-blue-600 text-white' : 'text-cluster-muted hover:bg-cluster-border/50 hover:text-cluster-text'
           }`}
         >
           <LayoutDashboard className="w-4 h-4" />
@@ -110,7 +161,7 @@ export function Navigation() {
         <Link
           href="/errors"
           className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors mt-1 ${
-            pathname?.startsWith('/errors') ? 'bg-red-600/20 text-red-400' : 'text-gray-300 hover:bg-white/10'
+            pathname?.startsWith('/errors') ? 'bg-red-600/15 text-red-600 dark:text-red-300' : 'text-cluster-muted hover:bg-cluster-border/50 hover:text-cluster-text'
           }`}
         >
           <Bug className="w-4 h-4" />
@@ -119,7 +170,7 @@ export function Navigation() {
         <Link
           href="/lb-logs"
           className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors mt-1 ${
-            pathname?.startsWith('/lb-logs') ? 'bg-blue-600/20 text-blue-400' : 'text-gray-300 hover:bg-white/10'
+            pathname?.startsWith('/lb-logs') ? 'bg-blue-600/15 text-blue-700 dark:text-blue-300' : 'text-cluster-muted hover:bg-cluster-border/50 hover:text-cluster-text'
           }`}
         >
           <Globe className="w-4 h-4" />
@@ -128,7 +179,7 @@ export function Navigation() {
         <Link
           href="/incidents"
           className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors mt-1 ${
-            pathname?.startsWith('/incidents') ? 'bg-purple-600/20 text-purple-400' : 'text-gray-300 hover:bg-white/10'
+            pathname?.startsWith('/incidents') ? 'bg-purple-600/15 text-purple-700 dark:text-purple-300' : 'text-cluster-muted hover:bg-cluster-border/50 hover:text-cluster-text'
           }`}
         >
           <Zap className="w-4 h-4" />
@@ -137,7 +188,7 @@ export function Navigation() {
         <Link
           href="/optimization"
           className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors mt-1 ${
-            pathname?.startsWith('/optimization') ? 'bg-green-600/20 text-green-400' : 'text-gray-300 hover:bg-white/10'
+            pathname?.startsWith('/optimization') ? 'bg-green-600/15 text-green-700 dark:text-green-300' : 'text-cluster-muted hover:bg-cluster-border/50 hover:text-cluster-text'
           }`}
         >
           <TrendingDown className="w-4 h-4" />
@@ -146,7 +197,7 @@ export function Navigation() {
         <Link
           href="/anomalies"
           className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors mt-1 ${
-            pathname?.startsWith('/anomalies') ? 'bg-teal-600/20 text-teal-400' : 'text-gray-300 hover:bg-white/10'
+            pathname?.startsWith('/anomalies') ? 'bg-teal-600/15 text-teal-700 dark:text-teal-300' : 'text-cluster-muted hover:bg-cluster-border/50 hover:text-cluster-text'
           }`}
         >
           <Activity className="w-4 h-4" />
@@ -155,7 +206,7 @@ export function Navigation() {
         <Link
           href="/security"
           className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors mt-1 ${
-            pathname?.startsWith('/security') ? 'bg-orange-600/20 text-orange-400' : 'text-gray-300 hover:bg-white/10'
+            pathname?.startsWith('/security') ? 'bg-orange-600/15 text-orange-700 dark:text-orange-300' : 'text-cluster-muted hover:bg-cluster-border/50 hover:text-cluster-text'
           }`}
         >
           <Shield className="w-4 h-4" />
@@ -164,7 +215,7 @@ export function Navigation() {
         <Link
           href="/settings"
           className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors mt-1 ${
-            pathname?.startsWith('/settings') ? 'bg-gray-600/20 text-gray-400' : 'text-gray-300 hover:bg-white/10'
+            pathname?.startsWith('/settings') ? 'bg-cluster-border/60 text-cluster-text' : 'text-cluster-muted hover:bg-cluster-border/50 hover:text-cluster-text'
           }`}
         >
           <Settings className="w-4 h-4" />
@@ -178,7 +229,7 @@ export function Navigation() {
           <div key={section.name} className="mb-1">
             <button
               onClick={() => toggle(section.name)}
-              className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-400 hover:text-white rounded-md hover:bg-white/5 transition-colors"
+              className="flex items-center gap-2 w-full px-3 py-2 text-sm text-cluster-muted hover:text-cluster-text rounded-md hover:bg-cluster-border/40 transition-colors"
             >
               {section.icon}
               <span className="flex-1 text-left">{section.name}</span>
@@ -196,8 +247,8 @@ export function Navigation() {
                     href={item.href}
                     className={`block px-3 py-1.5 text-sm rounded-md transition-colors ${
                       isActive(item.href)
-                        ? 'bg-blue-600/20 text-blue-400'
-                        : 'text-gray-400 hover:text-white hover:bg-white/5'
+                        ? 'bg-blue-600/15 text-blue-700 dark:text-blue-300'
+                        : 'text-cluster-muted hover:text-cluster-text hover:bg-cluster-border/40'
                     }`}
                   >
                     {item.label}
@@ -216,19 +267,19 @@ export function Navigation() {
       {/* Mobile toggle */}
       <button
         onClick={() => setMobileOpen(!mobileOpen)}
-        className="fixed top-4 left-4 z-50 p-2 rounded-md bg-gray-800 text-white lg:hidden"
+        className="fixed top-4 left-4 z-50 p-2 rounded-md bg-cluster-card border border-cluster-border text-cluster-text lg:hidden"
       >
         {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
       </button>
 
       {/* Sidebar */}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 w-56 bg-gray-900 border-r border-white/10 transform transition-transform duration-200 lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-40 w-56 bg-cluster-bg border-r border-cluster-border transform transition-transform duration-200 lg:translate-x-0 ${
           mobileOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <div className="h-14 flex items-center px-4 border-b border-white/10">
-          <span className="text-sm font-semibold text-white">Cluster Intel</span>
+        <div className="h-14 flex items-center px-4 border-b border-cluster-border">
+          <span className="text-sm font-semibold text-cluster-text">Cluster Intel</span>
         </div>
         {nav}
       </aside>

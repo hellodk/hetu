@@ -165,12 +165,12 @@ export default function SettingsPage() {
 
   return (
     <div className="p-6 max-w-4xl">
-      <h1 className="text-2xl font-bold text-white mb-6">Settings</h1>
+      <h1 className="text-2xl font-bold text-cluster-text mb-6">Settings</h1>
 
       {/* LLM Configuration */}
-      <div className="bg-gray-800/50 border border-gray-700/50 rounded-lg p-6 mb-6">
+      <div className="bg-cluster-card border border-cluster-border rounded-lg p-6 mb-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+          <h2 className="text-lg font-semibold text-cluster-text flex items-center gap-2">
             <Brain className="w-5 h-5 text-purple-400" />
             LLM Configuration
           </h2>
@@ -189,30 +189,30 @@ export default function SettingsPage() {
           <div className="space-y-4">
             {/* Provider selector */}
             <div>
-              <label className="block text-sm text-gray-400 mb-1.5">Provider</label>
+              <label className="block text-sm text-cluster-muted mb-1.5">Provider</label>
               <select
                 value={form.provider}
                 onChange={e => onProviderChange(e.target.value)}
-                className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2.5 text-white text-sm"
+                className="w-full bg-cluster-bg border border-cluster-border rounded-lg px-3 py-2.5 text-cluster-text text-sm"
               >
                 {providers.map(p => (
                   <option key={p.id} value={p.id}>{p.name}</option>
                 ))}
               </select>
               {selectedProvider && (
-                <p className="mt-1 text-xs text-gray-500">{selectedProvider.description}</p>
+                <p className="mt-1 text-xs text-cluster-muted/80">{selectedProvider.description}</p>
               )}
             </div>
 
             {/* Endpoint + Discover */}
             <div>
-              <label className="block text-sm text-gray-400 mb-1.5">Endpoint URL</label>
+              <label className="block text-sm text-cluster-muted mb-1.5">Endpoint URL</label>
               <div className="flex gap-2">
                 <input
                   type="text"
                   value={form.endpoint}
                   onChange={e => { setForm({ ...form, endpoint: e.target.value }); setDiscoveredModels([]); }}
-                  className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2.5 text-white text-sm font-mono"
+                  className="flex-1 bg-cluster-bg border border-cluster-border rounded-lg px-3 py-2.5 text-cluster-text text-sm font-mono"
                   placeholder="https://api.example.com"
                 />
                 <button
@@ -231,7 +231,7 @@ export default function SettingsPage() {
 
             {/* Model — dropdown if models discovered, text input otherwise */}
             <div>
-              <label className="block text-sm text-gray-400 mb-1.5">
+              <label className="block text-sm text-cluster-muted mb-1.5">
                 Model
                 {discoveredModels.length > 0 && (
                   <span className="ml-2 text-xs text-green-500">({discoveredModels.length} models found)</span>
@@ -241,7 +241,7 @@ export default function SettingsPage() {
                 <select
                   value={form.model}
                   onChange={e => setForm({ ...form, model: e.target.value })}
-                  className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2.5 text-white text-sm font-mono"
+                  className="w-full bg-cluster-bg border border-cluster-border rounded-lg px-3 py-2.5 text-cluster-text text-sm font-mono"
                 >
                   {discoveredModels.map(m => (
                     <option key={m.id} value={m.id}>
@@ -254,7 +254,7 @@ export default function SettingsPage() {
                   type="text"
                   value={form.model}
                   onChange={e => setForm({ ...form, model: e.target.value })}
-                  className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2.5 text-white text-sm font-mono"
+                  className="w-full bg-cluster-bg border border-cluster-border rounded-lg px-3 py-2.5 text-cluster-text text-sm font-mono"
                   placeholder="model-name — or click Fetch Models to discover"
                 />
               )}
@@ -262,11 +262,11 @@ export default function SettingsPage() {
 
             {/* API Key */}
             <div>
-              <label className="block text-sm text-gray-400 mb-1.5 flex items-center gap-1.5">
+              <label className="block text-sm text-cluster-muted mb-1.5 flex items-center gap-1.5">
                 <Key className="w-3.5 h-3.5" />
                 API Key
                 {selectedProvider && !selectedProvider.requiresApiKey && (
-                  <span className="text-xs text-gray-600">(optional for {selectedProvider.name})</span>
+                  <span className="text-xs text-cluster-muted/70">(optional for {selectedProvider.name})</span>
                 )}
               </label>
               <div className="relative">
@@ -274,7 +274,7 @@ export default function SettingsPage() {
                   type="password"
                   value={apiKey}
                   onChange={e => setApiKey(e.target.value)}
-                  className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2.5 text-white text-sm font-mono"
+                  className="w-full bg-cluster-bg border border-cluster-border rounded-lg px-3 py-2.5 text-cluster-text text-sm font-mono"
                   placeholder={form.apiKeySet ? '••••••••••••••• (already set)' : 'Enter API key'}
                 />
                 {form.apiKeySet && !apiKey && (
@@ -286,39 +286,39 @@ export default function SettingsPage() {
             {/* Advanced settings row */}
             <div className="grid grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm text-gray-400 mb-1.5">Max Tokens</label>
+                <label className="block text-sm text-cluster-muted mb-1.5">Max Tokens</label>
                 <input
                   type="number"
                   value={form.maxTokens}
                   onChange={e => setForm({ ...form, maxTokens: parseInt(e.target.value) || 0 })}
-                  className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2.5 text-white text-sm"
+                  className="w-full bg-cluster-bg border border-cluster-border rounded-lg px-3 py-2.5 text-cluster-text text-sm"
                   min={256}
                   max={128000}
                 />
               </div>
               <div>
-                <label className="block text-sm text-gray-400 mb-1.5">Temperature</label>
+                <label className="block text-sm text-cluster-muted mb-1.5">Temperature</label>
                 <input
                   type="number"
                   value={form.temperature}
                   onChange={e => setForm({ ...form, temperature: parseFloat(e.target.value) || 0 })}
-                  className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2.5 text-white text-sm"
+                  className="w-full bg-cluster-bg border border-cluster-border rounded-lg px-3 py-2.5 text-cluster-text text-sm"
                   min={0}
                   max={2}
                   step={0.1}
                 />
               </div>
               <div>
-                <label className="block text-sm text-gray-400 mb-1.5">Daily Token Budget</label>
+                <label className="block text-sm text-cluster-muted mb-1.5">Daily Token Budget</label>
                 <input
                   type="number"
                   value={form.dailyTokenBudget}
                   onChange={e => setForm({ ...form, dailyTokenBudget: parseInt(e.target.value) || 0 })}
-                  className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2.5 text-white text-sm"
+                  className="w-full bg-cluster-bg border border-cluster-border rounded-lg px-3 py-2.5 text-cluster-text text-sm"
                   min={0}
                   step={100000}
                 />
-                <p className="mt-1 text-xs text-gray-600">0 = unlimited</p>
+                <p className="mt-1 text-xs text-cluster-muted/70">0 = unlimited</p>
               </div>
             </div>
 
@@ -335,14 +335,14 @@ export default function SettingsPage() {
               {hasChanges && (
                 <button
                   onClick={resetForm}
-                  className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-400 hover:text-white transition-colors"
+                  className="flex items-center gap-1.5 px-3 py-2 text-sm text-cluster-muted hover:text-cluster-text transition-colors"
                 >
                   <RotateCcw className="w-4 h-4" />
                   Reset
                 </button>
               )}
               <span className="flex-1" />
-              <span className="text-xs text-gray-600">
+              <span className="text-xs text-cluster-muted/70">
                 Runtime config — persists until pod restart. Update Helm values for permanent changes.
               </span>
             </div>
@@ -350,31 +350,31 @@ export default function SettingsPage() {
         )}
 
         {!form && (
-          <div className="text-center py-6 text-gray-500">
+          <div className="text-center py-6 text-cluster-muted">
             LLM configuration not available. Check analyzer connection.
           </div>
         )}
       </div>
 
       {/* Cluster Capabilities */}
-      <div className="bg-gray-800/50 border border-gray-700/50 rounded-lg p-6">
-        <h2 className="text-lg font-semibold text-white flex items-center gap-2 mb-4">
+      <div className="bg-cluster-card border border-cluster-border rounded-lg p-6">
+        <h2 className="text-lg font-semibold text-cluster-text flex items-center gap-2 mb-4">
           <Server className="w-5 h-5 text-blue-400" />
           Cluster Capabilities
         </h2>
         <div className="grid grid-cols-2 gap-4">
-          <div className="flex items-center gap-3 p-3 bg-gray-900/50 rounded-lg">
+          <div className="flex items-center gap-3 p-3 bg-cluster-bg/60 border border-cluster-border rounded-lg">
             {capabilities?.exec ? <CheckCircle className="w-5 h-5 text-green-400" /> : <XCircle className="w-5 h-5 text-gray-600" />}
             <div>
-              <div className="text-sm text-white">Pod Exec</div>
-              <div className="text-xs text-gray-500">{capabilities?.exec ? 'Enabled' : 'Disabled'}</div>
+              <div className="text-sm text-cluster-text">Pod Exec</div>
+              <div className="text-xs text-cluster-muted">{capabilities?.exec ? 'Enabled' : 'Disabled'}</div>
             </div>
           </div>
-          <div className="flex items-center gap-3 p-3 bg-gray-900/50 rounded-lg">
+          <div className="flex items-center gap-3 p-3 bg-cluster-bg/60 border border-cluster-border rounded-lg">
             {capabilities?.writeActions ? <CheckCircle className="w-5 h-5 text-green-400" /> : <XCircle className="w-5 h-5 text-gray-600" />}
             <div>
-              <div className="text-sm text-white">Write Actions</div>
-              <div className="text-xs text-gray-500">{capabilities?.writeActions ? 'Enabled (scale/restart/delete)' : 'Disabled'}</div>
+              <div className="text-sm text-cluster-text">Write Actions</div>
+              <div className="text-xs text-cluster-muted">{capabilities?.writeActions ? 'Enabled (scale/restart/delete)' : 'Disabled'}</div>
             </div>
           </div>
         </div>

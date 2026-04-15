@@ -39,11 +39,24 @@ export default function RootLayout({
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || ''
 
   return (
-    <html lang="en" className="dark">
+    <html lang="en">
       <head>
         <script
           dangerouslySetInnerHTML={{
-            __html: `window.__CLUSTER_INTEL_API__=${JSON.stringify(apiUrl)};`,
+            __html: `
+              window.__CLUSTER_INTEL_API__=${JSON.stringify(apiUrl)};
+              (function () {
+                try {
+                  var stored = localStorage.getItem('ci_theme'); // 'light' | 'dark' | 'system'
+                  var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+                  var theme = stored || 'system';
+                  var shouldDark = theme === 'dark' || (theme === 'system' && prefersDark);
+                  document.documentElement.classList.toggle('dark', shouldDark);
+                } catch (e) {
+                  // no-op (SSR / privacy mode)
+                }
+              })();
+            `,
           }}
         />
       </head>

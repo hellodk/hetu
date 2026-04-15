@@ -77,6 +77,28 @@ func NewOptimizerRegistry(promURL, clusterID string) *OptimizerRegistry {
 	return reg
 }
 
+// RecsForTarget returns open recommendations whose Target matches the
+// given namespace + (optional) service-as-name-prefix. Used by the
+// errors-page context panel (Phase 1.5).
+func (r *OptimizerRegistry) RecsForTarget(namespace, service string) []*OptRecommendation {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	out := make([]*OptRecommendation, 0)
+	for _, rec := range r.recommendations {
+		if rec.Status != "open" {
+			continue
+		}
+		if namespace != "" && rec.Target.Namespace != namespace {
+			continue
+		}
+		if service != "" && rec.Target.Name != "" && !strings.HasPrefix(rec.Target.Name, service) {
+			continue
+		}
+		out = append(out, rec)
+	}
+	return out
+}
+
 // Register adds an optimizer module.
 func (r *OptimizerRegistry) Register(opt Optimizer) {
 	r.mu.Lock()

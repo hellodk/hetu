@@ -3,9 +3,32 @@
 @tailwind utilities;
 
 :root {
+  /* Light theme (default) */
+  --foreground-rgb: 15, 23, 42;
+  --background-start-rgb: 248, 250, 252;
+  --background-end-rgb: 241, 245, 249;
+
+  /* App semantic tokens (used by tailwind.config.js via rgb(var(--...)) */
+  --cluster-bg: 248 250 252;
+  --cluster-card: 255 255 255;
+  --cluster-border: 226 232 240;
+  --cluster-text: 15 23 42;
+  --cluster-muted: 71 85 105;
+  --cluster-ring-offset: 248 250 252;
+}
+
+.dark {
+  /* Dark theme */
   --foreground-rgb: 226, 232, 240;
   --background-start-rgb: 15, 23, 42;
   --background-end-rgb: 30, 41, 59;
+
+  --cluster-bg: 15 23 42;
+  --cluster-card: 30 41 59;
+  --cluster-border: 51 65 85;
+  --cluster-text: 226 232 240;
+  --cluster-muted: 148 163 184;
+  --cluster-ring-offset: 15 23 42;
 }
 
 body {
@@ -25,7 +48,7 @@ body {
 
 /* Focus visible states - Accessibility */
 *:focus-visible {
-  @apply outline-none ring-2 ring-blue-500 ring-offset-2 ring-offset-slate-900;
+  @apply outline-none ring-2 ring-blue-500 ring-offset-2 ring-offset-cluster-ring-offset;
 }
 
 /* Remove default focus for non-keyboard users */
@@ -36,7 +59,7 @@ body {
 /* Button base styles with focus states */
 .btn-base {
   @apply transition-all duration-200;
-  @apply focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900;
+  @apply focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-cluster-ring-offset;
 }
 
 .btn-primary {
@@ -45,17 +68,17 @@ body {
 }
 
 .btn-secondary {
-  @apply btn-base px-4 py-2 bg-cluster-border hover:bg-slate-600 text-cluster-text font-medium rounded-lg;
+  @apply btn-base px-4 py-2 bg-cluster-border hover:bg-cluster-border/80 text-cluster-text font-medium rounded-lg;
   @apply disabled:opacity-50 disabled:cursor-not-allowed;
 }
 
 .btn-ghost {
-  @apply btn-base p-2 hover:bg-cluster-border rounded-lg;
+  @apply btn-base p-2 hover:bg-cluster-border/60 rounded-lg;
   @apply disabled:opacity-50 disabled:cursor-not-allowed;
 }
 
 .btn-icon {
-  @apply btn-base p-2 hover:bg-cluster-border rounded-lg relative;
+  @apply btn-base p-2 hover:bg-cluster-border/60 rounded-lg relative;
   @apply disabled:opacity-50 disabled:cursor-not-allowed;
 }
 
@@ -71,16 +94,16 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  background: #1e293b;
+  background: rgb(var(--cluster-card));
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #475569;
+  background: rgb(var(--cluster-border));
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #64748b;
+  background: rgb(var(--cluster-muted));
 }
 
 /* Score ring animation */
@@ -314,7 +337,7 @@ body {
 /* Tooltip */
 .tooltip {
   @apply invisible opacity-0 absolute z-50;
-  @apply px-2 py-1 text-xs bg-slate-800 text-white rounded;
+  @apply px-2 py-1 text-xs bg-cluster-text text-white rounded;
   @apply transition-all duration-200;
   @apply -top-8 left-1/2 -translate-x-1/2;
   @apply whitespace-nowrap;

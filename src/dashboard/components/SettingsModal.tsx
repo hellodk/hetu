@@ -36,6 +36,29 @@ export function SettingsModal({
     const [savingOverride, setSavingOverride] = useState(false)
     const [overrideLocation, setOverrideLocation] = useState<string>('')
     const [overrideLoadError, setOverrideLoadError] = useState<string>('')
+    const [themePref, setThemePref] = useState<'light' | 'dark' | 'system'>('system')
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return
+        try {
+            const stored = (localStorage.getItem('ci_theme') as 'light' | 'dark' | 'system' | null) || 'system'
+            setThemePref(stored)
+        } catch {
+            // ignore
+        }
+    }, [isOpen])
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return
+        try {
+            localStorage.setItem('ci_theme', themePref)
+        } catch {
+            // ignore
+        }
+        const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+        const shouldDark = themePref === 'dark' || (themePref === 'system' && prefersDark)
+        document.documentElement.classList.toggle('dark', shouldDark)
+    }, [themePref])
 
     useEffect(() => {
         if (!isOpen) return
@@ -69,7 +92,7 @@ export function SettingsModal({
                     cluster analysis and synthetic demo data. Critical for
                     running product demos without a real cluster. */}
                 <div>
-                    <label className="block text-slate-300 mb-2 font-medium">Data Profile</label>
+                    <label className="block text-cluster-text mb-2 font-medium">Data Profile</label>
                     <div className="grid grid-cols-2 gap-2">
                         <button
                             type="button"
@@ -77,8 +100,8 @@ export function SettingsModal({
                             aria-pressed={!isMock}
                             className={`flex items-center justify-center gap-2 p-3 rounded-lg border transition-all ${
                                 !isMock
-                                    ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-200'
-                                    : 'bg-black/20 border-cluster-border text-slate-400 hover:bg-white/5'
+                                    ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-800 dark:text-emerald-200'
+                                    : 'bg-cluster-card border-cluster-border text-cluster-muted hover:bg-cluster-border/30'
                             }`}
                         >
                             <Activity className="w-4 h-4" aria-hidden="true" />
@@ -90,29 +113,29 @@ export function SettingsModal({
                             aria-pressed={isMock}
                             className={`flex items-center justify-center gap-2 p-3 rounded-lg border transition-all ${
                                 isMock
-                                    ? 'bg-amber-500/20 border-amber-500/50 text-amber-200'
-                                    : 'bg-black/20 border-cluster-border text-slate-400 hover:bg-white/5'
+                                    ? 'bg-amber-500/15 border-amber-500/40 text-amber-800 dark:text-amber-200'
+                                    : 'bg-cluster-card border-cluster-border text-cluster-muted hover:bg-cluster-border/30'
                             }`}
                         >
                             <PlayCircle className="w-4 h-4" aria-hidden="true" />
                             <span className="font-medium">Demo</span>
                         </button>
                     </div>
-                    <p className="text-xs text-slate-500 mt-2">
+                    <p className="text-xs text-cluster-muted mt-2">
                         {isMock
                             ? 'Demo mode is active: synthetic data is being shown. No real cluster is analyzed.'
                             : 'Live mode: real cluster telemetry is analyzed. Switch to demo to present without a real cluster.'}
                     </p>
-                    <p className="text-xs text-slate-600 mt-1">
+                    <p className="text-xs text-cluster-muted/80 mt-1">
                         Note: profile changes are not persisted. Restarting the analyzer always starts in Live mode; enable Demo again here if needed.
                     </p>
                 </div>
 
                 <div>
-                    <label className="block text-slate-300 mb-1 font-medium">Collector URL (Live mode)</label>
+                    <label className="block text-cluster-text mb-1 font-medium">Collector URL (Live mode)</label>
                     <input
                         type="text"
-                        className="w-full bg-black/20 border border-cluster-border rounded-lg p-2 text-cluster-text font-mono text-xs focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                        className="w-full bg-cluster-card border border-cluster-border rounded-lg p-2 text-cluster-text font-mono text-xs focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
                         value={collectorInput}
                         onChange={(e) => setCollectorInput(e.target.value)}
                         placeholder="http://collector:8080"
@@ -120,14 +143,14 @@ export function SettingsModal({
                         inputMode="url"
                     />
                     <div className="mt-2 flex items-center justify-between gap-3">
-                        <p className="text-xs text-slate-500">
+                        <p className="text-xs text-cluster-muted">
                             Required in Live mode. If empty, telemetry cannot be fetched.
                         </p>
                         <button
                             type="button"
                             className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-semibold border transition-colors ${collectorDirty
-                                ? 'bg-blue-600/20 border-blue-500/40 text-blue-200 hover:bg-blue-600/30'
-                                : 'bg-black/20 border-cluster-border text-slate-500 cursor-not-allowed'
+                                ? 'bg-blue-600/15 border-blue-500/40 text-blue-800 dark:text-blue-200 hover:bg-blue-600/20'
+                                : 'bg-cluster-card border-cluster-border text-cluster-muted/70 cursor-not-allowed'
                                 }`}
                             disabled={!collectorDirty || savingCollector}
                             onClick={async () => {
@@ -147,18 +170,18 @@ export function SettingsModal({
                 </div>
 
                 <div>
-                    <label className="block text-slate-300 mb-1 font-medium">Runtime configuration overrides (persisted)</label>
-                    <p className="text-xs text-slate-500 mb-2">
+                    <label className="block text-cluster-text mb-1 font-medium">Runtime configuration overrides (persisted)</label>
+                    <p className="text-xs text-cluster-muted mb-2">
                         Saved as a runtime override layer. Intended for quick recovery; commit to GitOps for permanence.
                         {overrideLocation ? ` Stored in: ${overrideLocation}` : ''}
                     </p>
                     {overrideLoadError && (
-                        <p className="text-xs text-amber-300 mb-2">
+                        <p className="text-xs text-amber-600 dark:text-amber-300 mb-2">
                             Could not load current overrides: {overrideLoadError}
                         </p>
                     )}
                     <textarea
-                        className="w-full h-40 bg-black/20 border border-cluster-border rounded-lg p-2 text-cluster-text font-mono text-xs focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                        className="w-full h-40 bg-cluster-card border border-cluster-border rounded-lg p-2 text-cluster-text font-mono text-xs focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
                         value={overrideYaml}
                         onChange={(e) => setOverrideYaml(e.target.value)}
                         placeholder={'# Example:\n# analyzer:\n#   collectorUrl: http://collector:8080\n# llm:\n#   provider: openai\n#   endpoint: https://api.openai.com/v1\n'}
@@ -168,7 +191,7 @@ export function SettingsModal({
                     <div className="mt-2 flex items-center justify-end gap-2">
                         <button
                             type="button"
-                            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-semibold border bg-black/20 border-cluster-border text-slate-300 hover:bg-white/5 transition-colors"
+                            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-semibold border bg-cluster-card border-cluster-border text-cluster-text hover:bg-cluster-border/40 transition-colors"
                             onClick={() => {
                                 const blob = new Blob([overrideYaml], { type: 'text/yaml' })
                                 const url = URL.createObjectURL(blob)
@@ -186,8 +209,8 @@ export function SettingsModal({
                         <button
                             type="button"
                             className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-semibold border transition-colors ${savingOverride
-                                ? 'bg-blue-600/20 border-blue-500/40 text-blue-200'
-                                : 'bg-blue-600/20 border-blue-500/40 text-blue-200 hover:bg-blue-600/30'
+                                ? 'bg-blue-600/15 border-blue-500/40 text-blue-800 dark:text-blue-200'
+                                : 'bg-blue-600/15 border-blue-500/40 text-blue-800 dark:text-blue-200 hover:bg-blue-600/20'
                                 }`}
                             disabled={!overrideYamlLoaded || savingOverride}
                             onClick={async () => {
@@ -215,19 +238,19 @@ export function SettingsModal({
                 </div>
 
                 <div>
-                    <label className="block text-slate-400 mb-1 font-medium">API Endpoint URL</label>
+                    <label className="block text-cluster-text mb-1 font-medium">API Endpoint URL</label>
                     <input
                         type="text"
-                        className="w-full bg-black/20 border border-cluster-border rounded-lg p-2 text-cluster-text font-mono text-xs focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                        className="w-full bg-cluster-card border border-cluster-border rounded-lg p-2 text-cluster-text font-mono text-xs focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
                         defaultValue={typeof window !== 'undefined' ? ((window as any).__CLUSTER_INTEL_API__ || '(relative)') : '(server)'}
                         readOnly
                     />
-                    <p className="text-xs text-slate-500 mt-1">Injected at runtime by the Next.js server layout</p>
+                    <p className="text-xs text-cluster-muted mt-1">Injected at runtime by the Next.js server layout</p>
                 </div>
 
                 <div>
-                    <label className="block text-slate-400 mb-1 font-medium">Data Refresh Mode</label>
-                    <select className="w-full bg-black/20 border border-cluster-border rounded-lg p-2 text-cluster-text focus:ring-blue-500 focus:border-blue-500 outline-none transition-all cursor-pointer appearance-none">
+                    <label className="block text-cluster-text mb-1 font-medium">Data Refresh Mode</label>
+                    <select className="w-full bg-cluster-card border border-cluster-border rounded-lg p-2 text-cluster-text focus:ring-blue-500 focus:border-blue-500 outline-none transition-all cursor-pointer appearance-none">
                         <option value="stream">Live Stream (SSE) - Active</option>
                         <option value="30s">30 seconds Polling</option>
                         <option value="60s">1 minute Polling</option>
@@ -237,16 +260,24 @@ export function SettingsModal({
 
                 <div>
                     <label className="block text-slate-400 mb-1 font-medium">Theme Preference</label>
-                    <select className="w-full bg-black/20 border border-cluster-border rounded-lg p-2 text-cluster-text focus:ring-blue-500 focus:border-blue-500 outline-none transition-all cursor-pointer appearance-none">
-                        <option value="dark">Dark Mode (Default)</option>
-                        <option value="light">Light Mode (Coming Soon)</option>
+                    <select
+                        value={themePref}
+                        onChange={(e) => setThemePref(e.target.value as 'light' | 'dark' | 'system')}
+                        className="w-full bg-cluster-card border border-cluster-border rounded-lg p-2 text-cluster-text focus:ring-blue-500 focus:border-blue-500 outline-none transition-all cursor-pointer appearance-none"
+                    >
+                        <option value="system">System</option>
+                        <option value="dark">Dark</option>
+                        <option value="light">Light</option>
                     </select>
+                    <p className="text-xs text-cluster-muted mt-1">
+                        Applies instantly and is saved in this browser.
+                    </p>
                 </div>
 
                 <div className="pt-5 flex justify-end gap-3 border-t border-cluster-border mt-6">
                     <button
                         onClick={onClose}
-                        className="px-4 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-white/5 transition-colors font-medium"
+                        className="px-4 py-2 rounded-lg text-cluster-muted hover:text-cluster-text hover:bg-cluster-border/40 transition-colors font-medium"
                     >
                         Close
                     </button>

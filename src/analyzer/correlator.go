@@ -183,6 +183,37 @@ func (c *Correlator) GetIncident(id int64) *Incident {
 	return c.incidents[id]
 }
 
+// IncidentsForTarget returns all non-dismissed incidents whose signals
+// reference the given namespace and (optionally) service. Used by the
+// errors-page context panel (Phase 1.5) to show "what else is broken
+// nearby". Pass service=="" to filter by namespace only.
+func (c *Correlator) IncidentsForTarget(namespace, service string) []*Incident {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	out := make([]*Incident, 0)
+	for _, inc := range c.incidents {
+		if inc.Status == "dismissed" {
+			continue
+		}
+		match := false
+		for _, sig := range inc.Signals {
+			if namespace != "" && sig.Namespace != namespace {
+				continue
+			}
+			if service != "" && sig.Service != service {
+				continue
+			}
+			match = true
+			break
+		}
+		if match {
+			out = append(out, inc)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].DetectedAt.After(out[j].DetectedAt) })
+	return out
+}
+
 // Evict removes incidents past their TTL and enforces a hard cap on the
 // map size. Resolved/dismissed incidents use resolvedTTL (from
 // ResolvedAt if set, else DetectedAt); anything older than activeTTL

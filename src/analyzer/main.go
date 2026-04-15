@@ -2980,6 +2980,23 @@ func main() {
 	// take precedence over unified config). This ensures the RCA engine uses the
 	// same model as the main analyzer — no hardcoded "llama3" fallback.
 	analyzer.correlator = NewCorrelator(config.ClusterID, 5*time.Minute)
+
+	// Errors plan Phase 1.5 — context panel: let the error aggregator
+	// fan out to incidents + recommendations for the same target. Wired
+	// after both subsystems exist; nil-safe at the call site.
+	analyzer.errorAggregator.AttachContext(analyzer.correlator, analyzer.optimizerRegistry)
+
+	// Errors plan Phase 1.6 — Prometheus instrumentation on the
+	// errors path. Uses the analyzer's existing custom registry so
+	// metrics show up under /metrics alongside cluster_intel_*.
+	analyzer.errorAggregator.AttachMetrics(analyzer.registry, "cluster_intel")
+
+	// Errors plan Phase 3.2 — async LLM analysis on new groups (and
+	// future spike triggers). The closure honours the dailyTokenBudget
+	// gate via the existing rcaEngine.tokensUsed accounting; if the LLM
+	// is unconfigured, every call short-circuits.
+	analyzer.errorAggregator.AttachAnalyzer(analyzer.runErrorGroupAnalysis)
+
 	rcaLLMCfg := ucfg.LLM
 	if config.LLMBackend != "" {
 		rcaLLMCfg.Provider = config.LLMBackend

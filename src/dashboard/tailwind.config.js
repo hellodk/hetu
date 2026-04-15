@@ -1,5 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
+  darkMode: 'class',
   content: [
     './pages/**/*.{js,ts,jsx,tsx,mdx}',
     './components/**/*.{js,ts,jsx,tsx,mdx}',
@@ -10,11 +11,12 @@ module.exports = {
       colors: {
         // Custom color palette for the dashboard
         'cluster': {
-          'bg': '#0f172a',
-          'card': '#1e293b',
-          'border': '#334155',
-          'text': '#e2e8f0',
-          'muted': '#94a3b8',
+          'bg': 'rgb(var(--cluster-bg) / <alpha-value>)',
+          'card': 'rgb(var(--cluster-card) / <alpha-value>)',
+          'border': 'rgb(var(--cluster-border) / <alpha-value>)',
+          'text': 'rgb(var(--cluster-text) / <alpha-value>)',
+          'muted': 'rgb(var(--cluster-muted) / <alpha-value>)',
+          'ring-offset': 'rgb(var(--cluster-ring-offset) / <alpha-value>)',
         },
         'score': {
           'excellent': '#22c55e',
