@@ -61,9 +61,9 @@ func TestExemplar_DoesNotRegress(t *testing.T) {
 	good := IngestEvent{
 		Service: "svc", Namespace: "ns", Level: "error",
 		Reason: "exception", Fingerprint: "fp1",
-		Message: strings.Repeat("informative-context ", 20),
+		Message:    strings.Repeat("informative-context ", 20),
 		StackTrace: "FooException: x\n  at app.go:10",
-		Error: "FooException: x", URL: "/v1/api", RequestID: "req-1",
+		Error:      "FooException: x", URL: "/v1/api", RequestID: "req-1",
 	}
 	weak := IngestEvent{
 		Service: "svc", Namespace: "ns", Level: "error",
@@ -123,11 +123,11 @@ func TestComputeRate_BucketsByAge(t *testing.T) {
 	now := time.Now()
 	// inject occurrences directly so we control the timestamps
 	ea.occurrences["fp"] = []ErrorOccurrence{
-		{Timestamp: now.Add(-10 * time.Second)},  // last 1m + 5m + 1h + 24h
-		{Timestamp: now.Add(-3 * time.Minute)},   // 5m + 1h + 24h
-		{Timestamp: now.Add(-30 * time.Minute)},  // 1h + 24h
-		{Timestamp: now.Add(-3 * time.Hour)},     // 24h only
-		{Timestamp: now.Add(-25 * time.Hour)},    // outside everything
+		{Timestamp: now.Add(-10 * time.Second)}, // last 1m + 5m + 1h + 24h
+		{Timestamp: now.Add(-3 * time.Minute)},  // 5m + 1h + 24h
+		{Timestamp: now.Add(-30 * time.Minute)}, // 1h + 24h
+		{Timestamp: now.Add(-3 * time.Hour)},    // 24h only
+		{Timestamp: now.Add(-25 * time.Hour)},   // outside everything
 	}
 	r := ea.computeRate("fp")
 	if r.Count1m != 1 || r.Count5m != 2 || r.Count1h != 3 || r.Count24h != 4 {
@@ -161,22 +161,28 @@ func TestHandleGetGroup_OccurrenceFilters(t *testing.T) {
 	defer srv.Close()
 
 	// Filter by pod
-	resp, _ := http.Get(srv.URL + "/api/v1/errors/groups/1?pod=p-a")
-	defer resp.Body.Close()
+	resp, err := http.Get(srv.URL + "/api/v1/errors/groups/1?pod=p-a")
+	if err != nil {
+		t.Fatal(err)
+	}
 	var body struct {
 		Occurrences   []ErrorOccurrence `json:"occurrences"`
 		FilteredCount int               `json:"filteredCount"`
 		TotalCount    int               `json:"totalCount"`
 	}
 	json.NewDecoder(resp.Body).Decode(&body)
+	resp.Body.Close()
 	if body.FilteredCount != 2 || body.TotalCount != 3 {
 		t.Fatalf("pod filter: filtered=%d total=%d, want 2 of 3", body.FilteredCount, body.TotalCount)
 	}
 
 	// Filter by search term
-	resp, _ = http.Get(srv.URL + "/api/v1/errors/groups/1?search=beta")
-	defer resp.Body.Close()
+	resp, err = http.Get(srv.URL + "/api/v1/errors/groups/1?search=beta")
+	if err != nil {
+		t.Fatal(err)
+	}
 	json.NewDecoder(resp.Body).Decode(&body)
+	resp.Body.Close()
 	if body.FilteredCount != 1 {
 		t.Fatalf("search filter: got %d, want 1", body.FilteredCount)
 	}
@@ -209,7 +215,10 @@ func TestFaultRollup_GroupsBySharedKey(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
-	resp, _ := http.Get(srv.URL + "/api/v1/errors/faults")
+	resp, err := http.Get(srv.URL + "/api/v1/errors/faults")
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer resp.Body.Close()
 	var body struct {
 		TotalFaults int `json:"totalFaults"`
@@ -321,7 +330,10 @@ func TestGroupContext_NilDepsReturnsEmptyArrays(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
-	resp, _ := http.Get(srv.URL + "/api/v1/errors/groups/" + strconv.FormatInt(id1, 10) + "/context")
+	resp, err := http.Get(srv.URL + "/api/v1/errors/groups/" + strconv.FormatInt(id1, 10) + "/context")
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer resp.Body.Close()
 	var body struct {
 		Incidents       []any `json:"incidents"`
@@ -336,6 +348,102 @@ func TestGroupContext_NilDepsReturnsEmptyArrays(t *testing.T) {
 	}
 	if len(body.Siblings) != 1 || body.Siblings[0].Service != "svc-b" {
 		t.Fatalf("expected exactly 1 sibling (svc-b), got %+v", body.Siblings)
+	}
+}
+
+// ----------------------------------------------------------------------------
+// Phase 2.2 — near-duplicate detection
+// ----------------------------------------------------------------------------
+
+func TestCosineTokenSet_IdenticalIs1(t *testing.T) {
+	a := tokenize("connection refused to upstream database")
+	if c := cosineTokenSet(a, a); c < 0.999 {
+		t.Fatalf("identical → cos %v, want ≈1", c)
+	}
+}
+
+func TestCosineTokenSet_NearDuplicate(t *testing.T) {
+	// Same root cause, slight wording variant — the regex-based
+	// fingerprint would treat these as different but our scanner
+	// should catch them.
+	a := tokenize("connection refused to upstream database server")
+	b := tokenize("connect: connection refused to upstream database server")
+	c := cosineTokenSet(a, b)
+	if c < 0.85 {
+		t.Fatalf("expected near-duplicate ≥ 0.85, got %v", c)
+	}
+}
+
+func TestCosineTokenSet_UnrelatedIsLow(t *testing.T) {
+	a := tokenize("connection refused database")
+	b := tokenize("permission denied filesystem")
+	c := cosineTokenSet(a, b)
+	if c >= 0.5 {
+		t.Fatalf("unrelated messages should score < 0.5, got %v", c)
+	}
+}
+
+func TestScanNearDuplicates_OffByDefault(t *testing.T) {
+	ea := NewErrorAggregator()
+	for i, msg := range []string{"connection refused database", "connection refused upstream"} {
+		ea.Ingest(IngestEvent{
+			Service: "s", Namespace: "n", Level: "error", Reason: "ex",
+			Fingerprint: "fp" + string(rune('a'+i)),
+			Message:     msg,
+		})
+	}
+	report := ea.ScanNearDuplicates()
+	if len(report.Suggestions) != 0 {
+		t.Fatalf("default should be off; got %d suggestions", len(report.Suggestions))
+	}
+}
+
+func TestScanNearDuplicates_FindsCandidates(t *testing.T) {
+	ea := NewErrorAggregator()
+	ea.ConfigureNearDup(true, false, 0.5, nil)
+	// Two near-duplicates + one unrelated
+	ea.Ingest(IngestEvent{Service: "s", Namespace: "n", Level: "error", Reason: "ex",
+		Fingerprint: "older", Message: "connection refused upstream database"})
+	time.Sleep(2 * time.Millisecond) // ensure newer FirstSeen
+	ea.Ingest(IngestEvent{Service: "s", Namespace: "n", Level: "error", Reason: "ex",
+		Fingerprint: "newer", Message: "connect connection refused upstream database server"})
+	ea.Ingest(IngestEvent{Service: "s", Namespace: "n", Level: "error", Reason: "ex",
+		Fingerprint: "unrelated", Message: "permission denied filesystem path"})
+
+	report := ea.ScanNearDuplicates()
+	if len(report.Suggestions) == 0 {
+		t.Fatalf("expected ≥1 near-dup suggestion, got 0")
+	}
+	// The "newer" group should have a MergeSuggestion pointing at "older"
+	newer := ea.groups["newer"]
+	if newer.MergeSuggestion == nil {
+		t.Fatalf("newer group missing MergeSuggestion")
+	}
+	older := ea.groups["older"]
+	if newer.MergeSuggestion.TargetID != older.ID {
+		t.Fatalf("suggestion should target older.ID=%d, got %d", older.ID, newer.MergeSuggestion.TargetID)
+	}
+}
+
+func TestScanNearDuplicates_AutoMergeFolds(t *testing.T) {
+	ea := NewErrorAggregator()
+	ea.ConfigureNearDup(true, true, 0.5, nil) // autoMerge ON
+	ea.Ingest(IngestEvent{Service: "s", Namespace: "n", Level: "error", Reason: "ex",
+		Fingerprint: "older", Message: "connection refused upstream database"})
+	time.Sleep(2 * time.Millisecond)
+	ea.Ingest(IngestEvent{Service: "s", Namespace: "n", Level: "error", Reason: "ex",
+		Fingerprint: "newer", Message: "connect connection refused upstream database server"})
+
+	if len(ea.groups) != 2 {
+		t.Fatalf("setup: want 2 groups, have %d", len(ea.groups))
+	}
+	ea.ScanNearDuplicates()
+	if len(ea.groups) != 1 {
+		t.Fatalf("autoMerge should have folded; %d groups remain", len(ea.groups))
+	}
+	tgt := ea.groups["older"]
+	if len(tgt.MergedFrom) != 1 {
+		t.Fatalf("target should have a MergedFrom entry; got %v", tgt.MergedFrom)
 	}
 }
 

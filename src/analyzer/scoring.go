@@ -43,16 +43,16 @@ type ClusterScoreInput struct {
 	LowFindings      int
 
 	// From SecurityScanner (by category)
-	PrivilegedContainers  int
-	RootContainers        int
-	HostNetworkPods       int
-	ClusterAdminBindings  int
-	SecretsInEnvVars      int
-	NamespacesWithoutNP   int
-	WritableRootFS        int
-	MissingSecContext     int
-	WildcardRBAC          int
-	DefaultSAUsage        int
+	PrivilegedContainers int
+	RootContainers       int
+	HostNetworkPods      int
+	ClusterAdminBindings int
+	SecretsInEnvVars     int
+	NamespacesWithoutNP  int
+	WritableRootFS       int
+	MissingSecContext    int
+	WildcardRBAC         int
+	DefaultSAUsage       int
 
 	// From ResourceMetrics (latest deduplicated)
 	CPUUsed      float64
@@ -136,11 +136,15 @@ func deduct(count, perItem, maxDeduction int) int {
 	return d
 }
 
-func truncNames(names []string, max int) []string {
-	if len(names) <= max {
+// Truncate at this many names when attaching Resources to a deduction —
+// keeps the /breakdown payload bounded. AllResources retains the full list.
+const truncResourceNames = 10
+
+func truncNames(names []string) []string {
+	if len(names) <= truncResourceNames {
 		return names
 	}
-	return names[:max]
+	return names[:truncResourceNames]
 }
 
 // =========================================================================
@@ -155,7 +159,7 @@ func calculateReliability(input ClusterScoreInput) ScoreResult {
 		d := deduct(input.CrashLoopPods, 10, 30)
 		deductions = append(deductions, ScoreDeduction{
 			Rule: "CrashLoopBackOff pods", Impact: -d, Max: -30,
-			Count: input.CrashLoopPods, Resources: truncNames(input.CrashLoopPodNames, 10),
+			Count: input.CrashLoopPods, Resources: truncNames(input.CrashLoopPodNames),
 			AllResources: input.CrashLoopPodNames,
 		})
 	}
@@ -163,7 +167,7 @@ func calculateReliability(input ClusterScoreInput) ScoreResult {
 		d := deduct(input.OOMKilledPods, 5, 20)
 		deductions = append(deductions, ScoreDeduction{
 			Rule: "OOMKilled pods", Impact: -d, Max: -20,
-			Count: input.OOMKilledPods, Resources: truncNames(input.OOMKilledPodNames, 10),
+			Count: input.OOMKilledPods, Resources: truncNames(input.OOMKilledPodNames),
 			AllResources: input.OOMKilledPodNames,
 		})
 	}
@@ -171,7 +175,7 @@ func calculateReliability(input ClusterScoreInput) ScoreResult {
 		d := deduct(input.PendingPods, 3, 15)
 		deductions = append(deductions, ScoreDeduction{
 			Rule: "Pending pods", Impact: -d, Max: -15,
-			Count: input.PendingPods, Resources: truncNames(input.PendingPodNames, 10),
+			Count: input.PendingPods, Resources: truncNames(input.PendingPodNames),
 			AllResources: input.PendingPodNames,
 		})
 	}
@@ -179,7 +183,7 @@ func calculateReliability(input ClusterScoreInput) ScoreResult {
 		d := deduct(input.EvictedPods, 3, 15)
 		deductions = append(deductions, ScoreDeduction{
 			Rule: "Evicted pods", Impact: -d, Max: -15,
-			Count: input.EvictedPods, Resources: truncNames(input.EvictedPodNames, 10),
+			Count: input.EvictedPods, Resources: truncNames(input.EvictedPodNames),
 			AllResources: input.EvictedPodNames,
 		})
 	}
@@ -215,7 +219,7 @@ func calculateSecurity(input ClusterScoreInput) ScoreResult {
 		d := deduct(input.PrivilegedContainers, 15, 30)
 		deductions = append(deductions, ScoreDeduction{
 			Rule: "Privileged containers", Impact: -d, Max: -30,
-			Count: input.PrivilegedContainers, Resources: truncNames(input.PrivilegedPodNames, 10),
+			Count: input.PrivilegedContainers, Resources: truncNames(input.PrivilegedPodNames),
 			AllResources: input.PrivilegedPodNames,
 		})
 	}
@@ -223,7 +227,7 @@ func calculateSecurity(input ClusterScoreInput) ScoreResult {
 		d := deduct(input.RootContainers, 10, 30)
 		deductions = append(deductions, ScoreDeduction{
 			Rule: "Root containers", Impact: -d, Max: -30,
-			Count: input.RootContainers, Resources: truncNames(input.RootPodNames, 10),
+			Count: input.RootContainers, Resources: truncNames(input.RootPodNames),
 			AllResources: input.RootPodNames,
 		})
 	}
@@ -231,7 +235,7 @@ func calculateSecurity(input ClusterScoreInput) ScoreResult {
 		d := deduct(input.HostNetworkPods, 10, 20)
 		deductions = append(deductions, ScoreDeduction{
 			Rule: "Host network/PID/IPC pods", Impact: -d, Max: -20,
-			Count: input.HostNetworkPods, Resources: truncNames(input.HostNetworkPodNames, 10),
+			Count: input.HostNetworkPods, Resources: truncNames(input.HostNetworkPodNames),
 			AllResources: input.HostNetworkPodNames,
 		})
 	}
@@ -239,7 +243,7 @@ func calculateSecurity(input ClusterScoreInput) ScoreResult {
 		d := deduct(input.ClusterAdminBindings, 10, 20)
 		deductions = append(deductions, ScoreDeduction{
 			Rule: "Cluster-admin bindings", Impact: -d, Max: -20,
-			Count: input.ClusterAdminBindings, Resources: truncNames(input.ClusterAdminNames, 10),
+			Count: input.ClusterAdminBindings, Resources: truncNames(input.ClusterAdminNames),
 			AllResources: input.ClusterAdminNames,
 		})
 	}
@@ -247,7 +251,7 @@ func calculateSecurity(input ClusterScoreInput) ScoreResult {
 		d := deduct(input.SecretsInEnvVars, 5, 15)
 		deductions = append(deductions, ScoreDeduction{
 			Rule: "Secrets in env vars", Impact: -d, Max: -15,
-			Count: input.SecretsInEnvVars, Resources: truncNames(input.SecretsInEnvPodNames, 10),
+			Count: input.SecretsInEnvVars, Resources: truncNames(input.SecretsInEnvPodNames),
 			AllResources: input.SecretsInEnvPodNames,
 		})
 	}
@@ -255,7 +259,7 @@ func calculateSecurity(input ClusterScoreInput) ScoreResult {
 		d := deduct(input.NamespacesWithoutNP, 5, 20)
 		deductions = append(deductions, ScoreDeduction{
 			Rule: "Namespaces without network policy", Impact: -d, Max: -20,
-			Count: input.NamespacesWithoutNP, Resources: truncNames(input.NsWithoutNPNames, 10),
+			Count: input.NamespacesWithoutNP, Resources: truncNames(input.NsWithoutNPNames),
 			AllResources: input.NsWithoutNPNames,
 		})
 	}
@@ -340,7 +344,7 @@ func calculateCost(input ClusterScoreInput) ScoreResult {
 		deductions = append(deductions, ScoreDeduction{
 			Rule: "Rightsizing opportunities", Impact: -d, Max: -20,
 			Count:        input.RightsizingRecs,
-			Resources:    truncNames(input.RightsizingTargetNames, 10),
+			Resources:    truncNames(input.RightsizingTargetNames),
 			AllResources: input.RightsizingTargetNames,
 		})
 	}
@@ -403,7 +407,7 @@ func calculateArchitecture(input ClusterScoreInput) ScoreResult {
 		d := deduct(input.NamespacesWithoutQuota, 5, 15)
 		deductions = append(deductions, ScoreDeduction{
 			Rule: "Namespaces without ResourceQuota", Impact: -d, Max: -15,
-			Count: input.NamespacesWithoutQuota, Resources: truncNames(input.NsWithoutQuotaNames, 10),
+			Count: input.NamespacesWithoutQuota, Resources: truncNames(input.NsWithoutQuotaNames),
 			AllResources: input.NsWithoutQuotaNames,
 		})
 	}
@@ -411,7 +415,7 @@ func calculateArchitecture(input ClusterScoreInput) ScoreResult {
 		d := deduct(input.NamespacesWithoutLR, 3, 10)
 		deductions = append(deductions, ScoreDeduction{
 			Rule: "Namespaces without LimitRange", Impact: -d, Max: -10,
-			Count: input.NamespacesWithoutLR, Resources: truncNames(input.NsWithoutLRNames, 10),
+			Count: input.NamespacesWithoutLR, Resources: truncNames(input.NsWithoutLRNames),
 			AllResources: input.NsWithoutLRNames,
 		})
 	}

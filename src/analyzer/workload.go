@@ -325,14 +325,13 @@ func (h *WorkloadHandler) handleEventsCluster(w http.ResponseWriter, r *http.Req
 }
 
 func (h *WorkloadHandler) getEvents(w http.ResponseWriter, r *http.Request, ns, name, kind string) {
-	// Query events matching this object.
+	// Query events matching this object. We filter only on name here —
+	// kind comes in as the plural resource name ("pods") not the
+	// singular Kind the K8s API expects ("Pod"), and downstream
+	// displays typically don't need the extra narrowing. If name uniqueness
+	// becomes an issue across kinds, extend this with a kindSingular map.
+	_ = kind
 	fs := fmt.Sprintf("involvedObject.name=%s", name)
-	if kind != "" {
-		// Kind from the URL is the plural resource name; we need the singular Kind.
-		// Best effort: capitalize first letter. The K8s API will filter correctly
-		// even if this isn't perfect — it just won't match some events.
-	}
-
 	opts := metav1.ListOptions{FieldSelector: fs}
 	var eventList interface{}
 	var err error

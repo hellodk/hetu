@@ -570,4 +570,3 @@ func TestHandleResourceImpact_LiveIncidentMatch(t *testing.T) {
 		t.Error("expected non-empty remediation for Open incidents")
 	}
 }
-

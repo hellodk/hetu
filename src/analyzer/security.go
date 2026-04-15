@@ -16,14 +16,14 @@ import (
 
 // SecFinding represents a security issue found in the cluster.
 type SecFinding struct {
-	ID          int64    `json:"id"`
-	Category    string   `json:"category"` // cis, rbac, pod-security, network, secrets, general
-	Severity    string   `json:"severity"`
-	Title       string   `json:"title"`
-	Description string   `json:"description"`
-	Affected    []string `json:"affectedResources"`
-	CISControl  string   `json:"cisControl,omitempty"`
-	Remediation string   `json:"remediation"`
+	ID          int64     `json:"id"`
+	Category    string    `json:"category"` // cis, rbac, pod-security, network, secrets, general
+	Severity    string    `json:"severity"`
+	Title       string    `json:"title"`
+	Description string    `json:"description"`
+	Affected    []string  `json:"affectedResources"`
+	CISControl  string    `json:"cisControl,omitempty"`
+	Remediation string    `json:"remediation"`
 	DetectedAt  time.Time `json:"detectedAt"`
 }
 

@@ -17,37 +17,37 @@ import (
 type Signal struct {
 	ID        string    `json:"id"`
 	Timestamp time.Time `json:"timestamp"`
-	Source    string    `json:"source"`    // logs, lb, k8s, anomaly
-	Severity  string    `json:"severity"`  // critical, high, medium, low
+	Source    string    `json:"source"`   // logs, lb, k8s, anomaly
+	Severity  string    `json:"severity"` // critical, high, medium, low
 	Service   string    `json:"service,omitempty"`
 	Namespace string    `json:"namespace,omitempty"`
 	Pod       string    `json:"pod,omitempty"`
-	Kind      string    `json:"kind"`     // exception, timeout, spike, restart, oom, etc.
+	Kind      string    `json:"kind"` // exception, timeout, spike, restart, oom, etc.
 	Title     string    `json:"title"`
 	Details   string    `json:"details,omitempty"`
 }
 
 // Incident represents a cluster of correlated signals.
 type Incident struct {
-	ID         int64     `json:"id"`
-	ClusterID  string    `json:"clusterId"`
-	Severity   string    `json:"severity"`
-	Status     string    `json:"status"` // open, investigating, resolved, dismissed
-	DetectedAt time.Time `json:"detectedAt"`
+	ID         int64      `json:"id"`
+	ClusterID  string     `json:"clusterId"`
+	Severity   string     `json:"severity"`
+	Status     string     `json:"status"` // open, investigating, resolved, dismissed
+	DetectedAt time.Time  `json:"detectedAt"`
 	ResolvedAt *time.Time `json:"resolvedAt,omitempty"`
-	Signals    []Signal  `json:"signals"`
-	Affected   []string  `json:"affected"` // service/namespace/pod names
-	Summary    string    `json:"summary"`
+	Signals    []Signal   `json:"signals"`
+	Affected   []string   `json:"affected"` // service/namespace/pod names
+	Summary    string     `json:"summary"`
 	RCAReport  *RCAReport `json:"rcaReport,omitempty"`
 }
 
 // Correlator clusters incoming signals by topology+time into incidents.
 type Correlator struct {
-	mu            sync.RWMutex
-	incidents     map[int64]*Incident
-	nextID        int64
-	signalWindow  time.Duration
-	clusterID     string
+	mu           sync.RWMutex
+	incidents    map[int64]*Incident
+	nextID       int64
+	signalWindow time.Duration
+	clusterID    string
 
 	// Callback to trigger RCA when a new incident is created.
 	onNewIncident func(incidentID int64)

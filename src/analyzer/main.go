@@ -727,13 +727,13 @@ func (a *Analyzer) runPodHealthScan(ctx context.Context) {
 			// Bridge to ErrorAggregator
 			if a.errorAggregator != nil {
 				a.errorAggregator.Ingest(IngestEvent{
-					Timestamp: time.Now(),
-					Namespace: pod.Namespace,
-					Pod:       pod.Name,
-					Service:   pod.Name,
-					Level:     "error",
-					Message:   pod.Message,
-					Reason:    kind,
+					Timestamp:   time.Now(),
+					Namespace:   pod.Namespace,
+					Pod:         pod.Name,
+					Service:     pod.Name,
+					Level:       "error",
+					Message:     pod.Message,
+					Reason:      kind,
 					Fingerprint: fmt.Sprintf("%s/%s/%s", kind, pod.Namespace, pod.Name),
 				})
 			}
@@ -1532,16 +1532,20 @@ func (a *Analyzer) buildHealthReport(events []types.TelemetryEvent, metrics []ty
 	if llmResponse != nil {
 		if rawScores, ok := llmResponse["healthScores"].(map[string]any); ok {
 			if v, ok := rawScores["reliability"].(float64); ok {
-				iv := int(v); llmRel = &iv
+				iv := int(v)
+				llmRel = &iv
 			}
 			if v, ok := rawScores["security"].(float64); ok {
-				iv := int(v); llmSec = &iv
+				iv := int(v)
+				llmSec = &iv
 			}
 			if v, ok := rawScores["cost"].(float64); ok {
-				iv := int(v); llmCost = &iv
+				iv := int(v)
+				llmCost = &iv
 			}
 			if v, ok := rawScores["architecture"].(float64); ok {
-				iv := int(v); llmArch = &iv
+				iv := int(v)
+				llmArch = &iv
 			}
 		}
 	}
@@ -1652,8 +1656,9 @@ func (a *Analyzer) serveMetrics() {
 	mux.Handle("/metrics", promhttp.HandlerFor(a.registry, promhttp.HandlerOpts{}))
 
 	a.metricsServer = &http.Server{
-		Addr:    fmt.Sprintf("%s:%d", a.config.BindAddress, a.config.MetricsPort),
-		Handler: mux,
+		Addr:              fmt.Sprintf("%s:%d", a.config.BindAddress, a.config.MetricsPort),
+		Handler:           mux,
+		ReadHeaderTimeout: 10 * time.Second, // G112 — block Slowloris
 	}
 
 	log.Info().Int("port", a.config.MetricsPort).Msg("Starting metrics server")
@@ -1805,8 +1810,9 @@ func (a *Analyzer) serveAPI() {
 	handler := rateLimitMiddleware(corsMiddleware(mux))
 
 	a.apiServer = &http.Server{
-		Addr:    fmt.Sprintf("%s:%d", a.config.BindAddress, a.config.APIPort),
-		Handler: handler,
+		Addr:              fmt.Sprintf("%s:%d", a.config.BindAddress, a.config.APIPort),
+		Handler:           handler,
+		ReadHeaderTimeout: 10 * time.Second, // G112 — block Slowloris
 	}
 
 	log.Info().Int("port", a.config.APIPort).Msg("Starting API server")
@@ -2328,10 +2334,10 @@ func (a *Analyzer) handleErrorsAnalyze(w http.ResponseWriter, r *http.Request) {
 
 	sort.Slice(sorted, func(i, j int) bool { return sorted[i].g.Count > sorted[j].g.Count })
 	if len(sorted) > 10 {
-	maxAnalyze := getEnvIntOrDefault("LLM_MAX_ERROR_GROUPS", 5)
-	if len(sorted) > maxAnalyze {
-		sorted = sorted[:maxAnalyze]
-	}
+		maxAnalyze := getEnvIntOrDefault("LLM_MAX_ERROR_GROUPS", 5)
+		if len(sorted) > maxAnalyze {
+			sorted = sorted[:maxAnalyze]
+		}
 	}
 
 	if len(sorted) == 0 {
@@ -2416,20 +2422,20 @@ func (a *Analyzer) handleErrorsAnalyze(w http.ResponseWriter, r *http.Request) {
 
 	// Parse the array response
 	var analyses []struct {
-		Index    int    `json:"index"`
+		Index     int    `json:"index"`
 		RootCause string `json:"rootCause"`
-		Impact   string `json:"impact"`
-		Fix      string `json:"fix"`
-		Severity string `json:"severity"`
+		Impact    string `json:"impact"`
+		Fix       string `json:"fix"`
+		Severity  string `json:"severity"`
 	}
 	if err := json.Unmarshal([]byte(content), &analyses); err != nil {
 		// Try wrapping in array if it's a single object
 		var single struct {
-			Index    int    `json:"index"`
+			Index     int    `json:"index"`
 			RootCause string `json:"rootCause"`
-			Impact   string `json:"impact"`
-			Fix      string `json:"fix"`
-			Severity string `json:"severity"`
+			Impact    string `json:"impact"`
+			Fix       string `json:"fix"`
+			Severity  string `json:"severity"`
 		}
 		if err2 := json.Unmarshal([]byte(content), &single); err2 == nil {
 			analyses = append(analyses, single)
@@ -2736,11 +2742,11 @@ func (a *Analyzer) applyRuntimeOverrideBestEffort(overrideYaml string) {
 			CORSAllowedOrigins []string `yaml:"corsAllowedOrigins"`
 		} `yaml:"analyzer"`
 		LLM struct {
-			Provider     string  `yaml:"provider"`
-			Endpoint     string  `yaml:"endpoint"`
-			Model        string  `yaml:"model"`
-			MaxTokens    int     `yaml:"maxTokens"`
-			Temperature  float64 `yaml:"temperature"`
+			Provider    string  `yaml:"provider"`
+			Endpoint    string  `yaml:"endpoint"`
+			Model       string  `yaml:"model"`
+			MaxTokens   int     `yaml:"maxTokens"`
+			Temperature float64 `yaml:"temperature"`
 		} `yaml:"llm"`
 		Server struct {
 			BindAddress string `yaml:"bindAddress"`
@@ -2883,12 +2889,12 @@ func main() {
 
 	// Load configuration
 	config := Config{
-		ClusterID:        coalesce(getEnvOrDefault("CLUSTER_ID", ""), ucfg.Cluster.ID, "default"),
-		BindAddress:      coalesce(getEnvOrDefault("BIND_ADDRESS", ""), ucfg.Server.BindAddress, "0.0.0.0"),
+		ClusterID:   coalesce(getEnvOrDefault("CLUSTER_ID", ""), ucfg.Cluster.ID, "default"),
+		BindAddress: coalesce(getEnvOrDefault("BIND_ADDRESS", ""), ucfg.Server.BindAddress, "0.0.0.0"),
 		// Do not hardcode a K8s-DNS default (e.g. http://collector:8080) because
 		// it breaks local runs and LAN demos. Configure this explicitly via
 		// COLLECTOR_URL (or set it through your deployment config).
-		CollectorURL:     coalesce(getEnvOrDefault("COLLECTOR_URL", ""), ucfg.Analyzer.CollectorURL, ""),
+		CollectorURL: coalesce(getEnvOrDefault("COLLECTOR_URL", ""), ucfg.Analyzer.CollectorURL, ""),
 		// LLM_PROVIDER is the canonical env var (matches the config field
 		// name and how the rest of the codebase refers to it). LLM_BACKEND
 		// is accepted as a backward-compat alias.
@@ -2959,12 +2965,12 @@ func main() {
 		// Persist non-secret LLM fields into runtime override layer.
 		analyzer.persistOverridePatch(context.Background(), map[string]any{
 			"llm": map[string]any{
-				"provider":     state.Provider,
-				"endpoint":     state.Endpoint,
-				"model":        state.Model,
-				"maxTokens":    state.MaxTokens,
-				"temperature":  state.Temperature,
-				"dailyTokenBudget": state.DailyTokenBudget,
+				"provider":             state.Provider,
+				"endpoint":             state.Endpoint,
+				"model":                state.Model,
+				"maxTokens":            state.MaxTokens,
+				"temperature":          state.Temperature,
+				"dailyTokenBudget":     state.DailyTokenBudget,
 				"explainOptimizations": state.ExplainOptimizations,
 			},
 		})
@@ -3104,7 +3110,11 @@ func getEnvOrDefault(key, defaultVal string) string {
 func getEnvIntOrDefault(key string, defaultVal int) int {
 	if val := os.Getenv(key); val != "" {
 		var result int
-		fmt.Sscanf(val, "%d", &result)
+		// On parse failure, return defaultVal rather than the zero value
+		// — silently zeroing a port/limit on a typo was a real footgun.
+		if _, err := fmt.Sscanf(val, "%d", &result); err != nil {
+			return defaultVal
+		}
 		return result
 	}
 	return defaultVal
@@ -3113,7 +3123,9 @@ func getEnvIntOrDefault(key string, defaultVal int) int {
 func getEnvFloatOrDefault(key string, defaultVal float64) float64 {
 	if val := os.Getenv(key); val != "" {
 		var result float64
-		fmt.Sscanf(val, "%f", &result)
+		if _, err := fmt.Sscanf(val, "%f", &result); err != nil {
+			return defaultVal
+		}
 		return result
 	}
 	return defaultVal

@@ -21,19 +21,19 @@ type LBLogAggregator struct {
 }
 
 type lbReqSummary struct {
-	Timestamp     time.Time `json:"ts"`
-	URLPattern    string    `json:"urlPattern"`
-	HTTPMethod    string    `json:"httpMethod"`
-	ELBStatus     int       `json:"elbStatus"`
-	TargetStatus  int       `json:"targetStatus"`
-	TargetMs      float64   `json:"targetMs"`
-	TargetGroup   string    `json:"targetGroup"`
-	ClientIP      string    `json:"clientIp,omitempty"`
+	Timestamp    time.Time `json:"ts"`
+	URLPattern   string    `json:"urlPattern"`
+	HTTPMethod   string    `json:"httpMethod"`
+	ELBStatus    int       `json:"elbStatus"`
+	TargetStatus int       `json:"targetStatus"`
+	TargetMs     float64   `json:"targetMs"`
+	TargetGroup  string    `json:"targetGroup"`
+	ClientIP     string    `json:"clientIp,omitempty"`
 }
 
 type lbInfo struct {
-	Name   string `json:"name"`
-	Type   string `json:"type"`
+	Name string `json:"name"`
+	Type string `json:"type"`
 }
 
 // NewLBLogAggregator creates an in-memory LB aggregator.
@@ -199,14 +199,14 @@ func (a *LBLogAggregator) handleTopURLs(w http.ResponseWriter, r *http.Request) 
 		method  string
 	}
 	type urlAgg struct {
-		Pattern  string    `json:"urlPattern"`
-		Method   string    `json:"httpMethod"`
-		Total    int64     `json:"totalCount"`
-		C5xx     int64     `json:"count5xx"`
-		C4xx     int64     `json:"count4xx"`
+		Pattern   string    `json:"urlPattern"`
+		Method    string    `json:"httpMethod"`
+		Total     int64     `json:"totalCount"`
+		C5xx      int64     `json:"count5xx"`
+		C4xx      int64     `json:"count4xx"`
 		Latencies []float64 `json:"-"`
-		P95Ms    float64   `json:"p95Ms"`
-		P99Ms    float64   `json:"p99Ms"`
+		P95Ms     float64   `json:"p95Ms"`
+		P99Ms     float64   `json:"p99Ms"`
 	}
 
 	byURL := map[urlKey]*urlAgg{}
@@ -334,7 +334,7 @@ func (a *LBLogAggregator) handleTimeline(w http.ResponseWriter, r *http.Request)
 	}
 
 	byMinute := map[string]*struct {
-		b        bucket
+		b         bucket
 		latencies []float64
 	}{}
 
@@ -346,7 +346,7 @@ func (a *LBLogAggregator) handleTimeline(w http.ResponseWriter, r *http.Request)
 		entry, ok := byMinute[key]
 		if !ok {
 			entry = &struct {
-				b        bucket
+				b         bucket
 				latencies []float64
 			}{b: bucket{Minute: key}}
 			byMinute[key] = entry
@@ -401,11 +401,11 @@ func (a *LBLogAggregator) handleErrors(w http.ResponseWriter, r *http.Request) {
 	cutoff := time.Now().Add(-time.Duration(minutes) * time.Minute)
 
 	type urlError struct {
-		URLPattern string `json:"urlPattern"`
-		HTTPMethod string `json:"httpMethod"`
-		Total      int64  `json:"total"`
-		C5xx       int64  `json:"count5xx"`
-		C4xx       int64  `json:"count4xx"`
+		URLPattern string  `json:"urlPattern"`
+		HTTPMethod string  `json:"httpMethod"`
+		Total      int64   `json:"total"`
+		C5xx       int64   `json:"count5xx"`
+		C4xx       int64   `json:"count4xx"`
 		ErrorRate  float64 `json:"errorRate"`
 	}
 
@@ -535,7 +535,7 @@ func (a *LBLogAggregator) handleClients(w http.ResponseWriter, r *http.Request) 
 func (a *LBLogAggregator) handleSearch(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	limit := getLimit(r, 100)
-	statusFilter := r.URL.Query().Get("status")  // "2xx", "4xx", "5xx"
+	statusFilter := r.URL.Query().Get("status") // "2xx", "4xx", "5xx"
 	urlFilter := r.URL.Query().Get("url")
 	minLatencyStr := r.URL.Query().Get("min_latency")
 	var minLatency float64

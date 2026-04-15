@@ -20,7 +20,7 @@ import (
 )
 
 var upgrader = websocket.Upgrader{
-	CheckOrigin:  func(r *http.Request) bool { return true },
+	CheckOrigin:     func(r *http.Request) bool { return true },
 	ReadBufferSize:  4096,
 	WriteBufferSize: 4096,
 }
@@ -95,7 +95,7 @@ func (h *WorkloadHandler) handlePodLogsWS(w http.ResponseWriter, r *http.Request
 
 	stream, err := h.clientset.CoreV1().Pods(ns).GetLogs(name, opts).Stream(r.Context())
 	if err != nil {
-		conn.WriteJSON(map[string]string{"error": err.Error()})
+		_ = conn.WriteJSON(map[string]string{"error": err.Error()})
 		return
 	}
 	defer stream.Close()
@@ -131,7 +131,7 @@ func (h *WorkloadHandler) handlePodLogsWS(w http.ResponseWriter, r *http.Request
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		conn.WriteJSON(map[string]string{"error": err.Error()})
+		_ = conn.WriteJSON(map[string]string{"error": err.Error()})
 	}
 	<-heartbeatDone
 }
@@ -197,7 +197,7 @@ func (h *WorkloadHandler) handlePodExec(w http.ResponseWriter, r *http.Request) 
 
 	exec, err := remotecommand.NewSPDYExecutor(h.restConfig, "POST", execReq.URL())
 	if err != nil {
-		conn.WriteJSON(map[string]string{"error": err.Error()})
+		_ = conn.WriteJSON(map[string]string{"error": err.Error()})
 		return
 	}
 
@@ -210,7 +210,7 @@ func (h *WorkloadHandler) handlePodExec(w http.ResponseWriter, r *http.Request) 
 		Tty:    true,
 	})
 	if err != nil {
-		conn.WriteJSON(map[string]string{"error": err.Error()})
+		_ = conn.WriteJSON(map[string]string{"error": err.Error()})
 	}
 }
 

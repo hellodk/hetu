@@ -14,21 +14,21 @@ import (
 
 // PodHealthCategory describes the type of pod health issue.
 type PodHealthCategory struct {
-	Name        string          `json:"name"`
-	Count       int             `json:"count"`
-	Pods        []PodHealthItem `json:"pods"`
+	Name  string          `json:"name"`
+	Count int             `json:"count"`
+	Pods  []PodHealthItem `json:"pods"`
 }
 
 // PodHealthItem is a single unhealthy pod with diagnosis.
 type PodHealthItem struct {
-	Namespace string    `json:"namespace"`
-	Name      string    `json:"name"`
-	Phase     string    `json:"phase"`
-	Reason    string    `json:"reason"`
-	Message   string    `json:"message"`
-	Restarts  int32     `json:"restarts"`
-	Age       string    `json:"age"`
-	Node      string    `json:"node"`
+	Namespace string `json:"namespace"`
+	Name      string `json:"name"`
+	Phase     string `json:"phase"`
+	Reason    string `json:"reason"`
+	Message   string `json:"message"`
+	Restarts  int32  `json:"restarts"`
+	Age       string `json:"age"`
+	Node      string `json:"node"`
 }
 
 // PodHealthReport is the result of a pod health scan.
@@ -64,14 +64,14 @@ func (s *PodHealthScanner) Scan(ctx context.Context) {
 	}
 
 	categories := map[string][]PodHealthItem{
-		"evicted":        {},
-		"failed":         {},
-		"pending":        {},
-		"crashloop":      {},
-		"imagepull":      {},
-		"oomkilled":      {},
-		"terminating":    {},
-		"completed":      {},
+		"evicted":     {},
+		"failed":      {},
+		"pending":     {},
+		"crashloop":   {},
+		"imagepull":   {},
+		"oomkilled":   {},
+		"terminating": {},
+		"completed":   {},
 	}
 
 	totalPods := len(pods.Items)

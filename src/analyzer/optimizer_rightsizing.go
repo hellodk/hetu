@@ -141,8 +141,8 @@ func (o *RightSizingOptimizer) Run(ctx OptimizerContext) ([]OptRecommendation, e
 			formatMi(sugMemLim))
 
 		rec := OptRecommendation{
-			Type:     "rightsizing",
-			Severity: severity,
+			Type:       "rightsizing",
+			Severity:   severity,
 			Confidence: 0.8,
 			Target: OptTarget{
 				Kind:      "Pod",

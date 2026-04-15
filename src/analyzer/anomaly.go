@@ -17,7 +17,7 @@ type Anomaly struct {
 	Service    string    `json:"service"`
 	Namespace  string    `json:"namespace"`
 	Metric     string    `json:"metric"`
-	Score      float64   `json:"score"`     // z-score or similar
+	Score      float64   `json:"score"` // z-score or similar
 	Expected   float64   `json:"expected"`
 	Observed   float64   `json:"observed"`
 	Severity   string    `json:"severity"`

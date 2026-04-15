@@ -14,19 +14,19 @@ import (
 
 // Recommendation represents an optimization suggestion.
 type OptRecommendation struct {
-	ID                     int64          `json:"id"`
-	Type                   string         `json:"type"` // rightsizing, hpa, coredns, gc, cluster, scaling, security
-	Severity               string         `json:"severity"`
-	Confidence             float64        `json:"confidence"`
-	Target                 OptTarget      `json:"target"`
-	CurrentState           map[string]any `json:"currentState,omitempty"`
-	SuggestedState         map[string]any `json:"suggestedState,omitempty"`
-	Rationale              string         `json:"rationale"`
-	AIExplanation          string         `json:"aiExplanation,omitempty"`
-	EstimatedSavingsMonthly float64       `json:"estimatedSavingsMonthly,omitempty"`
-	Status                 string         `json:"status"` // open, accepted, dismissed, applied
-	YAMLPatch              string         `json:"yamlPatch,omitempty"`
-	CreatedAt              time.Time      `json:"createdAt"`
+	ID                      int64          `json:"id"`
+	Type                    string         `json:"type"` // rightsizing, hpa, coredns, gc, cluster, scaling, security
+	Severity                string         `json:"severity"`
+	Confidence              float64        `json:"confidence"`
+	Target                  OptTarget      `json:"target"`
+	CurrentState            map[string]any `json:"currentState,omitempty"`
+	SuggestedState          map[string]any `json:"suggestedState,omitempty"`
+	Rationale               string         `json:"rationale"`
+	AIExplanation           string         `json:"aiExplanation,omitempty"`
+	EstimatedSavingsMonthly float64        `json:"estimatedSavingsMonthly,omitempty"`
+	Status                  string         `json:"status"` // open, accepted, dismissed, applied
+	YAMLPatch               string         `json:"yamlPatch,omitempty"`
+	CreatedAt               time.Time      `json:"createdAt"`
 }
 
 // OptTarget identifies the K8s resource a recommendation applies to.
@@ -51,12 +51,12 @@ type OptimizerContext struct {
 
 // OptimizerRegistry manages and runs optimization modules.
 type OptimizerRegistry struct {
-	mu             sync.RWMutex
-	optimizers     map[string]Optimizer
+	mu              sync.RWMutex
+	optimizers      map[string]Optimizer
 	recommendations map[int64]*OptRecommendation
-	nextID         int64
-	promURL        string
-	clusterID      string
+	nextID          int64
+	promURL         string
+	clusterID       string
 }
 
 // NewOptimizerRegistry creates a new registry.
@@ -262,7 +262,9 @@ func (r *OptimizerRegistry) handleUpdateStatus(w http.ResponseWriter, req *http.
 		http.Error(w, "invalid id", http.StatusBadRequest)
 		return
 	}
-	var body struct{ Status string `json:"status"` }
+	var body struct {
+		Status string `json:"status"`
+	}
 	if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return

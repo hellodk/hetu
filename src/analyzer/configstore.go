@@ -57,7 +57,7 @@ func (s *FileConfigStore) Put(_ context.Context, yaml string) error {
 	if err := os.MkdirAll(filepath.Dir(s.Path), 0o755); err != nil {
 		return err
 	}
-	return os.WriteFile(s.Path, []byte(yaml), 0o644)
+	return os.WriteFile(s.Path, []byte(yaml), 0o600)
 }
 
 // DefaultRuntimeOverridePath chooses a stable local path for runtime overrides.
@@ -189,4 +189,3 @@ func NewDefaultConfigStore() ConfigStore {
 		Key:       "runtime.yaml",
 	}
 }
-

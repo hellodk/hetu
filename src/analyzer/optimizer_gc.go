@@ -41,8 +41,8 @@ func (o *GCOptimizer) Run(ctx OptimizerContext) ([]OptRecommendation, error) {
 					Confidence: 0.6,
 					Target:     OptTarget{Kind: "Pod", Namespace: ns, Name: pod},
 					CurrentState: map[string]any{
-						"runtime":     "Go",
-						"avgPauseMs":  fmt.Sprintf("%.1fms", avgPauseMs),
+						"runtime":    "Go",
+						"avgPauseMs": fmt.Sprintf("%.1fms", avgPauseMs),
 					},
 					Rationale: fmt.Sprintf("Go GC avg pause is %.1fms. Consider tuning GOGC or increasing memory limits.", avgPauseMs),
 					YAMLPatch: `env:

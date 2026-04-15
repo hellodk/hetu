@@ -58,4 +58,3 @@ func (a *Analyzer) persistOverridePatch(ctx context.Context, patch map[string]an
 		return
 	}
 }
-

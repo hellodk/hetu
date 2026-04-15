@@ -26,21 +26,21 @@ import (
 // LLMMetrics holds all LLM-related Prometheus metrics
 type LLMMetrics struct {
 	// Request metrics
-	RequestTotal     *prometheus.CounterVec
-	RequestDuration  *prometheus.HistogramVec
-	RequestInFlight  prometheus.Gauge
-	
+	RequestTotal    *prometheus.CounterVec
+	RequestDuration *prometheus.HistogramVec
+	RequestInFlight prometheus.Gauge
+
 	// Token metrics
 	TokensInputTotal  *prometheus.CounterVec
 	TokensOutputTotal *prometheus.CounterVec
-	
+
 	// Performance metrics
 	TimeToFirstToken *prometheus.HistogramVec
 	TokensPerSecond  *prometheus.GaugeVec
-	
+
 	// Error metrics
 	ErrorsTotal *prometheus.CounterVec
-	
+
 	// Queue metrics (for tracking concurrency)
 	QueueWaitTime *prometheus.HistogramVec
 }
@@ -82,18 +82,18 @@ type OllamaOptions struct {
 
 // OllamaResponse represents a response from Ollama's native API
 type OllamaResponse struct {
-	Model     string `json:"model"`
-	Message   struct {
+	Model   string `json:"model"`
+	Message struct {
 		Role    string `json:"role"`
 		Content string `json:"content"`
 	} `json:"message"`
-	Done              bool   `json:"done"`
-	TotalDuration     int64  `json:"total_duration"`
-	LoadDuration      int64  `json:"load_duration"`
-	PromptEvalCount   int    `json:"prompt_eval_count"`
+	Done               bool  `json:"done"`
+	TotalDuration      int64 `json:"total_duration"`
+	LoadDuration       int64 `json:"load_duration"`
+	PromptEvalCount    int   `json:"prompt_eval_count"`
 	PromptEvalDuration int64 `json:"prompt_eval_duration"`
-	EvalCount         int    `json:"eval_count"`
-	EvalDuration      int64  `json:"eval_duration"`
+	EvalCount          int   `json:"eval_count"`
+	EvalDuration       int64 `json:"eval_duration"`
 }
 
 // NewLLMMetrics creates and registers all LLM metrics
@@ -187,7 +187,7 @@ func NewLLMClient(config LLMClientConfig, metrics *LLMMetrics) *LLMClient {
 	if len(config.RetryBackoff) == 0 {
 		config.RetryBackoff = []time.Duration{1 * time.Second, 2 * time.Second, 4 * time.Second}
 	}
-	
+
 	return &LLMClient{
 		httpClient: &http.Client{
 			Timeout: config.Timeout,
@@ -210,16 +210,16 @@ func (c *LLMClient) Complete(ctx context.Context, task string, messages []types.
 		),
 	)
 	defer span.End()
-	
+
 	// Track in-flight requests
 	c.metrics.RequestInFlight.Inc()
 	defer c.metrics.RequestInFlight.Dec()
-	
+
 	start := time.Now()
-	
+
 	var result *LLMCompletionResult
 	var err error
-	
+
 	// Route to appropriate provider
 	switch c.config.Provider {
 	case "ollama":
@@ -227,9 +227,9 @@ func (c *LLMClient) Complete(ctx context.Context, task string, messages []types.
 	default:
 		result, err = c.completeOpenAI(ctx, task, messages)
 	}
-	
+
 	duration := time.Since(start).Seconds()
-	
+
 	// Record metrics
 	status := "success"
 	if err != nil {
@@ -238,31 +238,31 @@ func (c *LLMClient) Complete(ctx context.Context, task string, messages []types.
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 	}
-	
+
 	c.metrics.RequestTotal.WithLabelValues(c.config.Model, task, status, c.config.Provider).Inc()
 	c.metrics.RequestDuration.WithLabelValues(c.config.Model, task, c.config.Provider).Observe(duration)
-	
+
 	if result != nil {
 		c.metrics.TokensInputTotal.WithLabelValues(c.config.Model, task, c.config.Provider).Add(float64(result.InputTokens))
 		c.metrics.TokensOutputTotal.WithLabelValues(c.config.Model, task, c.config.Provider).Add(float64(result.OutputTokens))
-		
+
 		if result.TimeToFirstToken > 0 {
 			c.metrics.TimeToFirstToken.WithLabelValues(c.config.Model, c.config.Provider).Observe(result.TimeToFirstToken)
 		}
-		
+
 		if duration > 0 && result.OutputTokens > 0 {
 			tokensPerSec := float64(result.OutputTokens) / duration
 			c.metrics.TokensPerSecond.WithLabelValues(c.config.Model, c.config.Provider).Set(tokensPerSec)
 			span.SetAttributes(attribute.Float64("llm.tokens_per_second", tokensPerSec))
 		}
-		
+
 		span.SetAttributes(
 			attribute.Int("llm.input_tokens", result.InputTokens),
 			attribute.Int("llm.output_tokens", result.OutputTokens),
 			attribute.Float64("llm.duration_seconds", duration),
 		)
 	}
-	
+
 	return result, err
 }
 
@@ -288,45 +288,45 @@ func (c *LLMClient) completeOllama(ctx context.Context, task string, messages []
 			Temperature: c.config.Temperature,
 		},
 	}
-	
+
 	body, err := json.Marshal(reqBody)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
-	
+
 	endpoint := c.config.Endpoint + "/api/chat"
 	req, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewReader(body))
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	
+
 	log.Debug().
 		Str("model", c.config.Model).
 		Str("task", task).
 		Str("endpoint", endpoint).
 		Msg("Sending Ollama request")
-	
+
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("ollama request failed: %w", err)
 	}
 	defer resp.Body.Close()
-	
+
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("ollama returned status %d: %s", resp.StatusCode, string(body))
 	}
-	
+
 	var ollamaResp OllamaResponse
 	if err := json.NewDecoder(resp.Body).Decode(&ollamaResp); err != nil {
 		return nil, fmt.Errorf("failed to decode ollama response: %w", err)
 	}
-	
+
 	// Calculate time to first token from Ollama's timing data
 	// PromptEvalDuration is the time spent evaluating the prompt
 	ttft := float64(ollamaResp.PromptEvalDuration) / 1e9 // Convert nanoseconds to seconds
-	
+
 	return &LLMCompletionResult{
 		Content:          ollamaResp.Message.Content,
 		InputTokens:      ollamaResp.PromptEvalCount,
@@ -338,51 +338,54 @@ func (c *LLMClient) completeOllama(ctx context.Context, task string, messages []
 	}, nil
 }
 
-// completeOpenAI sends a request to OpenAI-compatible API
+// completeOpenAI sends a request to OpenAI-compatible API.
+// task is accepted for signature parity with other completeXxx functions
+// (used by metrics labelling elsewhere in the client).
 func (c *LLMClient) completeOpenAI(ctx context.Context, task string, messages []types.LLMMessage) (*LLMCompletionResult, error) {
+	_ = task
 	reqBody := types.LLMRequest{
 		Model:       c.config.Model,
 		Messages:    messages,
 		MaxTokens:   c.config.MaxTokens,
 		Temperature: c.config.Temperature,
 	}
-	
+
 	body, err := json.Marshal(reqBody)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
-	
+
 	endpoint := c.config.Endpoint + "/chat/completions"
 	req, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewReader(body))
 	if err != nil {
 		return nil, err
 	}
-	
+
 	req.Header.Set("Content-Type", "application/json")
 	if c.config.APIKey != "" {
 		req.Header.Set("Authorization", "Bearer "+c.config.APIKey)
 	}
-	
+
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("openai request failed: %w", err)
 	}
 	defer resp.Body.Close()
-	
+
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("openai returned status %d: %s", resp.StatusCode, string(body))
 	}
-	
+
 	var openaiResp types.LLMResponse
 	if err := json.NewDecoder(resp.Body).Decode(&openaiResp); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
-	
+
 	if len(openaiResp.Choices) == 0 {
 		return nil, fmt.Errorf("no choices in response")
 	}
-	
+
 	return &LLMCompletionResult{
 		Content:      openaiResp.Choices[0].Message.Content,
 		TotalTokens:  openaiResp.Usage.TotalTokens,

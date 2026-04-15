@@ -62,6 +62,16 @@ type ErrorGroup struct {
 	// Phase 2.4: scratchpad for exemplar scoring (NOT serialized — the
 	// score is a tiebreaker, not user-facing).
 	exemplarScore int `json:"-"`
+
+	// Phase 2.2: token-set signature used by the near-dup scanner.
+	// Computed lazily on first scan; cached on the group.
+	Signature []string `json:"-"`
+
+	// Phase 2.2: when the scanner finds a high-similarity older group,
+	// it records the suggestion here. UI can render "possible duplicate
+	// of #N (score 0.91)" with a one-click merge action. AutoMerge=true
+	// in the near-dup config promotes this to an actual merge.
+	MergeSuggestion *MergeSuggestion `json:"mergeSuggestion,omitempty"`
 }
 
 // MergeRef is a breadcrumb pointing at a group that was merged into
@@ -94,14 +104,14 @@ type ErrorRate struct {
 // Confidence is *not* the LLM's self-report alone — see computeConfidence
 // for the signal weights (Phase 3.3).
 type ErrorAnalysis struct {
-	RootCause   string              `json:"rootCause"`
-	Impact      string              `json:"impact,omitempty"`
-	Fix         string              `json:"fix,omitempty"`
-	Severity    string              `json:"severity"`   // critical|high|medium|low
-	Confidence  float64             `json:"confidence"` // 0..1, signal-derived
-	Evidence    []AnalysisEvidence  `json:"evidence,omitempty"`
-	Model       string              `json:"model,omitempty"`
-	GeneratedAt time.Time           `json:"generatedAt"`
+	RootCause   string             `json:"rootCause"`
+	Impact      string             `json:"impact,omitempty"`
+	Fix         string             `json:"fix,omitempty"`
+	Severity    string             `json:"severity"`   // critical|high|medium|low
+	Confidence  float64            `json:"confidence"` // 0..1, signal-derived
+	Evidence    []AnalysisEvidence `json:"evidence,omitempty"`
+	Model       string             `json:"model,omitempty"`
+	GeneratedAt time.Time          `json:"generatedAt"`
 	// Trigger records *why* this analysis ran: "manual" | "newGroup" |
 	// "rateSpike" | "umbrellaFault". Helps debug what's auto-running.
 	Trigger string `json:"trigger,omitempty"`
@@ -237,10 +247,10 @@ func scoreExemplar(occ ErrorOccurrence, stackPresent bool) int {
 // computeConfidence (Phase 3.3) — calibrated confidence based on signals
 // you can verify, not the LLM's self-report.
 //
-//   stack-trace present       +0.20
-//   seen in ≥3 distinct pods  +0.10
-//   correlated incident       +0.20  (passed in, see context handler)
-//   LLM self-report           +0.50  (capped via clamp at the end)
+//	stack-trace present       +0.20
+//	seen in ≥3 distinct pods  +0.10
+//	correlated incident       +0.20  (passed in, see context handler)
+//	LLM self-report           +0.50  (capped via clamp at the end)
 //
 // Returns 0..1. The LLM term is the largest single weight only because
 // without it we have nothing — but the structural signals can carry a
@@ -302,11 +312,15 @@ type ErrorAggregator struct {
 
 	// Phase 1.6: Prometheus instruments. Optional — when nil, the
 	// helpers no-op. Registered by initErrorMetrics() in main.go.
-	mIngest   prometheus.Counter
-	mEvict    *prometheus.CounterVec
-	mActive   prometheus.Gauge
-	mLLMLat   prometheus.Histogram
-	mLLMSkip  *prometheus.CounterVec
+	mIngest  prometheus.Counter
+	mEvict   *prometheus.CounterVec
+	mActive  prometheus.Gauge
+	mLLMLat  prometheus.Histogram
+	mLLMSkip *prometheus.CounterVec
+
+	// Phase 2.2: near-duplicate config + cached scanner state.
+	// Defaults to off; ConfigureNearDup enables.
+	nearDup *nearDupConfig
 }
 
 // NewErrorAggregator creates a new in-memory error aggregator.
@@ -575,6 +589,29 @@ func (ea *ErrorAggregator) RegisterRoutes(mux *http.ServeMux) {
 	// Phase 2.3
 	mux.HandleFunc("POST /api/v1/errors/groups/{id}/merge-into/{target}", ea.handleMerge)
 	mux.HandleFunc("POST /api/v1/errors/groups/{id}/split", ea.handleSplit)
+	// Phase 2.2
+	mux.HandleFunc("GET /api/v1/errors/near-duplicates", ea.handleNearDuplicates)
+	mux.HandleFunc("POST /api/v1/errors/near-duplicates/scan", ea.handleNearDupScan)
+}
+
+func (ea *ErrorAggregator) handleNearDuplicates(w http.ResponseWriter, r *http.Request) {
+	ea.mu.RLock()
+	out := make([]MergeSuggestion, 0)
+	for _, g := range ea.groups {
+		if g.MergeSuggestion != nil {
+			out = append(out, *g.MergeSuggestion)
+		}
+	}
+	ea.mu.RUnlock()
+	writeJSON(w, map[string]any{
+		"suggestions": out,
+		"count":       len(out),
+	})
+}
+
+func (ea *ErrorAggregator) handleNearDupScan(w http.ResponseWriter, r *http.Request) {
+	report := ea.ScanNearDuplicates()
+	writeJSON(w, report)
 }
 
 // handleSummary returns aggregated error statistics with per-reason breakdown.
@@ -913,12 +950,12 @@ func (ea *ErrorAggregator) handleGroupContext(w http.ResponseWriter, r *http.Req
 	// Build the panel by fanning out to siblings. Each subsystem may be
 	// nil in tests; nil-safety is per-section, not per-handler.
 	out := map[string]any{
-		"groupId":     grp.ID,
-		"namespace":   grp.Namespace,
-		"service":     grp.Service,
-		"incidents":   []any{},
+		"groupId":         grp.ID,
+		"namespace":       grp.Namespace,
+		"service":         grp.Service,
+		"incidents":       []any{},
 		"recommendations": []any{},
-		"siblings":    []any{}, // groups with same faultKey across services
+		"siblings":        []any{}, // groups with same faultKey across services
 	}
 
 	if corr != nil {
@@ -946,12 +983,12 @@ func (ea *ErrorAggregator) handleGroupContext(w http.ResponseWriter, r *http.Req
 				continue
 			}
 			siblings = append(siblings, map[string]any{
-				"id":       g.ID,
-				"service":  g.Service,
+				"id":        g.ID,
+				"service":   g.Service,
 				"namespace": g.Namespace,
-				"title":    g.Title,
-				"count":    g.Count,
-				"lastSeen": g.LastSeen,
+				"title":     g.Title,
+				"count":     g.Count,
+				"lastSeen":  g.LastSeen,
 			})
 		}
 		ea.mu.RUnlock()
@@ -970,15 +1007,15 @@ func (ea *ErrorAggregator) handleFaultRollup(w http.ResponseWriter, r *http.Requ
 	defer ea.mu.RUnlock()
 
 	type bucket struct {
-		FaultKey      string         `json:"faultKey"`
-		ExceptionType string         `json:"exceptionType,omitempty"`
-		GroupCount    int            `json:"groupCount"`
-		TotalCount    int64          `json:"totalCount"`
-		Services      []string       `json:"services"`
-		Namespaces    []string       `json:"namespaces"`
-		LastSeen      time.Time      `json:"lastSeen"`
-		Sample        string         `json:"sample,omitempty"`
-		GroupIDs      []int64        `json:"groupIds"`
+		FaultKey      string    `json:"faultKey"`
+		ExceptionType string    `json:"exceptionType,omitempty"`
+		GroupCount    int       `json:"groupCount"`
+		TotalCount    int64     `json:"totalCount"`
+		Services      []string  `json:"services"`
+		Namespaces    []string  `json:"namespaces"`
+		LastSeen      time.Time `json:"lastSeen"`
+		Sample        string    `json:"sample,omitempty"`
+		GroupIDs      []int64   `json:"groupIds"`
 	}
 	by := map[string]*bucket{}
 	for _, g := range ea.groups {

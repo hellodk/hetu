@@ -13,8 +13,8 @@ import (
 
 // LLMConfigAPI exposes the current LLM configuration and allows runtime updates.
 type LLMConfigAPI struct {
-	mu     sync.RWMutex
-	config LLMConfigState
+	mu       sync.RWMutex
+	config   LLMConfigState
 	onUpdate func(state LLMConfigState, apiKeyProvided bool)
 }
 
@@ -35,11 +35,11 @@ var ProviderDefaults = map[string]LLMConfigState{
 	"anthropic": {Provider: "anthropic", Endpoint: "https://api.anthropic.com", Model: "claude-sonnet-4-6", MaxTokens: 4096, Temperature: 0.2, DailyTokenBudget: 1000000},
 	"openai":    {Provider: "openai", Endpoint: "https://api.openai.com/v1", Model: "gpt-4-turbo", MaxTokens: 4096, Temperature: 0.3, DailyTokenBudget: 1000000},
 	"ollama":    {Provider: "ollama", Endpoint: "http://localhost:11434", Model: "llama3", MaxTokens: 2048, Temperature: 0.2, DailyTokenBudget: 0},
-	"vllm":     {Provider: "vllm", Endpoint: "http://localhost:8000", Model: "meta-llama/Llama-3-70b-chat-hf", MaxTokens: 4096, Temperature: 0.2, DailyTokenBudget: 0},
-	"llamacpp": {Provider: "llamacpp", Endpoint: "http://localhost:8080", Model: "local", MaxTokens: 2048, Temperature: 0.2, DailyTokenBudget: 0},
-	"azure":    {Provider: "azure", Endpoint: "https://YOUR_RESOURCE.openai.azure.com/openai/deployments/gpt-4", Model: "gpt-4", MaxTokens: 4096, Temperature: 0.3, DailyTokenBudget: 1000000},
-	"bedrock":  {Provider: "bedrock", Endpoint: "https://bedrock-runtime.us-east-1.amazonaws.com", Model: "anthropic.claude-3-sonnet-20240229-v1:0", MaxTokens: 4096, Temperature: 0.2, DailyTokenBudget: 1000000},
-	"custom":   {Provider: "custom", Endpoint: "http://localhost:8000/v1", Model: "default", MaxTokens: 4096, Temperature: 0.3, DailyTokenBudget: 0},
+	"vllm":      {Provider: "vllm", Endpoint: "http://localhost:8000", Model: "meta-llama/Llama-3-70b-chat-hf", MaxTokens: 4096, Temperature: 0.2, DailyTokenBudget: 0},
+	"llamacpp":  {Provider: "llamacpp", Endpoint: "http://localhost:8080", Model: "local", MaxTokens: 2048, Temperature: 0.2, DailyTokenBudget: 0},
+	"azure":     {Provider: "azure", Endpoint: "https://YOUR_RESOURCE.openai.azure.com/openai/deployments/gpt-4", Model: "gpt-4", MaxTokens: 4096, Temperature: 0.3, DailyTokenBudget: 1000000},
+	"bedrock":   {Provider: "bedrock", Endpoint: "https://bedrock-runtime.us-east-1.amazonaws.com", Model: "anthropic.claude-3-sonnet-20240229-v1:0", MaxTokens: 4096, Temperature: 0.2, DailyTokenBudget: 1000000},
+	"custom":    {Provider: "custom", Endpoint: "http://localhost:8000/v1", Model: "default", MaxTokens: 4096, Temperature: 0.3, DailyTokenBudget: 0},
 }
 
 func NewLLMConfigAPI(provider, endpoint, model, apiKey string, maxTokens int, temperature float64, dailyBudget int) *LLMConfigAPI {

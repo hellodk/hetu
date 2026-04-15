@@ -118,9 +118,9 @@ func (m *mockSource) generateAndBroadcast() {
 func (m *mockSource) generate() *types.ClusterHealthReport {
 	now := time.Now()
 
-	reliability := 78 + m.rng.IntN(15) // 78..92
-	security := 72 + m.rng.IntN(18)    // 72..89
-	cost := 70 + m.rng.IntN(20)        // 70..89
+	reliability := 78 + m.rng.IntN(15)  // 78..92
+	security := 72 + m.rng.IntN(18)     // 72..89
+	cost := 70 + m.rng.IntN(20)         // 70..89
 	architecture := 80 + m.rng.IntN(13) // 80..92
 
 	scores := &types.HealthScores{

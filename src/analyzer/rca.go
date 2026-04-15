@@ -21,21 +21,21 @@ import (
 
 // RCAReport holds a structured root cause analysis for an incident.
 type RCAReport struct {
-	ID            int64     `json:"id"`
-	IncidentID    int64     `json:"incidentId"`
-	Model         string    `json:"model"`
-	PromptTokens  int       `json:"promptTokens"`
-	OutputTokens  int       `json:"outputTokens"`
-	Confidence    float64   `json:"confidence"`
-	Summary       string    `json:"summary"`
-	RootCause     RootCause `json:"rootCause"`
-	Contributing  []string  `json:"contributingFactors"`
-	BlastRadius   BlastRadius `json:"blastRadius"`
-	Remediation   []RemediationStep `json:"remediation"`
-	Preventive    []string  `json:"preventiveMeasures"`
-	Evidence      []Evidence `json:"evidence"`
-	CreatedAt     time.Time `json:"createdAt"`
-	Raw           string    `json:"raw,omitempty"`
+	ID           int64             `json:"id"`
+	IncidentID   int64             `json:"incidentId"`
+	Model        string            `json:"model"`
+	PromptTokens int               `json:"promptTokens"`
+	OutputTokens int               `json:"outputTokens"`
+	Confidence   float64           `json:"confidence"`
+	Summary      string            `json:"summary"`
+	RootCause    RootCause         `json:"rootCause"`
+	Contributing []string          `json:"contributingFactors"`
+	BlastRadius  BlastRadius       `json:"blastRadius"`
+	Remediation  []RemediationStep `json:"remediation"`
+	Preventive   []string          `json:"preventiveMeasures"`
+	Evidence     []Evidence        `json:"evidence"`
+	CreatedAt    time.Time         `json:"createdAt"`
+	Raw          string            `json:"raw,omitempty"`
 }
 
 type RootCause struct {
@@ -205,8 +205,8 @@ func (e *RCAEngine) parseReport(incidentID int64, result *llmclient.CompletionRe
 	content = strings.TrimSpace(content)
 
 	var parsed struct {
-		Summary      string `json:"summary"`
-		RootCause    struct {
+		Summary   string `json:"summary"`
+		RootCause struct {
 			Primary     string  `json:"primary"`
 			Confidence  float64 `json:"confidence"`
 			Description string  `json:"description"`
@@ -399,9 +399,9 @@ func (e *RCAEngine) handleAsk(w http.ResponseWriter, r *http.Request) {
 
 	e.tokensUsed.Add(int64(result.TotalTokens))
 	writeJSON(w, map[string]any{
-		"answer":      result.Content,
-		"tokensUsed":  result.TotalTokens,
-		"model":       e.llmConfig.Model,
+		"answer":     result.Content,
+		"tokensUsed": result.TotalTokens,
+		"model":      e.llmConfig.Model,
 	})
 }
 
