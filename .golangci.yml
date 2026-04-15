@@ -1,0 +1,43 @@
+# Minimal golangci-lint config used by .githooks/pre-commit.
+# Focus: dead code, obvious bugs, security smells. Keep the set small so
+# the hook stays fast and actionable.
+
+run:
+  timeout: 2m
+  tests: true
+  # Go 1.25 — use the current language version for staticcheck's analyses.
+  go: "1.25"
+
+linters:
+  disable-all: true
+  enable:
+    - errcheck       # unchecked errors
+    - govet          # go vet
+    - ineffassign    # ineffective assignments (dead stores)
+    - staticcheck    # includes a large dead-code / simplification set
+    - unused         # unused funcs / vars / consts / types
+    - unparam        # unused function parameters
+    - gosec          # security smells (hardcoded creds, weak rand, etc.)
+    - misspell       # typos in comments / strings
+
+linters-settings:
+  gosec:
+    # G101 (hardcoded credentials) is the one most relevant to this hook.
+    # G104 overlaps with errcheck — skip to avoid double-reports.
+    excludes:
+      - G104
+  staticcheck:
+    checks: ["all"]
+
+issues:
+  # Don't hide repeat issues; the hook only blocks net-new problems in
+  # the changed module, so seeing everything is fine.
+  max-same-issues: 0
+  max-issues-per-linter: 0
+  exclude-rules:
+    # Test files get a pass on unparam / gosec weak-rand style checks —
+    # they frequently set up fixtures that trip these.
+    - path: _test\.go
+      linters:
+        - unparam
+        - gosec

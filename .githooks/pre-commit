@@ -1,0 +1,254 @@
+#!/usr/bin/env bash
+# Git pre-commit hook — blocks secrets, hardcoded public IPs in source,
+# unformatted/lint/dead-code issues in Go and the dashboard.
+#
+# Install (one-time, per clone):
+#   ./.githooks/install         # or: git config core.hooksPath .githooks
+#
+# Skip intentionally (leaves a trace in shell history):
+#   BYPASS_HOOKS=1 git commit ...
+#   git commit --no-verify ...
+#
+# Per-line escape: append `hook:allow` in a comment on the same line.
+
+set -u -o pipefail
+
+if [[ "${BYPASS_HOOKS:-0}" = "1" ]]; then
+  echo "[pre-commit] BYPASS_HOOKS=1 — skipping"
+  exit 0
+fi
+
+REPO_ROOT=$(git rev-parse --show-toplevel)
+cd "$REPO_ROOT"
+
+FAIL=0
+TTY=0; [[ -t 1 ]] && TTY=1
+red()  { [[ $TTY = 1 ]] && printf '\033[31m%s\033[0m' "$*" || printf '%s' "$*"; }
+yel()  { [[ $TTY = 1 ]] && printf '\033[33m%s\033[0m' "$*" || printf '%s' "$*"; }
+grn()  { [[ $TTY = 1 ]] && printf '\033[32m%s\033[0m' "$*" || printf '%s' "$*"; }
+bold() { [[ $TTY = 1 ]] && printf '\033[1m%s\033[0m' "$*" || printf '%s' "$*"; }
+banner() { echo; bold "── $* ──"; echo; }
+
+# ---------------------------------------------------------------------------
+# Collect staged files (added / copied / modified / renamed — not deleted).
+# ---------------------------------------------------------------------------
+mapfile -t STAGED < <(git diff --cached --name-only --diff-filter=ACMR)
+
+SCAN=()
+for f in "${STAGED[@]}"; do
+  [[ -z "$f" || ! -f "$f" ]] && continue
+  case "$f" in
+    node_modules/*|*/node_modules/*|vendor/*|*/vendor/*) continue ;;
+    */.next/*|*/dist/*|*/build/*|*/out/*|*/coverage/*) continue ;;
+    *.sum|*.lock|package-lock.json|*.tsbuildinfo|*.min.js|*.min.css) continue ;;
+    *.png|*.jpg|*.jpeg|*.gif|*.svg|*.ico|*.webp|*.webm|*.mp4|*.mov|*.pdf) continue ;;
+    *.woff|*.woff2|*.ttf|*.eot|*.otf) continue ;;
+    .githooks/*) continue ;;  # hook source may contain patterns that look like secrets
+  esac
+  SCAN+=("$f")
+done
+
+if [[ ${#SCAN[@]} -eq 0 ]]; then
+  echo "[pre-commit] no scannable files staged"
+  exit 0
+fi
+
+banner "pre-commit — ${#SCAN[@]} staged file(s)"
+
+# ---------------------------------------------------------------------------
+# Build a flat list of ADDED lines: "file:lineno:body"
+# Only additions are scanned so legacy code doesn't block commits.
+# ---------------------------------------------------------------------------
+DIFF=$(git diff --cached --unified=0 -- "${SCAN[@]}")
+
+ADDED=$(awk '
+  /^diff --git/ { file=""; next }
+  /^\+\+\+ \/dev\/null/ { file=""; next }
+  /^\+\+\+ b\// { file=substr($0,7); next }
+  /^@@ / { if (match($0,/\+[0-9]+/)) ln = substr($0, RSTART+1, RLENGTH-1)+0; next }
+  /^\+/ && !/^\+\+\+/ {
+    body = substr($0,2)
+    if (body !~ /(hook:allow|hook-allow|lint-ignore)/) {
+      gsub(/\t/, " ", body)
+      printf("%s:%d:%s\n", file, ln, body)
+    }
+    ln++
+  }' <<<"$DIFF")
+
+# ---------------------------------------------------------------------------
+# 1/4 — secrets / credentials (any file type)
+# ---------------------------------------------------------------------------
+banner "1/4  secret & credential scan"
+
+# Each rule: label<TAB>PCRE
+SECRET_RULES=(
+  $'PrivateKey\t-----BEGIN ([A-Z]+ )?PRIVATE KEY-----'
+  $'AWS-AccessKey\tAKIA[0-9A-Z]{16}'
+  $'AWS-Secret\t(?i)aws(.{0,20})?(secret|private).{0,5}[:=][^,\\n]{0,10}["\\x27][A-Za-z0-9/+=]{40}["\\x27]'
+  $'GitHub-Token\tgh[pousr]_[A-Za-z0-9]{30,}'
+  $'Slack-Token\txox[abprs]-[A-Za-z0-9-]{10,}'
+  $'OpenAI-Key\tsk-[A-Za-z0-9]{32,}'
+  $'Anthropic-Key\tsk-ant-[A-Za-z0-9_-]{20,}'
+  $'Google-APIKey\tAIza[0-9A-Za-z_-]{35}'
+  $'JWT\teyJ[A-Za-z0-9_-]{10,}\\.eyJ[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}'
+  $'URL-with-Creds\thttps?://[A-Za-z0-9._~-]+:[^\\s"\\x27/@]+@'
+  $'Bearer-Token\t[Bb]earer[[:space:]]+[A-Za-z0-9_-]{24,}'
+  # Hardcoded assignment: password = "something" / secret: "xyz" / api_key="..."
+  # Excludes values that start with $ (shell/template var) or are obvious placeholders.
+  $'Hardcoded-Credential\t(?i)\\b(password|passwd|pwd|secret|token|api[_-]?key)\\b[[:space:]]*[:=][[:space:]]*["\\x27](?!\\$|changeme|your[_-]|xxx|placeholder|<|\\{\\{)[^"\\x27]{8,}["\\x27]'
+)
+
+any_secret=0
+if [[ -n "$ADDED" ]]; then
+  for rule in "${SECRET_RULES[@]}"; do
+    label=${rule%%$'\t'*}
+    pat=${rule#*$'\t'}
+    if hits=$(printf '%s\n' "$ADDED" | grep -P -- "$pat" 2>/dev/null); then
+      red "[FAIL]"; printf ' %s\n' "$label"
+      printf '%s\n' "$hits" | sed 's/^/    /'
+      any_secret=1
+      FAIL=1
+    fi
+  done
+fi
+[[ $any_secret -eq 0 ]] && { grn "  ok"; echo " — no secret patterns on added lines"; }
+
+# ---------------------------------------------------------------------------
+# 2/4 — hardcoded public IPv4 in SOURCE CODE (skips config / env / helm / md)
+# ---------------------------------------------------------------------------
+banner "2/4  hardcoded-address scan (source only)"
+
+IP_REPORT=$(printf '%s\n' "$ADDED" | awk -F: '
+  function is_public(ip,   arr, a, b, c, d, n) {
+    n = split(ip, arr, ".")
+    if (n != 4) return 0
+    a = arr[1]+0; b = arr[2]+0; c = arr[3]+0; d = arr[4]+0
+    if (a < 1 || a > 255) return 0
+    if (a == 127) return 0                              # loopback
+    if (a == 10) return 0                               # private
+    if (a == 172 && b >= 16 && b <= 31) return 0        # private
+    if (a == 192 && b == 168) return 0                  # private
+    if (a == 169 && b == 254) return 0                  # link-local
+    if (a >= 224) return 0                              # multicast / reserved
+    if (a == 0 || a == 255) return 0                    # unspec / broadcast
+    if (a == 192 && b == 0 && (c == 0 || c == 2)) return 0   # TEST-NET-1 / docs
+    if (a == 198 && (b == 51 || b == 18)) return 0           # TEST-NET-2 / bench
+    if (a == 203 && b == 0 && c == 113) return 0             # TEST-NET-3
+    return 1
+  }
+  {
+    file=$1; ln=$2
+    # match source extensions only
+    if (file !~ /\.(go|ts|tsx|js|jsx|mjs|py|rs|java|kt|rb)$/) next
+    # rebuild body (it may contain ":")
+    body=""
+    for (i=3; i<=NF; i++) body = (i==3 ? $i : body ":" $i)
+    s = body
+    while (match(s, /[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/)) {
+      ip = substr(s, RSTART, RLENGTH)
+      if (is_public(ip)) { printf("    %s:%d  %s\n      %s\n", file, ln, ip, body); break }
+      s = substr(s, RSTART+RLENGTH)
+    }
+  }')
+
+if [[ -n "$IP_REPORT" ]]; then
+  red "[FAIL]"; echo " public IPv4 literal in source — move to config/env or annotate // hook:allow"
+  printf '%s\n' "$IP_REPORT"
+  FAIL=1
+else
+  grn "  ok"; echo " — no hardcoded public IPs in source"
+fi
+
+# ---------------------------------------------------------------------------
+# 3/4 — Go: gofmt, go vet, golangci-lint (covers unused / dead code / gosec)
+# ---------------------------------------------------------------------------
+banner "3/4  go checks"
+
+GO_STAGED=()
+for f in "${SCAN[@]}"; do [[ "$f" == *.go ]] && GO_STAGED+=("$f"); done
+
+if [[ ${#GO_STAGED[@]} -eq 0 ]]; then
+  echo "  skip — no Go files staged"
+else
+  UNFMT=$(gofmt -l "${GO_STAGED[@]}" 2>/dev/null || true)
+  if [[ -n "$UNFMT" ]]; then
+    red "[FAIL]"; echo " gofmt — run: gofmt -w <files>"
+    printf '    %s\n' $UNFMT
+    FAIL=1
+  else
+    grn "  ok"; echo " — gofmt clean"
+  fi
+
+  # Group staged Go files by their owning go.mod directory.
+  declare -A MODS=()
+  for f in "${GO_STAGED[@]}"; do
+    d=$(dirname "$f")
+    while [[ "$d" != "." && "$d" != "/" ]]; do
+      if [[ -f "$d/go.mod" ]]; then MODS["$d"]=1; break; fi
+      d=$(dirname "$d")
+    done
+  done
+
+  if [[ ${#MODS[@]} -eq 0 ]]; then
+    yel "  warn"; echo " — no go.mod found above staged .go files; skipping vet/lint"
+  else
+    for mod in "${!MODS[@]}"; do
+      echo "  module: $mod"
+      vet_out=$(cd "$mod" && go vet ./... 2>&1); vet_rc=$?
+      if [[ $vet_rc -ne 0 ]]; then
+        red "  [FAIL]"; echo " go vet — $mod"
+        printf '%s\n' "$vet_out" | sed 's/^/      /'
+        FAIL=1
+      else
+        grn "    ok"; echo " — go vet"
+      fi
+
+      if command -v golangci-lint >/dev/null 2>&1; then
+        lint_out=$(cd "$mod" && golangci-lint run --timeout=2m ./... 2>&1); lint_rc=$?
+        if [[ $lint_rc -ne 0 ]]; then
+          red "  [FAIL]"; echo " golangci-lint (incl. unused / dead code) — $mod"
+          printf '%s\n' "$lint_out" | sed 's/^/      /'
+          FAIL=1
+        else
+          grn "    ok"; echo " — golangci-lint"
+        fi
+      else
+        yel "    warn"; echo " — golangci-lint not on PATH; dead-code check skipped (go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest)"
+      fi
+    done
+  fi
+fi
+
+# ---------------------------------------------------------------------------
+# 4/4 — Dashboard: next lint (ESLint, includes unused-vars)
+# ---------------------------------------------------------------------------
+banner "4/4  dashboard lint"
+
+DASH_STAGED=0
+for f in "${SCAN[@]}"; do
+  case "$f" in src/dashboard/*) DASH_STAGED=1; break ;; esac
+done
+
+if [[ $DASH_STAGED -eq 0 ]]; then
+  echo "  skip — no dashboard files staged"
+elif [[ ! -d src/dashboard/node_modules ]]; then
+  yel "  warn"; echo " — src/dashboard/node_modules missing; run 'npm install' in src/dashboard"
+else
+  if out=$(cd src/dashboard && npm run lint --silent 2>&1); then
+    grn "  ok"; echo " — next lint clean"
+  else
+    red "[FAIL]"; echo " next lint"
+    printf '%s\n' "$out" | sed 's/^/    /'
+    FAIL=1
+  fi
+fi
+
+# ---------------------------------------------------------------------------
+echo
+if [[ $FAIL -ne 0 ]]; then
+  red "pre-commit: FAIL"; echo
+  echo "  fix above, or bypass with: BYPASS_HOOKS=1 git commit ..."
+  exit 1
+fi
+grn "pre-commit: ok"; echo
+exit 0

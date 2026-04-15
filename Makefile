@@ -1,4 +1,4 @@
-.PHONY: build test test-e2e tidy docker-build docker-push helm-deploy helm-template e2e-phase0 run stop status doctor
+.PHONY: build test test-e2e tidy docker-build docker-push helm-deploy helm-template e2e-phase0 run stop status doctor hooks-install
 
 # --- Configuration ---
 REGISTRY   ?= ghcr.io/your-org
@@ -88,3 +88,7 @@ doctor:
 # --- E2E ---
 e2e-phase0:
 	./scripts/e2e-phase0.sh
+
+# --- Git hooks ---
+hooks-install:
+	./.githooks/install

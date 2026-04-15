@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Point this repo's git at .githooks/. Run once per clone.
+set -euo pipefail
+cd "$(git rev-parse --show-toplevel)"
+git config core.hooksPath .githooks
+chmod +x .githooks/pre-commit
+echo "core.hooksPath → .githooks"
+echo "pre-commit hook active. bypass with BYPASS_HOOKS=1 or --no-verify."
