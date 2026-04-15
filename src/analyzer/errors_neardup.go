@@ -56,11 +56,30 @@ type MergeSuggestion struct {
 	Reason      string    `json:"reason"`
 }
 
-// nearDupConfig is held by ErrorAggregator. Threshold default mirrors the
-// ERRORS_PLAN.md spec; autoMerge default false (gated).
+// NearDupMode is a tri-state controlling what the scanner does with
+// candidate duplicates. Audit item #3 — previously a bool `AutoMerge`,
+// which left no room for a "dry-run" state where an operator could
+// review what *would* merge before flipping the destructive switch.
+type NearDupMode string
+
+const (
+	// NearDupOff — scanner is a no-op. Default.
+	NearDupOff NearDupMode = "off"
+	// NearDupShadow — scanner runs, logs each candidate, records a
+	// MergeSuggestion breadcrumb on the source group, but does NOT fuse
+	// any groups. The UI surfaces the breadcrumb with a one-click
+	// manual-merge button. Intended rollout stage one.
+	NearDupShadow NearDupMode = "shadow"
+	// NearDupAuto — scanner runs and folds matching groups into their
+	// target automatically. Only flip to this mode after reviewing a
+	// week of shadow-mode output.
+	NearDupAuto NearDupMode = "auto"
+)
+
+// nearDupConfig is held by ErrorAggregator. Threshold default mirrors
+// the ERRORS_PLAN.md spec; mode default NearDupOff (gated).
 type nearDupConfig struct {
-	Enabled   bool
-	AutoMerge bool
+	Mode      NearDupMode
 	Threshold float64
 	Scorer    NearDupScorer
 	scanLimit int // skip scans when len(groups) exceeds this
@@ -69,8 +88,7 @@ type nearDupConfig struct {
 
 func defaultNearDup() *nearDupConfig {
 	return &nearDupConfig{
-		Enabled:   false, // off until operator explicitly enables
-		AutoMerge: false,
+		Mode:      NearDupOff,
 		Threshold: 0.85,
 		Scorer:    cosineTokenSet,
 		scanLimit: 200,
@@ -79,20 +97,39 @@ func defaultNearDup() *nearDupConfig {
 
 // ConfigureNearDup adjusts near-duplicate detection. Pass nil scorer to
 // keep the default. Threshold ≤0 keeps the default 0.85.
-func (ea *ErrorAggregator) ConfigureNearDup(enabled, autoMerge bool, threshold float64, scorer NearDupScorer) {
+//
+// Callers coming from the pre-audit API: `ConfigureNearDup(true, false, 0, nil)`
+// becomes `ConfigureNearDupMode(NearDupShadow, 0, nil)`; `(true, true, 0, nil)`
+// becomes `(NearDupAuto, 0, nil)`; `(false, _, _, _)` becomes `(NearDupOff, …)`.
+func (ea *ErrorAggregator) ConfigureNearDupMode(mode NearDupMode, threshold float64, scorer NearDupScorer) {
 	ea.mu.Lock()
 	defer ea.mu.Unlock()
 	if ea.nearDup == nil {
 		ea.nearDup = defaultNearDup()
 	}
-	ea.nearDup.Enabled = enabled
-	ea.nearDup.AutoMerge = autoMerge
+	ea.nearDup.Mode = mode
 	if threshold > 0 && threshold <= 1 {
 		ea.nearDup.Threshold = threshold
 	}
 	if scorer != nil {
 		ea.nearDup.Scorer = scorer
 	}
+}
+
+// ConfigureNearDup retains the pre-audit signature for backwards compat
+// with existing tests. enabled=false → off; autoMerge=true → auto;
+// enabled=true && autoMerge=false → shadow.
+func (ea *ErrorAggregator) ConfigureNearDup(enabled, autoMerge bool, threshold float64, scorer NearDupScorer) {
+	var mode NearDupMode
+	switch {
+	case !enabled:
+		mode = NearDupOff
+	case autoMerge:
+		mode = NearDupAuto
+	default:
+		mode = NearDupShadow
+	}
+	ea.ConfigureNearDupMode(mode, threshold, scorer)
 }
 
 // Tokens for a group are computed lazily on first use and cached on the
@@ -130,7 +167,7 @@ func (ea *ErrorAggregator) ScanNearDuplicates() *NearDupReport {
 		cfg = defaultNearDup()
 		ea.nearDup = cfg
 	}
-	if !cfg.Enabled {
+	if cfg.Mode == NearDupOff {
 		ea.mu.Unlock()
 		return &NearDupReport{GeneratedAt: time.Now(), Threshold: cfg.Threshold}
 	}
@@ -156,7 +193,7 @@ func (ea *ErrorAggregator) ScanNearDuplicates() *NearDupReport {
 
 	scorer := cfg.Scorer
 	threshold := cfg.Threshold
-	autoMerge := cfg.AutoMerge
+	mode := cfg.Mode
 
 	suggestions := make([]MergeSuggestion, 0)
 	for i := 1; i < len(all); i++ {
@@ -182,11 +219,22 @@ func (ea *ErrorAggregator) ScanNearDuplicates() *NearDupReport {
 		}
 		target := all[bestIdx].g
 		ts := time.Now()
+		// Reason encodes the mode so the UI can distinguish "shadow
+		// suggestion — review me" from "auto-merge record — already done".
+		reason := "token-set cosine ≥ threshold"
+		if mode == NearDupShadow {
+			reason = "SHADOW · " + reason
+			log.Info().
+				Str("sourceFp", newer.fp).
+				Int64("targetId", target.ID).
+				Float64("score", bestScore).
+				Msg("near-dup SHADOW mode — would merge (no-op)")
+		}
 		newer.g.MergeSuggestion = &MergeSuggestion{
 			TargetID:    target.ID,
 			Score:       bestScore,
 			SuggestedAt: ts,
-			Reason:      "token-set cosine ≥ threshold",
+			Reason:      reason,
 		}
 		suggestions = append(suggestions, MergeSuggestion{
 			TargetID:    target.ID,
@@ -198,9 +246,9 @@ func (ea *ErrorAggregator) ScanNearDuplicates() *NearDupReport {
 	cfg.lastRun.Store(time.Now().Unix())
 	ea.mu.Unlock()
 
-	// Auto-merge OUTSIDE the lock — handleMerge takes the lock itself.
-	// We perform merges by direct method call so we don't go through HTTP.
-	if autoMerge {
+	// Auto-merge OUTSIDE the lock — autoMergeBySuggestion takes the
+	// lock itself. Shadow mode skips this entirely.
+	if mode == NearDupAuto {
 		for _, s := range suggestions {
 			ea.autoMergeBySuggestion(s)
 		}

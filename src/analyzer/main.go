@@ -566,12 +566,52 @@ func (a *Analyzer) Start(ctx context.Context) error {
 		a.startEvictionLoop(ctx)
 	}()
 
+	// Errors plan audit #2 + #4 — 60s loop that (a) runs near-duplicate
+	// detection if enabled and (b) fires rate-spike / umbrella-fault
+	// analysis triggers. Both are cheap no-ops when their preconditions
+	// aren't met (scan skipped on !Enabled; triggerAnalysis nil-checks
+	// its hook + per-fp throttle).
+	a.wg.Add(1)
+	go a.errorsBackgroundLoop(ctx)
+
 	// Start HTTP servers
 	a.wg.Add(2)
 	go a.serveMetrics()
 	go a.serveAPI()
 
 	return nil
+}
+
+// errorsBackgroundLoop runs error-feature background work on a fixed
+// cadence. Scope is deliberately small (scan + triggers + one audit
+// log every minute) so a failure here is bounded and visible.
+func (a *Analyzer) errorsBackgroundLoop(ctx context.Context) {
+	defer a.wg.Done()
+	if a.errorAggregator == nil {
+		return
+	}
+	ticker := time.NewTicker(60 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-a.stopCh:
+			return
+		case <-ticker.C:
+			// Near-dup scan (no-op when Enabled=false). Returns a report
+			// we log a summary of so operators can see what it found.
+			report := a.errorAggregator.ScanNearDuplicates()
+			spikes, umbrellas := a.errorAggregator.ScanTriggers()
+			if len(report.Suggestions) > 0 || spikes > 0 || umbrellas > 0 {
+				log.Info().
+					Int("nearDupSuggestions", len(report.Suggestions)).
+					Int("rateSpikes", spikes).
+					Int("umbrellaFaults", umbrellas).
+					Msg("errors background loop tick")
+			}
+		}
+	}
 }
 
 // analysisLoop runs periodic analysis

@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 // ----------------------------------------------------------------------------
@@ -352,6 +354,255 @@ func TestGroupContext_NilDepsReturnsEmptyArrays(t *testing.T) {
 }
 
 // ----------------------------------------------------------------------------
+// Audit #6 — evict metric advances on TTL + cap eviction
+// ----------------------------------------------------------------------------
+
+func TestEvictMetric_RecordsTTLAndCap(t *testing.T) {
+	ea := NewErrorAggregator()
+	reg := prometheus.NewRegistry()
+	ea.AttachMetrics(reg, "test")
+
+	// Seed 5 groups
+	for i := 0; i < 5; i++ {
+		ea.Ingest(IngestEvent{
+			Service: "s", Namespace: "n", Level: "error", Reason: "ex",
+			Fingerprint: "fp" + string(rune('a'+i)),
+			Message:     "x",
+		})
+	}
+
+	// Force 3 of them to look stale (older than TTL).
+	ea.mu.Lock()
+	staleTS := time.Now().Add(-24 * time.Hour)
+	for i, fp := range []string{"fpa", "fpb", "fpc"} {
+		_ = i
+		ea.groups[fp].LastSeen = staleTS
+	}
+	ea.mu.Unlock()
+
+	removed := ea.Evict(1*time.Hour, 0)
+	if removed != 3 {
+		t.Fatalf("expected 3 evictions, got %d", removed)
+	}
+
+	// Walk the registry for our cluster_intel_errors_evict_total counter.
+	mfs, err := reg.Gather()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ttlCount float64
+	for _, mf := range mfs {
+		if mf.GetName() != "test_errors_evict_total" {
+			continue
+		}
+		for _, m := range mf.GetMetric() {
+			for _, l := range m.GetLabel() {
+				if l.GetName() == "reason" && l.GetValue() == "ttl" {
+					ttlCount = m.GetCounter().GetValue()
+				}
+			}
+		}
+	}
+	if ttlCount != 3 {
+		t.Fatalf("evict_total{reason=ttl} = %v, want 3", ttlCount)
+	}
+
+	// Now trigger cap-eviction: drop maxSize to 1, which forces 1 more eviction.
+	removed = ea.Evict(24*time.Hour, 1)
+	if removed != 1 {
+		t.Fatalf("expected 1 cap eviction, got %d", removed)
+	}
+	mfs, _ = reg.Gather()
+	var capCount float64
+	for _, mf := range mfs {
+		if mf.GetName() != "test_errors_evict_total" {
+			continue
+		}
+		for _, m := range mf.GetMetric() {
+			for _, l := range m.GetLabel() {
+				if l.GetName() == "reason" && l.GetValue() == "cap" {
+					capCount = m.GetCounter().GetValue()
+				}
+			}
+		}
+	}
+	if capCount != 1 {
+		t.Fatalf("evict_total{reason=cap} = %v, want 1", capCount)
+	}
+}
+
+// ----------------------------------------------------------------------------
+// Audit #4 — rate-spike + umbrella-fault scanner
+// ----------------------------------------------------------------------------
+
+func TestScanTriggers_SpikeFires(t *testing.T) {
+	ea := NewErrorAggregator()
+	fired := make(chan string, 8)
+	ea.AttachAnalyzer(func(g *ErrorGroup, trigger string) { fired <- trigger })
+
+	// Seed a group (this fires "newGroup" — we drain below) then backdate
+	// 5 recent events so count5m=5, count1h=5, projected=60, 60 > 2*5 ⇒ spike.
+	now := time.Now()
+	ea.Ingest(IngestEvent{Service: "s", Namespace: "n", Level: "error", Reason: "ex",
+		Fingerprint: "fp", Message: "x"})
+	ea.mu.Lock()
+	ea.occurrences["fp"] = []ErrorOccurrence{
+		{Timestamp: now.Add(-3 * time.Minute)},
+		{Timestamp: now.Add(-2 * time.Minute)},
+		{Timestamp: now.Add(-1 * time.Minute)},
+		{Timestamp: now.Add(-30 * time.Second)},
+		{Timestamp: now.Add(-10 * time.Second)},
+	}
+	// Clear the per-fp throttle so the scan is allowed to fire again.
+	delete(ea.lastTriggered, "fp")
+	ea.mu.Unlock()
+
+	// Drain the newGroup trigger from Ingest.
+	select {
+	case <-fired:
+	case <-time.After(200 * time.Millisecond):
+	}
+
+	spikes, umbrellas := ea.ScanTriggers()
+	if spikes != 1 || umbrellas != 0 {
+		t.Fatalf("ScanTriggers returned spikes=%d umbrellas=%d, want 1/0", spikes, umbrellas)
+	}
+	select {
+	case trig := <-fired:
+		if trig != "rateSpike" {
+			t.Fatalf("got trigger %q, want rateSpike", trig)
+		}
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("rateSpike hook was never called")
+	}
+}
+
+func TestScanTriggers_UmbrellaFiresOnLargest(t *testing.T) {
+	ea := NewErrorAggregator()
+	type rec struct {
+		trigger string
+		fp      string
+	}
+	fired := make(chan rec, 8)
+	ea.AttachAnalyzer(func(g *ErrorGroup, trigger string) {
+		fired <- rec{trigger, g.Fingerprint}
+	})
+
+	// 3 groups, same faultKey (same stack/exception, different services).
+	// Count is set directly so we don't trip the rate-spike check (which
+	// would fire first and throttle the umbrella). The scenario we're
+	// testing is umbrella-by-group-count, not spike.
+	stack := "FooException: x\n  at app.go:10\n  at lib.go:20\n  at db.go:30"
+	for _, svc := range []string{"svc-a", "svc-b", "svc-c"} {
+		ea.Ingest(IngestEvent{
+			Service: svc, Namespace: "n", Level: "error", Reason: "ex",
+			Fingerprint: "fp-" + svc, Message: "x",
+			StackTrace: stack, Error: "FooException: x",
+		})
+	}
+	// Set Count directly, with occurrence timestamps spread far enough back
+	// that count5m=0 and the rate-spike pass skips every group.
+	ea.mu.Lock()
+	ea.groups["fp-svc-a"].Count = 1
+	ea.groups["fp-svc-b"].Count = 2
+	ea.groups["fp-svc-c"].Count = 3 // largest
+	past := time.Now().Add(-2 * time.Hour)
+	ea.occurrences["fp-svc-a"] = []ErrorOccurrence{{Timestamp: past}}
+	ea.occurrences["fp-svc-b"] = []ErrorOccurrence{{Timestamp: past}}
+	ea.occurrences["fp-svc-c"] = []ErrorOccurrence{{Timestamp: past}}
+	for k := range ea.lastTriggered {
+		delete(ea.lastTriggered, k)
+	}
+	ea.mu.Unlock()
+
+	// Drain newGroup triggers from Ingest.
+	time.Sleep(50 * time.Millisecond)
+	for {
+		select {
+		case <-fired:
+			continue
+		default:
+		}
+		break
+	}
+
+	_, umbrellas := ea.ScanTriggers()
+	if umbrellas != 1 {
+		t.Fatalf("umbrellas=%d, want 1", umbrellas)
+	}
+
+	// Wait for the goroutine and collect every event fired.
+	time.Sleep(150 * time.Millisecond)
+	events := []rec{}
+drain:
+	for {
+		select {
+		case r := <-fired:
+			events = append(events, r)
+		default:
+			break drain
+		}
+	}
+	found := false
+	for _, e := range events {
+		if e.trigger == "umbrellaFault" && e.fp == "fp-svc-c" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("umbrellaFault did not fire on fp-svc-c; saw: %+v", events)
+	}
+}
+
+// ----------------------------------------------------------------------------
+// Audit #5 — RecsForTarget matching order
+// ----------------------------------------------------------------------------
+
+func TestRecsForTarget_MatchOrderAndPrecedence(t *testing.T) {
+	reg := &OptimizerRegistry{
+		optimizers:      map[string]Optimizer{},
+		recommendations: map[int64]*OptRecommendation{},
+	}
+	add := func(name, container string) *OptRecommendation {
+		id := int64(len(reg.recommendations) + 1)
+		rec := &OptRecommendation{
+			ID: id, Status: "open",
+			Target: OptTarget{Namespace: "ns", Name: name, Container: container},
+		}
+		reg.recommendations[id] = rec
+		return rec
+	}
+	exactRec := add("payments", "")
+	containerRec := add("api-deployment", "payments")
+	prefixRec := add("payments-worker", "")
+	unrelated := add("web-ui", "")
+	// A legit prefix-on-different-word should NOT match "api": "apiserver" shares
+	// prefix "api" but we required the "-" so it's excluded (the audit fix).
+	apiserverRec := add("apiserver", "")
+	_ = apiserverRec
+	_ = unrelated
+
+	got := reg.RecsForTarget("ns", "payments")
+	if len(got) != 3 {
+		t.Fatalf("want 3 matching recs, got %d", len(got))
+	}
+	// Exact must come first, container second, prefix third.
+	if got[0].ID != exactRec.ID || got[1].ID != containerRec.ID || got[2].ID != prefixRec.ID {
+		t.Fatalf("match order wrong: got [%d, %d, %d], want [%d, %d, %d]",
+			got[0].ID, got[1].ID, got[2].ID, exactRec.ID, containerRec.ID, prefixRec.ID)
+	}
+
+	// Audit fix: "api" must NOT match "apiserver"
+	gotAPI := reg.RecsForTarget("ns", "api")
+	for _, r := range gotAPI {
+		if r.ID == apiserverRec.ID {
+			t.Fatalf("bare-prefix bug still present — 'api' matched 'apiserver'")
+		}
+	}
+}
+
+// ----------------------------------------------------------------------------
 // Phase 2.2 — near-duplicate detection
 // ----------------------------------------------------------------------------
 
@@ -380,6 +631,32 @@ func TestCosineTokenSet_UnrelatedIsLow(t *testing.T) {
 	c := cosineTokenSet(a, b)
 	if c >= 0.5 {
 		t.Fatalf("unrelated messages should score < 0.5, got %v", c)
+	}
+}
+
+// Audit #3 — shadow mode: scan runs, suggestions recorded, nothing fused.
+func TestScanNearDuplicates_ShadowModeNoFusion(t *testing.T) {
+	ea := NewErrorAggregator()
+	ea.ConfigureNearDupMode(NearDupShadow, 0.5, nil)
+	ea.Ingest(IngestEvent{Service: "s", Namespace: "n", Level: "error", Reason: "ex",
+		Fingerprint: "older", Message: "connection refused upstream database"})
+	time.Sleep(2 * time.Millisecond)
+	ea.Ingest(IngestEvent{Service: "s", Namespace: "n", Level: "error", Reason: "ex",
+		Fingerprint: "newer", Message: "connect connection refused upstream database server"})
+
+	report := ea.ScanNearDuplicates()
+	if len(ea.groups) != 2 {
+		t.Fatalf("shadow mode must NOT fuse groups; have %d, want 2", len(ea.groups))
+	}
+	if len(report.Suggestions) == 0 {
+		t.Fatal("shadow mode must still record suggestions")
+	}
+	newer := ea.groups["newer"]
+	if newer.MergeSuggestion == nil {
+		t.Fatal("newer group missing MergeSuggestion breadcrumb")
+	}
+	if !strings.HasPrefix(newer.MergeSuggestion.Reason, "SHADOW ") {
+		t.Fatalf("shadow reason not annotated: %q", newer.MergeSuggestion.Reason)
 	}
 }
 

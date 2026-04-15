@@ -183,18 +183,16 @@ func (a *Analyzer) runErrorGroupAnalysis(grp *ErrorGroup, trigger string) {
 
 // SetAnalysis safely attaches an analysis to a group identified by
 // fingerprint. No-op if the group has been evicted or merged away.
+//
+// Phase 3.1 Step 2 (audit item #7): no longer dual-writes the legacy
+// markdown AISummary field. The UI and all internal callers prefer
+// `analysis` when present; old AISummary blobs created before this
+// change are still readable, just not refreshed.
 func (ea *ErrorAggregator) SetAnalysis(fp string, analysis *ErrorAnalysis) {
 	ea.mu.Lock()
 	defer ea.mu.Unlock()
 	if g, ok := ea.groups[fp]; ok {
 		g.Analysis = analysis
-		// Keep the markdown blob in sync for legacy clients during the
-		// migration window. Phase 3.1 Step 2 will remove this.
-		if analysis != nil {
-			g.AISummary = "**Root Cause**: " + analysis.RootCause +
-				"\n\n**Impact**: " + analysis.Impact +
-				"\n\n**Fix**: " + analysis.Fix
-		}
 	}
 }
 

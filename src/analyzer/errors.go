@@ -404,6 +404,88 @@ func (ea *ErrorAggregator) IncLLMSkipped(reason string) {
 	}
 }
 
+// ScanTriggers examines every group for rate-spike and umbrella-fault
+// conditions and fires the analyzer hook on matches. Phase 3.2
+// completion (audit item #4): previously only new-group creation
+// auto-fired.
+//
+//	rate spike    — projected hourly rate (count5m * 12) exceeds the
+//	                observed 1h count by 2x AND count5m >= 3
+//	umbrella      — a faultKey has >=3 groups; largest fires with
+//	                trigger="umbrellaFault"
+//
+// The per-fp throttle in triggerAnalysis means a group fires the
+// expensive LLM path at most once every 10 min regardless of scan
+// frequency. Intended to run from a 60s ticker.
+func (ea *ErrorAggregator) ScanTriggers() (spikes, umbrellas int) {
+	ea.mu.Lock()
+	defer ea.mu.Unlock()
+	if ea.analyzeFunc == nil {
+		return 0, 0
+	}
+
+	for _, g := range ea.groups {
+		r := ea.rateUnlocked(g.Fingerprint)
+		if r.Count5m >= 3 && r.Count5m*12 > r.Count1h*2 {
+			ea.triggerAnalysis(g, "rateSpike")
+			spikes++
+		}
+	}
+
+	byFault := map[string][]*ErrorGroup{}
+	for _, g := range ea.groups {
+		if g.FaultKey != "" {
+			byFault[g.FaultKey] = append(byFault[g.FaultKey], g)
+		}
+	}
+	for _, gs := range byFault {
+		if len(gs) < 3 {
+			continue
+		}
+		biggest := gs[0]
+		for _, g := range gs[1:] {
+			if g.Count > biggest.Count {
+				biggest = g
+			}
+		}
+		ea.triggerAnalysis(biggest, "umbrellaFault")
+		umbrellas++
+	}
+	return spikes, umbrellas
+}
+
+// rateUnlocked is the read-side rate helper that assumes the caller
+// already holds ea.mu. Split from computeRate so ScanTriggers doesn't
+// re-lock.
+func (ea *ErrorAggregator) rateUnlocked(fp string) *ErrorRate {
+	occs, ok := ea.occurrences[fp]
+	if !ok || len(occs) == 0 {
+		return &ErrorRate{Spark: make([]int, 12)}
+	}
+	now := time.Now()
+	r := &ErrorRate{Spark: make([]int, 12)}
+	for _, o := range occs {
+		age := now.Sub(o.Timestamp)
+		if age < time.Minute {
+			r.Count1m++
+		}
+		if age < 5*time.Minute {
+			r.Count5m++
+		}
+		if age < time.Hour {
+			r.Count1h++
+			b := 11 - int(age/(5*time.Minute))
+			if b >= 0 && b < 12 {
+				r.Spark[b]++
+			}
+		}
+		if age < 24*time.Hour {
+			r.Count24h++
+		}
+	}
+	return r
+}
+
 // triggerAnalysis runs ea.analyzeFunc in a goroutine, throttled per-fp
 // (max once per 10 min for the same group). Caller must hold ea.mu.
 func (ea *ErrorAggregator) triggerAnalysis(grp *ErrorGroup, trigger string) {
@@ -704,35 +786,12 @@ func (ea *ErrorAggregator) handleSummary(w http.ResponseWriter, r *http.Request)
 // Occurrences are append-only and chronologically ordered, so a single
 // pass is enough. Caller must hold ea.mu at least for read.
 func (ea *ErrorAggregator) computeRate(fp string) *ErrorRate {
-	occs, ok := ea.occurrences[fp]
-	if !ok || len(occs) == 0 {
-		return &ErrorRate{Spark: make([]int, 12)}
-	}
+	r := ea.rateUnlocked(fp)
+	occs := ea.occurrences[fp]
 	now := time.Now()
-	r := &ErrorRate{Spark: make([]int, 12)}
-	for _, o := range occs {
-		age := now.Sub(o.Timestamp)
-		if age < time.Minute {
-			r.Count1m++
-		}
-		if age < 5*time.Minute {
-			r.Count5m++
-		}
-		if age < time.Hour {
-			r.Count1h++
-			// Sparkline: last 60 min in 5-min buckets, newest on the right.
-			b := 11 - int(age/(5*time.Minute))
-			if b >= 0 && b < 12 {
-				r.Spark[b]++
-			}
-		}
-		if age < 24*time.Hour {
-			r.Count24h++
-		}
-	}
 	// If the ring buffer was full AND the newest event in it is <24h old,
 	// there's no way to know how many older events got dropped. Signal it.
-	if len(occs) >= ea.maxOccur && now.Sub(occs[0].Timestamp) < 24*time.Hour {
+	if len(occs) > 0 && len(occs) >= ea.maxOccur && now.Sub(occs[0].Timestamp) < 24*time.Hour {
 		r.Truncated = true
 	}
 	return r

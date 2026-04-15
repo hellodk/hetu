@@ -77,13 +77,32 @@ func NewOptimizerRegistry(promURL, clusterID string) *OptimizerRegistry {
 	return reg
 }
 
-// RecsForTarget returns open recommendations whose Target matches the
-// given namespace + (optional) service-as-name-prefix. Used by the
-// errors-page context panel (Phase 1.5).
+// RecsForTarget returns open recommendations whose Target relates to
+// the given namespace + service. Used by the errors-page context panel.
+//
+// Audit item #5 — the previous implementation only used
+// strings.HasPrefix(Target.Name, service), which misses a lot of legit
+// pairings (e.g. Deployment "web" owning pods named "web-7fc4b...,"
+// whose pods are labelled service=api-gateway). We now match in this
+// priority order and return results tagged with match strength:
+//
+//  1. exact: rec.Target.Name == service
+//  2. container match: rec.Target.Container == service
+//  3. prefix: rec.Target.Name HasPrefix service  (strict — avoids
+//     false-positives where service is a substring inside the name)
+//  4. namespace-only (only returned when no name/container matches at all)
+//
+// Results are sorted by match strength (1 → 4) so callers can cut off.
+// Recommendations with Status != "open" are skipped.
 func (r *OptimizerRegistry) RecsForTarget(namespace, service string) []*OptRecommendation {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	out := make([]*OptRecommendation, 0)
+
+	type scored struct {
+		rec   *OptRecommendation
+		score int // 1 = best, 4 = weakest
+	}
+	var exact, container, prefix, nsOnly []scored
 	for _, rec := range r.recommendations {
 		if rec.Status != "open" {
 			continue
@@ -91,10 +110,30 @@ func (r *OptimizerRegistry) RecsForTarget(namespace, service string) []*OptRecom
 		if namespace != "" && rec.Target.Namespace != namespace {
 			continue
 		}
-		if service != "" && rec.Target.Name != "" && !strings.HasPrefix(rec.Target.Name, service) {
+		if service == "" {
+			nsOnly = append(nsOnly, scored{rec, 4})
 			continue
 		}
-		out = append(out, rec)
+		switch {
+		case rec.Target.Name == service:
+			exact = append(exact, scored{rec, 1})
+		case rec.Target.Container != "" && rec.Target.Container == service:
+			container = append(container, scored{rec, 2})
+		case rec.Target.Name != "" && strings.HasPrefix(rec.Target.Name, service+"-"):
+			// Require a "-" suffix to avoid "api" matching "apiserver".
+			// Bare HasPrefix without the dash was the original footgun.
+			prefix = append(prefix, scored{rec, 3})
+		}
+	}
+	// Namespace-only fallback: return these ONLY when we have nothing
+	// strong. Prevents the panel from flooding with unrelated recs.
+	combined := append(append(append([]scored{}, exact...), container...), prefix...)
+	if len(combined) == 0 {
+		combined = nsOnly
+	}
+	out := make([]*OptRecommendation, 0, len(combined))
+	for _, s := range combined {
+		out = append(out, s.rec)
 	}
 	return out
 }
