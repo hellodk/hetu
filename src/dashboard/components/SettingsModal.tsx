@@ -4,6 +4,21 @@ import { Modal } from './Modal'
 import { PlayCircle, Activity, Save, Download } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 
+type ThemeChoice = 'graphite' | 'calm-signal' | 'aurora' | 'prism' | 'auto'
+const THEME_VALUES: readonly ThemeChoice[] = ['graphite', 'calm-signal', 'aurora', 'prism', 'auto'] as const
+const THEME_LABELS: Record<ThemeChoice, string> = {
+    graphite:      'Graphite — editorial light (default)',
+    'calm-signal': 'Calm signal — restrained dark',
+    aurora:        'Aurora — magical dark',
+    prism:         'Prism — white wow',
+    auto:          'Auto — follow OS preference',
+}
+const LEGACY_MIGRATION: Record<string, ThemeChoice> = {
+    light:  'graphite',
+    dark:   'calm-signal',
+    system: 'auto',
+}
+
 interface SettingsModalProps {
     isOpen: boolean
     onClose: () => void
@@ -36,20 +51,6 @@ export function SettingsModal({
     const [savingOverride, setSavingOverride] = useState(false)
     const [overrideLocation, setOverrideLocation] = useState<string>('')
     const [overrideLoadError, setOverrideLoadError] = useState<string>('')
-    type ThemeChoice = 'graphite' | 'calm-signal' | 'aurora' | 'prism' | 'auto'
-    const THEME_VALUES: readonly ThemeChoice[] = ['graphite', 'calm-signal', 'aurora', 'prism', 'auto'] as const
-    const THEME_LABELS: Record<ThemeChoice, string> = {
-        graphite:      'Graphite — editorial light (default)',
-        'calm-signal': 'Calm signal — restrained dark',
-        aurora:        'Aurora — magical dark',
-        prism:         'Prism — white wow',
-        auto:          'Auto — follow OS preference',
-    }
-    const LEGACY_MIGRATION: Record<string, ThemeChoice> = {
-        light:  'graphite',
-        dark:   'calm-signal',
-        system: 'auto',
-    }
     const [themePref, setThemePref] = useState<ThemeChoice>('graphite')
 
     useEffect(() => {

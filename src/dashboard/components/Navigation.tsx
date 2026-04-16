@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
@@ -12,11 +12,11 @@ import {
 type ThemeChoice = 'graphite' | 'calm-signal' | 'aurora' | 'prism' | 'auto'
 const THEME_VALUES: readonly ThemeChoice[] = ['graphite', 'calm-signal', 'aurora', 'prism', 'auto'] as const
 const THEME_LABELS: Record<ThemeChoice, string> = {
-  graphite:     'Graphite (editorial light)',
-  'calm-signal':'Calm signal (dark)',
-  aurora:       'Aurora (magical dark)',
-  prism:        'Prism (white wow)',
-  auto:         'Auto (follow OS)',
+  graphite:     'Graphite',
+  'calm-signal':'Calm signal',
+  aurora:       'Aurora',
+  prism:        'Prism',
+  auto:         'Auto',
 }
 const LEGACY_MIGRATION: Record<string, ThemeChoice> = {
   light:  'graphite',
@@ -103,9 +103,6 @@ export function Navigation() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [theme, setTheme] = useState<ThemeChoice>('graphite')
 
-  // Icon stays constant (Palette) — the theme name in the select does the talking.
-  const themeIcon = useMemo(() => <Palette className="w-4 h-4" />, [])
-
   useEffect(() => {
     try {
       const raw = localStorage.getItem('ci_theme')
@@ -141,36 +138,11 @@ export function Navigation() {
   }
 
   const nav = (
-    <nav className="flex flex-col h-full">
+    <nav className="flex flex-col flex-1 min-h-0">
       {/* Top links */}
       <div className="p-4 border-b border-cluster-border">
-        <div className="flex items-center justify-between gap-2 mb-2">
-          <div className="text-xs font-semibold tracking-wide text-cluster-muted uppercase">
-            Navigation
-          </div>
-          <div className="flex items-center gap-2">
-            <label className="sr-only" htmlFor="theme">
-              Theme
-            </label>
-            <div className="flex items-center gap-1.5 text-xs text-cluster-muted">
-              {themeIcon}
-              <select
-                id="theme"
-                value={theme}
-                onChange={(e) => {
-                  const val = e.target.value as ThemeChoice
-                  try { localStorage.setItem('ci_theme', val) } catch { /* ignore */ }
-                  setTheme(val)
-                }}
-                className="bg-transparent text-xs text-cluster-muted hover:text-cluster-text focus:outline-none cursor-pointer max-w-[140px]"
-                aria-label="Theme"
-              >
-                {THEME_VALUES.map(v => (
-                  <option key={v} value={v}>{THEME_LABELS[v]}</option>
-                ))}
-              </select>
-            </div>
-          </div>
+        <div className="text-xs font-semibold tracking-wide text-cluster-muted uppercase mb-2">
+          Navigation
         </div>
         <Link
           href="/"
@@ -282,6 +254,29 @@ export function Navigation() {
           </div>
         ))}
       </div>
+
+      {/* Theme picker — pinned at the bottom of the sidebar */}
+      <div className="p-3 border-t border-cluster-border shrink-0">
+        <label className="sr-only" htmlFor="nav-theme">Theme</label>
+        <div className="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-cluster-muted hover:bg-cluster-border/40 transition-colors">
+          <Palette className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+          <select
+            id="nav-theme"
+            value={theme}
+            onChange={(e) => {
+              const val = e.target.value as ThemeChoice
+              try { localStorage.setItem('ci_theme', val) } catch { /* ignore */ }
+              setTheme(val)
+            }}
+            className="flex-1 min-w-0 bg-transparent text-xs text-cluster-muted hover:text-cluster-text focus:outline-none cursor-pointer"
+            aria-label="Theme"
+          >
+            {THEME_VALUES.map(v => (
+              <option key={v} value={v}>{THEME_LABELS[v]}</option>
+            ))}
+          </select>
+        </div>
+      </div>
     </nav>
   )
 
@@ -297,7 +292,7 @@ export function Navigation() {
 
       {/* Sidebar */}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 w-56 bg-cluster-bg border-r border-cluster-border transform transition-transform duration-200 lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-40 w-56 bg-cluster-bg border-r border-cluster-border flex flex-col transform transition-transform duration-200 lg:translate-x-0 ${
           mobileOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >

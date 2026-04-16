@@ -499,7 +499,7 @@ export default function Dashboard() {
           ; (buttons[newIndex] as HTMLElement)?.focus()
       }
     }
-  }, [])
+  }, [setActiveTab])
 
   // Show skeleton during initial load
   if (loading && !report) {
