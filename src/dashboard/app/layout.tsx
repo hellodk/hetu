@@ -1,11 +1,49 @@
 import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
+import { Inter, Space_Grotesk, Newsreader, Fraunces, JetBrains_Mono } from 'next/font/google'
 import './globals.css'
 import { Navigation } from '@/components/Navigation'
 
-const inter = Inter({ subsets: ['latin'] })
+// Body (every theme uses Inter for UI copy)
+const inter = Inter({
+  subsets: ['latin'],
+  variable: '--font-inter',
+  display: 'swap',
+})
 
-// Force dynamic rendering so env vars are read at request time, not build time
+// Display — aurora
+const spaceGrotesk = Space_Grotesk({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-space-grotesk',
+  display: 'swap',
+})
+
+// Display — graphite (secondary fallback for Fraunces)
+const newsreader = Newsreader({
+  subsets: ['latin'],
+  weight: ['400', '500', '600'],
+  style: ['normal', 'italic'],
+  variable: '--font-newsreader',
+  display: 'swap',
+})
+
+// Display — graphite + prism (variable with optical sizing)
+const fraunces = Fraunces({
+  subsets: ['latin'],
+  weight: 'variable',
+  axes: ['SOFT', 'opsz'],
+  variable: '--font-fraunces',
+  display: 'swap',
+})
+
+// Tabular numbers across every theme
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ['latin'],
+  weight: ['400', '500', '600'],
+  variable: '--font-jetbrains-mono',
+  display: 'swap',
+})
+
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
@@ -13,54 +51,65 @@ export const metadata: Metadata = {
   description: 'AI-Powered Kubernetes Cluster Health & Optimization Dashboard',
 }
 
+// Space-separated CSS-variable class list for <html>
+const fontVars = [
+  inter.variable,
+  spaceGrotesk.variable,
+  newsreader.variable,
+  fraunces.variable,
+  jetbrainsMono.variable,
+].join(' ')
+
 export default function RootLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  // Browser-side API URL injected into window.__CLUSTER_INTEL_API__.
-  //
-  // IMPORTANT: this URL must be reachable from whatever device loads the
-  // page, NOT from the Next.js server. Only read NEXT_PUBLIC_API_URL —
-  // ANALYZER_URL is intentionally excluded because it's often something
-  // like "http://localhost:18081" that only the host running next dev
-  // can resolve. Injecting it causes every LAN visitor (phone, another
-  // laptop at http://<lan-ip>:3003) to try and fetch the analyzer at
-  // their OWN localhost, which 5xx's.
-  //
-  // When this is empty (the common local-dev case), the client uses:
-  //   - relative URLs for REST    → proxied by app/api/v1/[...path]/route.ts
-  //   - ws://${window.location.hostname}:18081 for WebSocket (logs/exec)
-  // Both work from any origin that can reach the dashboard.
-  //
-  // Set NEXT_PUBLIC_API_URL only when the browser must bypass the proxy
-  // (e.g. dashboard and analyzer served from different origins with no
-  //  same-origin path).
+  // See previous version for why only NEXT_PUBLIC_API_URL is injected.
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || ''
 
   return (
-    <html lang="en">
+    <html lang="en" className={fontVars} suppressHydrationWarning>
       <head>
         <script
           dangerouslySetInnerHTML={{
             __html: `
               window.__CLUSTER_INTEL_API__=${JSON.stringify(apiUrl)};
               (function () {
+                // FOUC-safe theme init.
+                // ci_theme may be: graphite | calm-signal | aurora | prism | auto
+                // "auto"   → dark OS prefers-dark ⇒ calm-signal, else graphite.
+                // unset    → graphite (system default).
+                // Legacy values from the old toggle (light/dark/system) get
+                // migrated: light ⇒ graphite, dark ⇒ calm-signal, system ⇒ auto.
                 try {
-                  var stored = localStorage.getItem('ci_theme'); // 'light' | 'dark' | 'system'
+                  var VALID = ['graphite','calm-signal','aurora','prism','auto'];
+                  var LEGACY = { light: 'graphite', dark: 'calm-signal', system: 'auto' };
+                  var stored = localStorage.getItem('ci_theme');
+                  if (stored && LEGACY[stored]) {
+                    stored = LEGACY[stored];
+                    localStorage.setItem('ci_theme', stored);
+                  }
+                  if (!stored || VALID.indexOf(stored) === -1) stored = 'graphite';
+
                   var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-                  var theme = stored || 'system';
-                  var shouldDark = theme === 'dark' || (theme === 'system' && prefersDark);
-                  document.documentElement.classList.toggle('dark', shouldDark);
+                  var resolved = stored === 'auto'
+                    ? (prefersDark ? 'calm-signal' : 'graphite')
+                    : stored;
+
+                  document.documentElement.setAttribute('data-theme', resolved);
+                  // Tailwind dark: variants fire for the three dark themes.
+                  var isDark = resolved !== 'graphite';
+                  document.documentElement.classList.toggle('dark', isDark);
                 } catch (e) {
-                  // no-op (SSR / privacy mode)
+                  // SSR / privacy mode — keep the data-theme='graphite' default.
                 }
               })();
             `,
           }}
         />
       </head>
-      <body className={`${inter.className} bg-cluster-bg text-cluster-text min-h-screen`}>
+      <body className="bg-cluster-bg text-cluster-text min-h-screen">
         {/* Skip to main content link for keyboard accessibility */}
         <a href="#main-content" className="skip-link">
           Skip to main content

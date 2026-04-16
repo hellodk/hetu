@@ -6,8 +6,30 @@ import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, Boxes, Server, Network, Database,
   Shield, Gauge, ChevronDown, ChevronRight, Menu, X, Bug, Globe, Zap, TrendingDown,
-  Activity, Settings, Sun, Moon, Monitor
+  Activity, Settings, Palette
 } from 'lucide-react'
+
+type ThemeChoice = 'graphite' | 'calm-signal' | 'aurora' | 'prism' | 'auto'
+const THEME_VALUES: readonly ThemeChoice[] = ['graphite', 'calm-signal', 'aurora', 'prism', 'auto'] as const
+const THEME_LABELS: Record<ThemeChoice, string> = {
+  graphite:     'Graphite (editorial light)',
+  'calm-signal':'Calm signal (dark)',
+  aurora:       'Aurora (magical dark)',
+  prism:        'Prism (white wow)',
+  auto:         'Auto (follow OS)',
+}
+const LEGACY_MIGRATION: Record<string, ThemeChoice> = {
+  light:  'graphite',
+  dark:   'calm-signal',
+  system: 'auto',
+}
+
+function resolveTheme(choice: ThemeChoice): 'graphite' | 'calm-signal' | 'aurora' | 'prism' {
+  if (choice !== 'auto') return choice
+  const prefersDark = typeof window !== 'undefined'
+    && window.matchMedia?.('(prefers-color-scheme: dark)').matches
+  return prefersDark ? 'calm-signal' : 'graphite'
+}
 
 interface NavSection {
   name: string
@@ -79,32 +101,29 @@ export function Navigation() {
   const pathname = usePathname()
   const [openSections, setOpenSections] = useState<Set<string>>(new Set(['Workloads']))
   const [mobileOpen, setMobileOpen] = useState(false)
-  const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('system')
+  const [theme, setTheme] = useState<ThemeChoice>('graphite')
 
-  const themeIcon = useMemo(() => {
-    if (theme === 'light') return <Sun className="w-4 h-4" />
-    if (theme === 'dark') return <Moon className="w-4 h-4" />
-    return <Monitor className="w-4 h-4" />
-  }, [theme])
+  // Icon stays constant (Palette) — the theme name in the select does the talking.
+  const themeIcon = useMemo(() => <Palette className="w-4 h-4" />, [])
 
   useEffect(() => {
     try {
-      const stored = (localStorage.getItem('ci_theme') as 'light' | 'dark' | 'system' | null) || 'system'
-      setTheme(stored)
+      const raw = localStorage.getItem('ci_theme')
+      let next: ThemeChoice = 'graphite'
+      if (raw) {
+        if (LEGACY_MIGRATION[raw]) next = LEGACY_MIGRATION[raw]
+        else if ((THEME_VALUES as readonly string[]).includes(raw)) next = raw as ThemeChoice
+      }
+      setTheme(next)
     } catch {
       // ignore
     }
   }, [])
 
   useEffect(() => {
-    try {
-      localStorage.setItem('ci_theme', theme)
-    } catch {
-      // ignore
-    }
-    const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
-    const shouldDark = theme === 'dark' || (theme === 'system' && prefersDark)
-    document.documentElement.classList.toggle('dark', shouldDark)
+    const resolved = resolveTheme(theme)
+    document.documentElement.setAttribute('data-theme', resolved)
+    document.documentElement.classList.toggle('dark', resolved !== 'graphite')
   }, [theme])
 
   const toggle = (name: string) => {
@@ -138,13 +157,17 @@ export function Navigation() {
               <select
                 id="theme"
                 value={theme}
-                onChange={(e) => setTheme(e.target.value as 'light' | 'dark' | 'system')}
-                className="bg-transparent text-xs text-cluster-muted hover:text-cluster-text focus:outline-none cursor-pointer"
+                onChange={(e) => {
+                  const val = e.target.value as ThemeChoice
+                  try { localStorage.setItem('ci_theme', val) } catch { /* ignore */ }
+                  setTheme(val)
+                }}
+                className="bg-transparent text-xs text-cluster-muted hover:text-cluster-text focus:outline-none cursor-pointer max-w-[140px]"
                 aria-label="Theme"
               >
-                <option value="system">System</option>
-                <option value="light">Light</option>
-                <option value="dark">Dark</option>
+                {THEME_VALUES.map(v => (
+                  <option key={v} value={v}>{THEME_LABELS[v]}</option>
+                ))}
               </select>
             </div>
           </div>
