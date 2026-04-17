@@ -1,10 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { apiFetch, getApiUrl } from '@/lib/api'
 import {
   RefreshCw, Loader2, CheckCircle, XCircle,
-  Server, Brain, Save, RotateCcw, Key, Search, Palette
+  Server, Brain, Save, RotateCcw, Key, Search, Palette, ChevronDown
 } from 'lucide-react'
 
 interface LLMConfig {
@@ -54,10 +54,22 @@ export default function SettingsPage() {
   const [error, setError] = useState<string | null>(null)
   const [apiKey, setApiKey] = useState('')
   const [theme, setThemeState] = useState<ThemeChoice>('graphite')
+  const [themeDropdownOpen, setThemeDropdownOpen] = useState(false)
+  const themeDropdownRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const stored = localStorage.getItem('ci_theme') as ThemeChoice | null
     if (stored && THEMES.some(t => t.id === stored)) setThemeState(stored)
+  }, [])
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (themeDropdownRef.current && !themeDropdownRef.current.contains(e.target as Node)) {
+        setThemeDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
   }, [])
 
   const applyTheme = (choice: ThemeChoice) => {
@@ -391,40 +403,61 @@ export default function SettingsPage() {
           <Palette className="w-5 h-5 text-purple-400" />
           Appearance
         </h2>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {THEMES.map(t => {
-            const active = theme === t.id
-            return (
-              <button
-                key={t.id}
-                onClick={() => applyTheme(t.id)}
-                className={`group flex flex-col items-center gap-2 p-3 rounded-lg border transition-all ${
-                  active
-                    ? 'border-blue-500 ring-2 ring-blue-500/30 bg-cluster-bg/80'
-                    : 'border-cluster-border hover:border-cluster-text/40 bg-cluster-bg/40'
-                }`}
-                aria-pressed={active}
-                aria-label={`${t.label} theme`}
-              >
-                {/* Swatch */}
-                <span
-                  className="w-10 h-10 rounded-full border border-black/10 flex-shrink-0 flex items-center justify-center"
-                  style={{ background: t.bg }}
-                >
+        <div ref={themeDropdownRef} className="relative max-w-xs">
+          {/* Trigger */}
+          <button
+            type="button"
+            onClick={() => setThemeDropdownOpen(v => !v)}
+            className="w-full flex items-center gap-3 px-3 py-2.5 bg-cluster-bg border border-cluster-border rounded-lg text-sm text-cluster-text hover:border-cluster-text/40 transition-colors"
+            aria-haspopup="listbox"
+            aria-expanded={themeDropdownOpen}
+          >
+            {(() => {
+              const t = THEMES.find(t => t.id === theme) ?? THEMES[0]
+              return (
+                <>
                   <span
-                    className="w-4 h-4 rounded-full"
-                    style={{ background: t.accent }}
-                  />
-                </span>
-                <span className="text-xs text-cluster-text font-medium text-center leading-tight">
-                  {t.label}
-                </span>
-                {active && (
-                  <CheckCircle className="w-3.5 h-3.5 text-blue-400" aria-hidden="true" />
-                )}
-              </button>
-            )
-          })}
+                    className="w-5 h-5 rounded-full border border-black/10 shrink-0 flex items-center justify-center"
+                    style={{ background: t.bg }}
+                  >
+                    <span className="w-2.5 h-2.5 rounded-full" style={{ background: t.accent }} />
+                  </span>
+                  <span className="flex-1 text-left">{t.label}</span>
+                </>
+              )
+            })()}
+            <ChevronDown className={`w-4 h-4 text-cluster-muted transition-transform duration-150 ${themeDropdownOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
+          </button>
+
+          {/* Options list */}
+          {themeDropdownOpen && (
+            <ul
+              role="listbox"
+              aria-label="Theme"
+              className="absolute top-full left-0 right-0 mt-1 bg-cluster-card border border-cluster-border rounded-lg shadow-lg z-20 overflow-hidden"
+            >
+              {THEMES.map(t => (
+                <li key={t.id} role="option" aria-selected={theme === t.id}>
+                  <button
+                    type="button"
+                    onClick={() => { applyTheme(t.id as ThemeChoice); setThemeDropdownOpen(false) }}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm transition-colors hover:bg-cluster-border/30 ${
+                      theme === t.id ? 'text-cluster-text font-medium' : 'text-cluster-muted'
+                    }`}
+                  >
+                    <span
+                      className="w-5 h-5 rounded-full border border-black/10 shrink-0 flex items-center justify-center"
+                      style={{ background: t.bg }}
+                    >
+                      <span className="w-2.5 h-2.5 rounded-full" style={{ background: t.accent }} />
+                    </span>
+                    <span className="flex-1 text-left">{t.label}</span>
+                    {theme === t.id && <CheckCircle className="w-3.5 h-3.5 text-blue-400 shrink-0" aria-hidden="true" />}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
         <p className="text-xs text-cluster-muted mt-3">
           Saved to browser — no server restart needed.

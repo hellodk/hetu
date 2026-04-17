@@ -1,12 +1,14 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { apiFetch, getApiUrl } from '@/lib/api'
 import {
   ArrowLeft, Loader2, Clock, AlertCircle, Zap,
-  RefreshCw, Send, CheckCircle, Shield, Wrench
+  RefreshCw, Send, CheckCircle, Shield, Wrench, Bot, User
 } from 'lucide-react'
 
 interface Signal {
@@ -53,8 +55,9 @@ export default function IncidentDetailPage() {
   const [loading, setLoading] = useState(true)
   const [regenerating, setRegenerating] = useState(false)
   const [question, setQuestion] = useState('')
-  const [aiAnswer, setAiAnswer] = useState('')
+  const [chatHistory, setChatHistory] = useState<{ role: 'user' | 'assistant'; content: string }[]>([])
   const [asking, setAsking] = useState(false)
+  const chatEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     setLoading(true)
@@ -84,18 +87,24 @@ export default function IncidentDetailPage() {
   }
 
   const askAI = async () => {
-    if (!question.trim()) return
+    const q = question.trim()
+    if (!q) return
+    setQuestion('')
+    const userMsg = { role: 'user' as const, content: q }
+    setChatHistory(prev => [...prev, userMsg])
     setAsking(true)
+    // Scroll to bottom after adding user message
+    setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
     try {
       const res = await fetch(`${getApiUrl()}/api/v1/llm/ask`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        // Pass full incident context so the LLM can answer without a
-        // separate backend lookup — resilient to API latency and works
-        // even when rcaReport hasn't been generated yet.
         body: JSON.stringify({
-          question,
+          question: q,
           incidentId: parseInt(id),
+          // Full chat history so the LLM maintains multi-turn context
+          history: chatHistory.map(m => ({ role: m.role, content: m.content })),
+          // Full incident context so LLM can answer without a separate lookup
           context: {
             summary: incident?.summary,
             severity: incident?.severity,
@@ -106,9 +115,14 @@ export default function IncidentDetailPage() {
         }),
       })
       const data = await res.json()
-      setAiAnswer(data.answer || 'No response from AI')
-    } catch { setAiAnswer('Failed to reach AI — check LLM configuration in Settings') }
-    finally { setAsking(false) }
+      const answer = data.answer || 'No response from AI'
+      setChatHistory(prev => [...prev, { role: 'assistant', content: answer }])
+    } catch {
+      setChatHistory(prev => [...prev, { role: 'assistant', content: 'Failed to reach AI — check LLM configuration in Settings.' }])
+    } finally {
+      setAsking(false)
+      setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
+    }
   }
 
   if (loading) return <div className="flex justify-center items-center min-h-[50vh]"><Loader2 className="w-6 h-6 animate-spin text-blue-400" /></div>
@@ -268,24 +282,111 @@ export default function IncidentDetailPage() {
         </div>
       )}
 
-      {/* Ask AI follow-up */}
+      {/* Ask AI — multi-turn chat */}
       <div className="mt-8 pt-6 border-t border-gray-700">
-        <h3 className="text-sm font-medium text-gray-400 mb-2">Ask AI</h3>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-medium text-gray-400 flex items-center gap-2">
+            <Bot className="w-4 h-4 text-blue-400" /> Ask AI
+          </h3>
+          {chatHistory.length > 0 && (
+            <button
+              onClick={() => setChatHistory([])}
+              className="text-xs text-gray-600 hover:text-gray-400 transition-colors"
+            >
+              Clear history
+            </button>
+          )}
+        </div>
+
+        {/* Chat history */}
+        {chatHistory.length > 0 && (
+          <div className="space-y-3 mb-4 max-h-[480px] overflow-y-auto pr-1">
+            {chatHistory.map((msg, i) => (
+              <div key={i} className={`flex gap-2.5 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
+                <span className={`mt-0.5 w-6 h-6 rounded-full shrink-0 flex items-center justify-center ${
+                  msg.role === 'user' ? 'bg-blue-600' : 'bg-purple-900/60 border border-purple-700/40'
+                }`}>
+                  {msg.role === 'user'
+                    ? <User className="w-3.5 h-3.5 text-white" />
+                    : <Bot className="w-3.5 h-3.5 text-purple-300" />}
+                </span>
+                <div className={`flex-1 min-w-0 rounded-lg px-3 py-2.5 text-sm ${
+                  msg.role === 'user'
+                    ? 'bg-blue-600/20 border border-blue-700/30 text-blue-100'
+                    : 'bg-gray-800/60 border border-gray-700/50 text-gray-200'
+                }`}>
+                  {msg.role === 'assistant' ? (
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      components={{
+                        code({ className, children, ...props }) {
+                          const isBlock = className?.includes('language-')
+                          return isBlock ? (
+                            <pre className="bg-gray-900 rounded p-3 overflow-x-auto mt-2 mb-2">
+                              <code className={`text-xs text-green-300 ${className ?? ''}`} {...props}>
+                                {children}
+                              </code>
+                            </pre>
+                          ) : (
+                            <code className="bg-gray-900 text-green-300 px-1 py-0.5 rounded text-xs" {...props}>
+                              {children}
+                            </code>
+                          )
+                        },
+                        pre({ children }) { return <>{children}</> },
+                        p({ children }) { return <p className="mb-1 last:mb-0">{children}</p> },
+                        ul({ children }) { return <ul className="list-disc list-inside space-y-0.5 mb-1">{children}</ul> },
+                        ol({ children }) { return <ol className="list-decimal list-inside space-y-0.5 mb-1">{children}</ol> },
+                        li({ children }) { return <li className="text-gray-300">{children}</li> },
+                        strong({ children }) { return <strong className="text-white font-semibold">{children}</strong> },
+                        h3({ children }) { return <h3 className="text-white font-semibold text-sm mt-2 mb-1">{children}</h3> },
+                      }}
+                    >
+                      {msg.content}
+                    </ReactMarkdown>
+                  ) : (
+                    <span>{msg.content}</span>
+                  )}
+                </div>
+              </div>
+            ))}
+            {asking && (
+              <div className="flex gap-2.5">
+                <span className="mt-0.5 w-6 h-6 rounded-full shrink-0 flex items-center justify-center bg-purple-900/60 border border-purple-700/40">
+                  <Bot className="w-3.5 h-3.5 text-purple-300" />
+                </span>
+                <div className="flex items-center gap-1.5 px-3 py-2.5 bg-gray-800/60 border border-gray-700/50 rounded-lg">
+                  <span className="w-1.5 h-1.5 bg-gray-500 rounded-full animate-bounce [animation-delay:0ms]" />
+                  <span className="w-1.5 h-1.5 bg-gray-500 rounded-full animate-bounce [animation-delay:150ms]" />
+                  <span className="w-1.5 h-1.5 bg-gray-500 rounded-full animate-bounce [animation-delay:300ms]" />
+                </div>
+              </div>
+            )}
+            <div ref={chatEndRef} />
+          </div>
+        )}
+
+        {/* Input */}
         <div className="flex gap-2">
-          <input type="text" value={question} onChange={e => setQuestion(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && askAI()}
-            placeholder="Ask a follow-up question about this incident..."
-            className="flex-1 bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm text-white placeholder-gray-500" />
-          <button onClick={askAI} disabled={asking || !question.trim()}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded text-sm disabled:opacity-50">
+          <input
+            type="text"
+            value={question}
+            onChange={e => setQuestion(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && !e.shiftKey && askAI()}
+            placeholder={chatHistory.length === 0 ? 'Ask about this incident — e.g. "What is the affected pod?"' : 'Follow up…'}
+            className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-600"
+          />
+          <button
+            onClick={askAI}
+            disabled={asking || !question.trim()}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm disabled:opacity-50 transition-colors"
+          >
             {asking ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
           </button>
         </div>
-        {aiAnswer && (
-          <div className="mt-3 p-4 bg-gray-800/50 border border-gray-700/50 rounded-lg">
-            <pre className="text-sm text-gray-300 whitespace-pre-wrap">{aiAnswer}</pre>
-          </div>
-        )}
+        <p className="text-xs text-gray-600 mt-2">
+          AI answers using incident signals{incident?.rcaReport ? ', RCA report' : ''} and cluster context.
+        </p>
       </div>
     </div>
   )

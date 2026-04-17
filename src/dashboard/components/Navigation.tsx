@@ -6,17 +6,19 @@ import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, Boxes, Server, Network, Database,
   Shield, Gauge, ChevronDown, ChevronRight, Menu, X, Bug, Globe, Zap, TrendingDown,
-  Activity, Settings, Palette
+  Activity, Settings, BarChart2
 } from 'lucide-react'
 
-type ThemeChoice = 'graphite' | 'calm-signal' | 'aurora' | 'prism' | 'auto'
-const THEME_VALUES: readonly ThemeChoice[] = ['graphite', 'calm-signal', 'aurora', 'prism', 'auto'] as const
+type ThemeChoice = 'graphite' | 'calm-signal' | 'aurora' | 'prism' | 'auto' | 'md-dark' | 'md-light'
+const THEME_VALUES: readonly ThemeChoice[] = ['graphite', 'calm-signal', 'aurora', 'prism', 'auto', 'md-dark', 'md-light'] as const
 const THEME_LABELS: Record<ThemeChoice, string> = {
   graphite:     'Graphite',
   'calm-signal':'Calm signal',
   aurora:       'Aurora',
   prism:        'Prism',
   auto:         'Auto',
+  'md-dark':    'Material Dark',
+  'md-light':   'Material Light',
 }
 const LEGACY_MIGRATION: Record<string, ThemeChoice> = {
   light:  'graphite',
@@ -24,7 +26,7 @@ const LEGACY_MIGRATION: Record<string, ThemeChoice> = {
   system: 'auto',
 }
 
-function resolveTheme(choice: ThemeChoice): 'graphite' | 'calm-signal' | 'aurora' | 'prism' {
+function resolveTheme(choice: ThemeChoice): 'graphite' | 'calm-signal' | 'aurora' | 'prism' | 'md-dark' | 'md-light' {
   if (choice !== 'auto') return choice
   const prefersDark = typeof window !== 'undefined'
     && window.matchMedia?.('(prefers-color-scheme: dark)').matches
@@ -208,6 +210,15 @@ export function Navigation() {
           Security
         </Link>
         <Link
+          href="/management"
+          className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors mt-1 ${
+            pathname?.startsWith('/management') ? 'bg-purple-600/15 text-purple-700 dark:text-purple-300' : 'text-cluster-muted hover:bg-cluster-border/50 hover:text-cluster-text'
+          }`}
+        >
+          <BarChart2 className="w-4 h-4" />
+          Executive Summary
+        </Link>
+        <Link
           href="/settings"
           className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors mt-1 ${
             pathname?.startsWith('/settings') ? 'bg-cluster-border/60 text-cluster-text' : 'text-cluster-muted hover:bg-cluster-border/50 hover:text-cluster-text'
@@ -255,28 +266,6 @@ export function Navigation() {
         ))}
       </div>
 
-      {/* Theme picker — pinned at the bottom of the sidebar */}
-      <div className="p-3 border-t border-cluster-border shrink-0">
-        <label className="sr-only" htmlFor="nav-theme">Theme</label>
-        <div className="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-cluster-muted hover:bg-cluster-border/40 transition-colors">
-          <Palette className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
-          <select
-            id="nav-theme"
-            value={theme}
-            onChange={(e) => {
-              const val = e.target.value as ThemeChoice
-              try { localStorage.setItem('ci_theme', val) } catch { /* ignore */ }
-              setTheme(val)
-            }}
-            className="flex-1 min-w-0 bg-transparent text-xs text-cluster-muted hover:text-cluster-text focus:outline-none cursor-pointer"
-            aria-label="Theme"
-          >
-            {THEME_VALUES.map(v => (
-              <option key={v} value={v}>{THEME_LABELS[v]}</option>
-            ))}
-          </select>
-        </div>
-      </div>
     </nav>
   )
 
