@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { apiFetch, getApiUrl } from '@/lib/api'
 import {
   RefreshCw, Loader2, CheckCircle, XCircle,
-  Server, Brain, Save, RotateCcw, Key, Search
+  Server, Brain, Save, RotateCcw, Key, Search, Palette
 } from 'lucide-react'
 
 interface LLMConfig {
@@ -32,6 +32,18 @@ interface Capabilities {
   writeActions: boolean
 }
 
+type ThemeChoice = 'graphite' | 'calm-signal' | 'aurora' | 'prism' | 'auto' | 'md-dark' | 'md-light'
+
+const THEMES: { id: ThemeChoice; label: string; bg: string; accent: string; dark: boolean }[] = [
+  { id: 'graphite',    label: 'Graphite',       bg: '#F5F3EE', accent: '#2732A8', dark: false },
+  { id: 'calm-signal', label: 'Calm Signal',    bg: '#07080B', accent: '#7C6CFF', dark: true  },
+  { id: 'aurora',      label: 'Aurora',         bg: '#06060E', accent: '#5CF2E1', dark: true  },
+  { id: 'prism',       label: 'Prism',          bg: '#FFFFFF', accent: '#8B5CF6', dark: false },
+  { id: 'md-dark',     label: 'Material Dark',  bg: '#1C1B1F', accent: '#D0BCFF', dark: true  },
+  { id: 'md-light',    label: 'Material Light', bg: '#FFFBFE', accent: '#6750A4', dark: false },
+  { id: 'auto',        label: 'System',         bg: 'linear-gradient(135deg, #F5F3EE 50%, #07080B 50%)', accent: '#888', dark: false },
+]
+
 export default function SettingsPage() {
   const [llmConfig, setLlmConfig] = useState<LLMConfig | null>(null)
   const [providers, setProviders] = useState<ProviderInfo[]>([])
@@ -41,6 +53,23 @@ export default function SettingsPage() {
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [apiKey, setApiKey] = useState('')
+  const [theme, setThemeState] = useState<ThemeChoice>('graphite')
+
+  useEffect(() => {
+    const stored = localStorage.getItem('ci_theme') as ThemeChoice | null
+    if (stored && THEMES.some(t => t.id === stored)) setThemeState(stored)
+  }, [])
+
+  const applyTheme = (choice: ThemeChoice) => {
+    setThemeState(choice)
+    try { localStorage.setItem('ci_theme', choice) } catch { /* ignore */ }
+    // Resolve 'auto' same way Navigation.tsx does
+    const resolved = choice === 'auto'
+      ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'calm-signal' : 'graphite')
+      : choice
+    document.documentElement.setAttribute('data-theme', resolved)
+    document.documentElement.classList.toggle('dark', !['graphite', 'prism', 'md-light'].includes(resolved))
+  }
 
   // Editable form state (separate from server state)
   const [form, setForm] = useState<LLMConfig | null>(null)
@@ -354,6 +383,52 @@ export default function SettingsPage() {
             LLM configuration not available. Check analyzer connection.
           </div>
         )}
+      </div>
+
+      {/* Theme */}
+      <div className="bg-cluster-card border border-cluster-border rounded-lg p-6 mb-6">
+        <h2 className="text-lg font-semibold text-cluster-text flex items-center gap-2 mb-4">
+          <Palette className="w-5 h-5 text-purple-400" />
+          Appearance
+        </h2>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {THEMES.map(t => {
+            const active = theme === t.id
+            return (
+              <button
+                key={t.id}
+                onClick={() => applyTheme(t.id)}
+                className={`group flex flex-col items-center gap-2 p-3 rounded-lg border transition-all ${
+                  active
+                    ? 'border-blue-500 ring-2 ring-blue-500/30 bg-cluster-bg/80'
+                    : 'border-cluster-border hover:border-cluster-text/40 bg-cluster-bg/40'
+                }`}
+                aria-pressed={active}
+                aria-label={`${t.label} theme`}
+              >
+                {/* Swatch */}
+                <span
+                  className="w-10 h-10 rounded-full border border-black/10 flex-shrink-0 flex items-center justify-center"
+                  style={{ background: t.bg }}
+                >
+                  <span
+                    className="w-4 h-4 rounded-full"
+                    style={{ background: t.accent }}
+                  />
+                </span>
+                <span className="text-xs text-cluster-text font-medium text-center leading-tight">
+                  {t.label}
+                </span>
+                {active && (
+                  <CheckCircle className="w-3.5 h-3.5 text-blue-400" aria-hidden="true" />
+                )}
+              </button>
+            )
+          })}
+        </div>
+        <p className="text-xs text-cluster-muted mt-3">
+          Saved to browser — no server restart needed.
+        </p>
       </div>
 
       {/* Cluster Capabilities */}
