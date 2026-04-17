@@ -122,7 +122,7 @@ export function Navigation() {
   useEffect(() => {
     const resolved = resolveTheme(theme)
     document.documentElement.setAttribute('data-theme', resolved)
-    document.documentElement.classList.toggle('dark', resolved !== 'graphite')
+    document.documentElement.classList.toggle('dark', !['graphite', 'prism', 'md-light'].includes(resolved))
   }, [theme])
 
   const toggle = (name: string) => {

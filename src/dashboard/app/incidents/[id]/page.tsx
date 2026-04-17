@@ -90,10 +90,13 @@ export default function IncidentDetailPage() {
     const q = question.trim()
     if (!q) return
     setQuestion('')
+    // Snapshot history BEFORE setState so the outgoing request includes
+    // all prior turns (reading chatHistory after setChatHistory would be
+    // a stale closure — the state update is async).
+    const historySnapshot = chatHistory.map(m => ({ role: m.role, content: m.content }))
     const userMsg = { role: 'user' as const, content: q }
     setChatHistory(prev => [...prev, userMsg])
     setAsking(true)
-    // Scroll to bottom after adding user message
     setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
     try {
       const res = await fetch(`${getApiUrl()}/api/v1/llm/ask`, {
@@ -102,15 +105,14 @@ export default function IncidentDetailPage() {
         body: JSON.stringify({
           question: q,
           incidentId: parseInt(id),
-          // Full chat history so the LLM maintains multi-turn context
-          history: chatHistory.map(m => ({ role: m.role, content: m.content })),
-          // Full incident context so LLM can answer without a separate lookup
+          // history and context are forwarded for when the backend is
+          // wired to accept them (currently handleAsk only reads question
+          // + incidentId — backend needs updating to consume these).
+          history: historySnapshot,
           context: {
             summary: incident?.summary,
             severity: incident?.severity,
             status: incident?.status,
-            signals: incident?.signals,
-            rcaReport: incident?.rcaReport ?? null,
           },
         }),
       })

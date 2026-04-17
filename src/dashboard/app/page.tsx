@@ -622,6 +622,7 @@ export default function Dashboard() {
                     a.href = url
                     a.download = `k8s-health-report-${displayReport.clusterId}-${new Date().toISOString()}.json`
                     a.click()
+                    URL.revokeObjectURL(url)
                     addToast('success', 'Exported health report to JSON')
                   }}
                   className="btn-icon tooltip-trigger"
