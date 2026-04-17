@@ -59,7 +59,17 @@ export default function IncidentDetailPage() {
   useEffect(() => {
     setLoading(true)
     apiFetch<Incident>(`/api/v1/incidents/${id}`)
-      .then(setIncident)
+      .then(data => {
+        setIncident(data)
+        // Auto-run RCA if none exists yet so analysis is ready when user arrives
+        if (!data.rcaReport) {
+          setRegenerating(true)
+          apiFetch<RCAReport>(`/api/v1/incidents/${id}/rca/regenerate`)
+            .then(report => setIncident(prev => prev ? { ...prev, rcaReport: report } : null))
+            .catch(() => {})
+            .finally(() => setRegenerating(false))
+        }
+      })
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [id])
@@ -80,11 +90,24 @@ export default function IncidentDetailPage() {
       const res = await fetch(`${getApiUrl()}/api/v1/llm/ask`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question, incidentId: parseInt(id) }),
+        // Pass full incident context so the LLM can answer without a
+        // separate backend lookup — resilient to API latency and works
+        // even when rcaReport hasn't been generated yet.
+        body: JSON.stringify({
+          question,
+          incidentId: parseInt(id),
+          context: {
+            summary: incident?.summary,
+            severity: incident?.severity,
+            status: incident?.status,
+            signals: incident?.signals,
+            rcaReport: incident?.rcaReport ?? null,
+          },
+        }),
       })
       const data = await res.json()
-      setAiAnswer(data.answer || 'No response')
-    } catch { setAiAnswer('Failed to get response') }
+      setAiAnswer(data.answer || 'No response from AI')
+    } catch { setAiAnswer('Failed to reach AI — check LLM configuration in Settings') }
     finally { setAsking(false) }
   }
 
@@ -139,12 +162,28 @@ export default function IncidentDetailPage() {
                 <span className="text-gray-300 truncate">{sig.title}</span>
               </div>
               <div className="text-xs text-gray-500 mt-0.5">
-                {sig.namespace}/{sig.service || sig.pod} &bull; {new Date(sig.timestamp).toLocaleTimeString()}
+                {[sig.namespace, sig.pod || sig.service].filter(Boolean).join('/') || 'cluster-wide'}
+                {' '}&bull;{' '}
+                {new Date(sig.timestamp).toLocaleTimeString()}
               </div>
+              {sig.details && (
+                <p className="text-xs text-gray-400 mt-1 leading-relaxed">{sig.details}</p>
+              )}
             </div>
           </div>
         ))}
       </div>
+
+      {/* RCA in progress */}
+      {!rca && regenerating && (
+        <div className="flex items-center gap-3 p-4 bg-purple-900/10 border border-purple-700/30 rounded-lg mb-6">
+          <Loader2 className="w-4 h-4 animate-spin text-purple-400 shrink-0" />
+          <div>
+            <p className="text-sm text-purple-300 font-medium">Running Root Cause Analysis…</p>
+            <p className="text-xs text-gray-500 mt-0.5">AI is analysing signals and correlating cluster state</p>
+          </div>
+        </div>
+      )}
 
       {/* RCA Report */}
       {rca && (
