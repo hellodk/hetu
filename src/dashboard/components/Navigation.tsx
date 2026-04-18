@@ -6,20 +6,11 @@ import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, Boxes, Server, Network, Database,
   Shield, Gauge, ChevronDown, ChevronRight, Menu, X, Bug, Globe, Zap, TrendingDown,
-  Activity, Settings, BarChart2
+  Activity, Settings, BarChart2, Search, AlertTriangle
 } from 'lucide-react'
 
 type ThemeChoice = 'graphite' | 'calm-signal' | 'aurora' | 'prism' | 'auto' | 'md-dark' | 'md-light'
 const THEME_VALUES: readonly ThemeChoice[] = ['graphite', 'calm-signal', 'aurora', 'prism', 'auto', 'md-dark', 'md-light'] as const
-const THEME_LABELS: Record<ThemeChoice, string> = {
-  graphite:     'Graphite',
-  'calm-signal':'Calm signal',
-  aurora:       'Aurora',
-  prism:        'Prism',
-  auto:         'Auto',
-  'md-dark':    'Material Dark',
-  'md-light':   'Material Light',
-}
 const LEGACY_MIGRATION: Record<string, ThemeChoice> = {
   light:  'graphite',
   dark:   'calm-signal',
@@ -104,6 +95,7 @@ export function Navigation() {
   const [openSections, setOpenSections] = useState<Set<string>>(new Set(['Workloads']))
   const [mobileOpen, setMobileOpen] = useState(false)
   const [theme, setTheme] = useState<ThemeChoice>('graphite')
+  const [incidentBadge, setIncidentBadge] = useState(0)
 
   useEffect(() => {
     try {
@@ -125,6 +117,31 @@ export function Navigation() {
     document.documentElement.classList.toggle('dark', !['graphite', 'prism', 'md-light'].includes(resolved))
   }, [theme])
 
+  // Sync theme when another browser tab writes to localStorage
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== 'ci_theme' || !e.newValue) return
+      const val = e.newValue
+      if (LEGACY_MIGRATION[val]) setTheme(LEGACY_MIGRATION[val])
+      else if ((THEME_VALUES as readonly string[]).includes(val)) setTheme(val as ThemeChoice)
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
+  }, [])
+
+  // Fetch open incident count for nav badge
+  useEffect(() => {
+    const apiUrl = typeof window !== 'undefined' ? ((window as any).__CLUSTER_INTEL_API__ || '') : ''
+    fetch(`${apiUrl}/api/v1/incidents`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!data) return
+        const list: any[] = Array.isArray(data) ? data : (data?.incidents ?? [])
+        setIncidentBadge(list.filter(i => i.status !== 'resolved').length)
+      })
+      .catch(() => {})
+  }, [])
+
   const toggle = (name: string) => {
     setOpenSections(prev => {
       const next = new Set(prev)
@@ -139,8 +156,22 @@ export function Navigation() {
     return pathname === path || pathname?.startsWith(path + '/')
   }
 
+  const openSearch = () => window.dispatchEvent(new Event('open-global-search'))
+
   const nav = (
     <nav className="flex flex-col flex-1 min-h-0">
+      {/* Search trigger */}
+      <div className="p-3 border-b border-cluster-border">
+        <button
+          onClick={openSearch}
+          className="flex items-center gap-2 w-full px-3 py-2 rounded-lg border border-cluster-border/70 bg-cluster-bg/50 text-cluster-muted hover:border-cluster-border hover:text-cluster-text transition-colors text-sm"
+        >
+          <Search className="w-3.5 h-3.5 flex-shrink-0" />
+          <span className="flex-1 text-left text-xs">Search…</span>
+          <kbd className="text-[10px] font-mono opacity-50">⌘K</kbd>
+        </button>
+      </div>
+
       {/* Top links */}
       <div className="p-4 border-b border-cluster-border">
         <div className="text-xs font-semibold tracking-wide text-cluster-muted uppercase mb-2">
@@ -154,6 +185,15 @@ export function Navigation() {
         >
           <LayoutDashboard className="w-4 h-4" />
           Overview
+        </Link>
+        <Link
+          href="/issues"
+          className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors mt-1 ${
+            pathname?.startsWith('/issues') ? 'bg-amber-600/15 text-amber-700 dark:text-amber-300' : 'text-cluster-muted hover:bg-cluster-border/50 hover:text-cluster-text'
+          }`}
+        >
+          <AlertTriangle className="w-4 h-4" />
+          Issues
         </Link>
         <Link
           href="/errors"
@@ -180,7 +220,12 @@ export function Navigation() {
           }`}
         >
           <Zap className="w-4 h-4" />
-          Incidents & RCA
+          <span className="flex-1">Incidents & RCA</span>
+          {incidentBadge > 0 && (
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-purple-600/20 text-purple-700 dark:text-purple-300 border border-purple-500/30 leading-none">
+              {incidentBadge}
+            </span>
+          )}
         </Link>
         <Link
           href="/optimization"
