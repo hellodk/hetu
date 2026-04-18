@@ -986,6 +986,18 @@ cmd_doctor() {
     warn "collector binary missing — will be built on start (live profile only)"
   fi
 
+  # Optional: Qdrant vector store connectivity
+  local qdrant_url="${QDRANT_URL:-}"
+  if [[ -n "$qdrant_url" ]]; then
+    if curl -sf "${qdrant_url}/health" >/dev/null 2>&1; then
+      success "qdrant: reachable at ${qdrant_url} (embed model: ${QDRANT_EMBED_MODEL:-nomic-embed-text})"
+    else
+      warn "qdrant: QDRANT_URL=${qdrant_url} set but unreachable — semantic search disabled"
+    fi
+  else
+    warn "qdrant: QDRANT_URL not set — semantic similar-incident search disabled (run: docker compose up qdrant -d)"
+  fi
+
   if (( fails > 0 )); then
     error "$fails check(s) failed"
     return 1

@@ -408,6 +408,10 @@ export default function SettingsPage() {
           <button
             type="button"
             onClick={() => setThemeDropdownOpen(v => !v)}
+            onKeyDown={(e) => {
+              if (e.key === 'ArrowDown') { e.preventDefault(); setThemeDropdownOpen(true) }
+              if (e.key === 'Escape') setThemeDropdownOpen(false)
+            }}
             className="w-full flex items-center gap-3 px-3 py-2.5 bg-cluster-bg border border-cluster-border rounded-lg text-sm text-cluster-text hover:border-cluster-text/40 transition-colors"
             aria-haspopup="listbox"
             aria-expanded={themeDropdownOpen}
@@ -434,6 +438,7 @@ export default function SettingsPage() {
             <ul
               role="listbox"
               aria-label="Theme"
+              onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); setThemeDropdownOpen(false) } }}
               className="absolute top-full left-0 right-0 mt-1 bg-cluster-card border border-cluster-border rounded-lg shadow-lg z-20 overflow-hidden"
             >
               {THEMES.map(t => (

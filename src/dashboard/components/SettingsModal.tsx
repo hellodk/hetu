@@ -4,14 +4,16 @@ import { Modal } from './Modal'
 import { PlayCircle, Activity, Save, Download } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 
-type ThemeChoice = 'graphite' | 'calm-signal' | 'aurora' | 'prism' | 'auto'
-const THEME_VALUES: readonly ThemeChoice[] = ['graphite', 'calm-signal', 'aurora', 'prism', 'auto'] as const
+type ThemeChoice = 'graphite' | 'calm-signal' | 'aurora' | 'prism' | 'auto' | 'md-dark' | 'md-light'
+const THEME_VALUES: readonly ThemeChoice[] = ['graphite', 'calm-signal', 'aurora', 'prism', 'auto', 'md-dark', 'md-light'] as const
 const THEME_LABELS: Record<ThemeChoice, string> = {
     graphite:      'Graphite — editorial light (default)',
     'calm-signal': 'Calm signal — restrained dark',
     aurora:        'Aurora — magical dark',
     prism:         'Prism — white wow',
     auto:          'Auto — follow OS preference',
+    'md-dark':     'Material Dark — MD3 dark palette',
+    'md-light':    'Material Light — MD3 light palette',
 }
 const LEGACY_MIGRATION: Record<string, ThemeChoice> = {
     light:  'graphite',
@@ -71,10 +73,11 @@ export function SettingsModal({
     useEffect(() => {
         if (typeof window === 'undefined') return
         const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
-        const resolved: 'graphite' | 'calm-signal' | 'aurora' | 'prism' =
+        const resolved: Exclude<ThemeChoice, 'auto'> =
             themePref === 'auto' ? (prefersDark ? 'calm-signal' : 'graphite') : themePref
         document.documentElement.setAttribute('data-theme', resolved)
-        document.documentElement.classList.toggle('dark', resolved !== 'graphite')
+        const LIGHT = ['graphite', 'prism', 'md-light']
+        document.documentElement.classList.toggle('dark', !LIGHT.includes(resolved))
     }, [themePref])
 
     useEffect(() => {

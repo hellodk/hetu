@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { apiFetch } from '@/lib/api'
 import {
@@ -231,6 +232,8 @@ function ReasonTooltip({ active, payload, label }: any) {
 /* ------------------------------------------------------------------ */
 
 export default function ErrorsPage() {
+  const searchParams = useSearchParams()
+
   // Data state
   const [groups, setGroups] = useState<ErrorGroup[]>([])
   const [summary, setSummary] = useState<ErrorSummary | null>(null)
@@ -239,7 +242,7 @@ export default function ErrorsPage() {
   // UI state
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [search, setSearch] = useState('')
+  const [search, setSearch] = useState(() => searchParams?.get('search') ?? '')
   const [statusFilter, setStatusFilter] = useState('open')
   const [serviceFilter, setServiceFilter] = useState('')
   const [sortBy, setSortBy] = useState<'lastSeen' | 'count' | 'severity' | 'rate5m'>('lastSeen')

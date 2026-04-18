@@ -8,6 +8,7 @@ This file consolidates all documentation from the `docs/` directory. Original fi
 
 ### 1. Overview & Architecture
 - [System Overview (ARCHITECTURE.md)](#system-overview)
+- [Report Export & Scheduled Delivery (ARCHITECTURE.md)](#report-export--scheduled-delivery)
 - [API Contracts & Data Structures (API_CONTRACTS.md)](#api-contracts--data-structures)
 - [Confidence Scores (CONFIDENCE_SCORES.md)](#confidence-scores)
 - [Local Context Summary (docs_context.md)](#local-context-summary)

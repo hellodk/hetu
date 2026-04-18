@@ -1,0 +1,917 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Issues — Priority Triage</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --bg:       #0c0e14;
+  --surface:  #141720;
+  --surface2: #1c2030;
+  --border:   rgba(255,255,255,0.07);
+  --border2:  rgba(255,255,255,0.12);
+  --text:     #e8ecf4;
+  --muted:    #6b7494;
+  --dim:      #3a4060;
+
+  --crit:     #ff2d4a;
+  --crit-bg:  rgba(255,45,74,0.10);
+  --crit-bd:  rgba(255,45,74,0.25);
+  --high:     #ff8c00;
+  --high-bg:  rgba(255,140,0,0.10);
+  --high-bd:  rgba(255,140,0,0.25);
+  --med:      #f5c842;
+  --med-bg:   rgba(245,200,66,0.08);
+  --med-bd:   rgba(245,200,66,0.20);
+  --ok:       #22d17a;
+  --ok-bg:    rgba(34,209,122,0.08);
+  --ok-bd:    rgba(34,209,122,0.20);
+}
+
+*,*::before,*::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 15px; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-size: 1rem;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+}
+
+/* ── LAYOUT ──────────────────────────────────────────── */
+.shell {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  min-height: 100vh;
+}
+
+/* ── NAV ─────────────────────────────────────────────── */
+.nav {
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  padding: 28px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+}
+.nav-logo {
+  padding: 0 20px 24px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 16px;
+}
+.nav-logo-mark {
+  width: 32px; height: 32px;
+  background: var(--crit);
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: 10px;
+}
+.nav-logo-mark svg { width: 18px; height: 18px; fill: white; }
+.nav-logo-name {
+  font-size: 13px; font-weight: 600; color: var(--text);
+  letter-spacing: 0.01em;
+}
+.nav-logo-sub { font-size: 11px; color: var(--muted); margin-top: 1px; }
+
+.nav-section { padding: 0 12px; margin-bottom: 24px; }
+.nav-label {
+  font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--dim); padding: 0 8px; margin-bottom: 6px;
+}
+.nav-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px; border-radius: 8px;
+  font-size: 13px; font-weight: 500; color: var(--muted);
+  text-decoration: none; cursor: pointer; transition: all 120ms ease;
+  margin-bottom: 1px;
+}
+.nav-item:hover { background: var(--surface2); color: var(--text); }
+.nav-item.active {
+  background: var(--crit-bg);
+  border: 1px solid var(--crit-bd);
+  color: var(--crit);
+}
+.nav-item svg { width: 15px; height: 15px; flex-shrink: 0; }
+.nav-badge {
+  margin-left: auto; font-size: 10px; font-weight: 600;
+  padding: 1px 6px; border-radius: 999px;
+  background: var(--crit); color: white;
+}
+.nav-badge.amber { background: var(--high); }
+.nav-badge.dim { background: var(--surface2); color: var(--muted); }
+
+/* ── CONTENT ─────────────────────────────────────────── */
+.content { overflow-y: auto; }
+
+/* ── HEADER ──────────────────────────────────────────── */
+.page-header {
+  padding: 32px 40px 0;
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 24px;
+}
+.page-title-block {}
+.page-eyebrow {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--muted); margin-bottom: 6px;
+}
+.page-title {
+  font-size: 26px; font-weight: 600; letter-spacing: -0.02em;
+  color: var(--text);
+}
+.page-subtitle { font-size: 13px; color: var(--muted); margin-top: 4px; }
+.header-actions { display: flex; gap: 8px; align-items: center; }
+.btn {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 14px; border-radius: 8px; border: 1px solid var(--border2);
+  background: var(--surface); color: var(--muted);
+  font-size: 12px; font-weight: 500; cursor: pointer;
+  transition: all 120ms ease; text-decoration: none;
+  font-family: inherit;
+}
+.btn:hover { background: var(--surface2); color: var(--text); }
+.btn svg { width: 13px; height: 13px; }
+.last-updated {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; color: var(--muted);
+  display: flex; align-items: center; gap: 6px;
+}
+.live-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--ok); flex-shrink: 0;
+  animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%,100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* ── HEALTH HERO ─────────────────────────────────────── */
+.health-hero {
+  margin: 28px 40px 0;
+  padding: 28px 32px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 32px;
+  align-items: center;
+  animation: fadeUp 0.5s ease both;
+}
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.health-ring-wrap {
+  position: relative; width: 120px; height: 120px; flex-shrink: 0;
+}
+.health-ring-wrap svg { width: 120px; height: 120px; transform: rotate(-90deg); }
+.ring-bg { fill: none; stroke: var(--surface2); stroke-width: 8; }
+.ring-fill {
+  fill: none; stroke: var(--crit); stroke-width: 8;
+  stroke-linecap: round;
+  stroke-dasharray: 314;
+  stroke-dashoffset: 314;
+  transition: stroke-dashoffset 1.4s cubic-bezier(.22,.61,.36,1) 0.2s,
+              stroke 0.4s ease;
+}
+.ring-fill.loaded { stroke-dashoffset: 228; } /* 27% = 1 - 0.27 = 73% offset */
+.health-ring-label {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+}
+.health-score {
+  font-family: 'DM Serif Display', Georgia, serif;
+  font-size: 30px; color: var(--crit); line-height: 1;
+  margin-bottom: 2px;
+}
+.health-grade { font-size: 10px; color: var(--muted); letter-spacing: 0.06em; }
+
+.health-meta { display: flex; flex-direction: column; gap: 6px; }
+.health-meta-title {
+  font-size: 15px; font-weight: 600; color: var(--text);
+  margin-bottom: 2px;
+}
+.health-meta-desc { font-size: 13px; color: var(--muted); max-width: 44ch; line-height: 1.5; }
+.health-indicators {
+  display: flex; gap: 20px; margin-top: 10px;
+}
+.health-ind {
+  display: flex; align-items: center; gap: 7px;
+  font-family: 'DM Mono', monospace; font-size: 12px; color: var(--muted);
+}
+.health-ind-dot {
+  width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0;
+}
+
+.health-counters {
+  display: flex; flex-direction: column; gap: 10px; flex-shrink: 0;
+}
+.health-counter {
+  display: flex; flex-direction: column; align-items: flex-end;
+  padding: 12px 18px; border-radius: 10px; min-width: 90px;
+}
+.health-counter.crit { background: var(--crit-bg); border: 1px solid var(--crit-bd); }
+.health-counter.high { background: var(--high-bg); border: 1px solid var(--high-bd); }
+.health-counter.med  { background: var(--med-bg);  border: 1px solid var(--med-bd);  }
+.health-counter-n {
+  font-family: 'DM Mono', monospace;
+  font-size: 26px; font-weight: 500; line-height: 1;
+}
+.health-counter.crit .health-counter-n { color: var(--crit); }
+.health-counter.high .health-counter-n { color: var(--high); }
+.health-counter.med  .health-counter-n { color: var(--med);  }
+.health-counter-l { font-size: 10px; color: var(--muted); margin-top: 3px; letter-spacing: 0.05em; }
+
+/* ── ACTION RAIL ─────────────────────────────────────── */
+.action-rail {
+  margin: 20px 40px 0;
+  animation: fadeUp 0.5s ease 0.1s both;
+}
+.rail-header {
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 10px;
+}
+.rail-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--crit); font-weight: 500;
+}
+.rail-badge {
+  background: var(--crit); color: white;
+  font-size: 10px; font-weight: 700;
+  padding: 1px 6px; border-radius: 4px;
+  font-family: 'DM Mono', monospace;
+}
+.rail-items { display: flex; flex-direction: column; gap: 6px; }
+.rail-item {
+  display: flex; align-items: center; gap: 14px;
+  padding: 14px 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--crit);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 120ms ease;
+  animation: fadeUp 0.4s ease both;
+}
+.rail-item:nth-child(2) { animation-delay: 0.05s; border-left-color: var(--high); }
+.rail-item:nth-child(3) { animation-delay: 0.10s; border-left-color: var(--high); }
+.rail-item:hover { background: var(--surface2); border-color: var(--border2); }
+.rail-item:first-child:hover { border-left-color: var(--crit); }
+.rail-item:nth-child(2):hover { border-left-color: var(--high); }
+.rail-sev-dot {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+}
+.rail-sev-dot.crit { background: var(--crit); box-shadow: 0 0 8px var(--crit); }
+.rail-sev-dot.high { background: var(--high); box-shadow: 0 0 8px var(--high); }
+.rail-title { font-size: 13px; font-weight: 600; color: var(--text); }
+.rail-sub   { font-size: 12px; color: var(--muted); margin-top: 1px; }
+.rail-meta {
+  margin-left: auto; display: flex; align-items: center; gap: 16px;
+  flex-shrink: 0;
+}
+.rail-sev-tag {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+  padding: 3px 8px; border-radius: 4px;
+}
+.rail-sev-tag.crit { background: var(--crit-bg); color: var(--crit); border: 1px solid var(--crit-bd); }
+.rail-sev-tag.high { background: var(--high-bg); color: var(--high); border: 1px solid var(--high-bd); }
+.rail-age {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; color: var(--muted);
+}
+.rail-act {
+  font-size: 12px; color: var(--dim); padding: 5px 10px;
+  border: 1px solid var(--border); border-radius: 6px;
+  cursor: pointer; transition: all 120ms ease;
+  white-space: nowrap; font-family: inherit;
+  background: transparent;
+}
+.rail-act:hover { background: var(--surface2); color: var(--muted); }
+
+/* ── CATEGORY BREAKDOWN ──────────────────────────────── */
+.breakdown {
+  margin: 20px 40px 40px;
+  animation: fadeUp 0.5s ease 0.2s both;
+}
+.breakdown-header {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
+}
+.breakdown-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--muted);
+}
+.breakdown-rows { display: flex; flex-direction: column; gap: 2px; }
+
+.cat-row {
+  display: grid;
+  grid-template-columns: 160px 60px 1fr 220px;
+  align-items: center;
+  gap: 20px;
+  padding: 14px 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+.cat-row:hover { background: var(--surface2); border-color: var(--border2); }
+.cat-row.clean { opacity: 0.55; }
+.cat-row.clean:hover { opacity: 1; }
+
+.cat-name {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 13px; font-weight: 600; color: var(--text);
+}
+.cat-icon {
+  width: 28px; height: 28px; border-radius: 7px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.cat-icon svg { width: 14px; height: 14px; }
+.cat-icon.crit { background: var(--crit-bg); color: var(--crit); }
+.cat-icon.high { background: var(--high-bg); color: var(--high); }
+.cat-icon.med  { background: var(--med-bg);  color: var(--med); }
+.cat-icon.ok   { background: var(--ok-bg);   color: var(--ok); }
+
+.cat-count {
+  font-family: 'DM Mono', monospace;
+  font-size: 20px; font-weight: 500; text-align: right;
+}
+.cat-count.crit { color: var(--crit); }
+.cat-count.high { color: var(--high); }
+.cat-count.med  { color: var(--med); }
+.cat-count.ok   { color: var(--ok); }
+.cat-count.zero { color: var(--dim); font-size: 14px; }
+
+.cat-bar {
+  height: 6px; background: var(--surface2); border-radius: 3px; overflow: hidden;
+}
+.cat-bar-fill {
+  height: 100%; border-radius: 3px;
+  transition: width 1.2s cubic-bezier(.22,.61,.36,1) 0.4s;
+}
+.cat-bar-fill.crit { background: var(--crit); }
+.cat-bar-fill.high { background: var(--high); }
+.cat-bar-fill.med  { background: var(--med); }
+.cat-bar-fill.ok   { background: var(--ok); }
+
+.cat-desc {
+  font-size: 12px; color: var(--muted);
+  display: flex; align-items: center; gap: 8px;
+}
+.cat-chips { display: flex; gap: 5px; flex-wrap: wrap; }
+.cat-chip {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px; padding: 2px 7px; border-radius: 4px;
+  border: 1px solid var(--border2); color: var(--muted);
+}
+.check-icon {
+  width: 16px; height: 16px; flex-shrink: 0;
+  color: var(--ok);
+}
+
+/* ── EXPANDED STATE (drill-down) ─────────────────────── */
+.drill-panel {
+  grid-column: 1 / -1;
+  margin-top: 6px;
+  padding: 18px 20px;
+  background: var(--bg);
+  border: 1px solid var(--border2);
+  border-radius: 10px;
+  display: none;
+}
+.drill-panel.open { display: block; animation: fadeUp 0.25s ease; }
+.drill-title {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--muted); margin-bottom: 12px;
+}
+.drill-issue {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 12px 0; border-bottom: 1px solid var(--border);
+}
+.drill-issue:last-child { border-bottom: none; }
+.drill-issue-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  margin-top: 5px; flex-shrink: 0;
+}
+.drill-issue-dot.crit { background: var(--crit); }
+.drill-issue-dot.high { background: var(--high); }
+.drill-issue-title { font-size: 13px; font-weight: 500; color: var(--text); }
+.drill-issue-sub { font-size: 12px; color: var(--muted); margin-top: 2px; line-height: 1.45; }
+.drill-issue-tags { display: flex; gap: 5px; margin-top: 6px; }
+.drill-issue-tag {
+  font-family: 'DM Mono', monospace; font-size: 10px;
+  padding: 2px 6px; border-radius: 4px;
+  background: var(--surface2); color: var(--muted);
+  border: 1px solid var(--border);
+}
+.drill-footer {
+  margin-top: 14px; display: flex; justify-content: flex-end;
+}
+.drill-link {
+  font-size: 12px; color: var(--muted);
+  text-decoration: none; display: flex; align-items: center; gap: 5px;
+  transition: color 120ms ease;
+}
+.drill-link:hover { color: var(--text); }
+.drill-link svg { width: 12px; height: 12px; }
+
+/* ── AI ISSUES ───────────────────────────────────────── */
+.ai-section {
+  margin: 0 40px 40px;
+  animation: fadeUp 0.5s ease 0.3s both;
+}
+.ai-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.ai-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--muted);
+}
+.ai-badge {
+  font-size: 10px; padding: 2px 7px; border-radius: 4px;
+  background: rgba(92,242,225,0.1); color: #5cf2e1;
+  border: 1px solid rgba(92,242,225,0.2);
+  font-family: 'DM Mono', monospace;
+}
+.ai-issues { display: flex; flex-direction: column; gap: 6px; }
+.ai-issue {
+  padding: 16px 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  display: grid; grid-template-columns: 1fr auto;
+  gap: 16px; align-items: start;
+  cursor: pointer; transition: background 120ms ease;
+}
+.ai-issue:hover { background: var(--surface2); }
+.ai-issue-dot {
+  display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+  margin-right: 8px; flex-shrink: 0;
+}
+.ai-issue-dot.crit { background: var(--crit); box-shadow: 0 0 6px var(--crit); }
+.ai-issue-dot.high { background: var(--high); box-shadow: 0 0 6px var(--high); }
+.ai-issue-dot.med  { background: var(--med);  box-shadow: 0 0 6px var(--med);  }
+.ai-issue-title {
+  font-size: 13px; font-weight: 600; color: var(--text);
+  display: flex; align-items: center;
+}
+.ai-issue-body { font-size: 12px; color: var(--muted); margin-top: 5px; line-height: 1.5; }
+.ai-issue-tags { display: flex; gap: 5px; margin-top: 8px; }
+.ai-issue-tag {
+  font-family: 'DM Mono', monospace; font-size: 10px;
+  padding: 2px 6px; border-radius: 4px;
+  border: 1px solid var(--border); color: var(--dim);
+}
+.ai-arrow { font-size: 12px; color: var(--dim); margin-top: 2px; flex-shrink: 0; }
+
+/* ── TAB BAR ─────────────────────────────────────────── */
+.tab-bar {
+  display: flex; gap: 2px; margin: 24px 40px 0;
+  animation: fadeUp 0.5s ease 0.15s both;
+}
+.tab {
+  padding: 8px 16px; border-radius: 8px;
+  font-size: 12px; font-weight: 500; color: var(--muted);
+  cursor: pointer; transition: all 120ms ease; border: 1px solid transparent;
+  background: none; font-family: inherit;
+}
+.tab:hover { background: var(--surface); color: var(--text); }
+.tab.active {
+  background: var(--surface); border-color: var(--border);
+  color: var(--text);
+}
+.tab-count {
+  font-family: 'DM Mono', monospace; font-size: 11px;
+  margin-left: 6px; opacity: 0.7;
+}
+.tab-count.crit { color: var(--crit); opacity: 1; }
+
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- SIDEBAR NAV -->
+  <nav class="nav">
+    <div class="nav-logo">
+      <div class="nav-logo-mark">
+        <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+      </div>
+      <div class="nav-logo-name">Cluster Intel</div>
+      <div class="nav-logo-sub">cylon · live</div>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-label">Monitoring</div>
+      <a class="nav-item" href="#">
+        <svg fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        Overview
+      </a>
+      <a class="nav-item active" href="#">
+        <svg fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        Issues
+        <span class="nav-badge">7</span>
+      </a>
+      <a class="nav-item" href="#">
+        <svg fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        Errors
+        <span class="nav-badge amber">4</span>
+      </a>
+      <a class="nav-item" href="#">
+        <svg fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        Incidents
+        <span class="nav-badge dim">2</span>
+      </a>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-label">Cluster</div>
+      <a class="nav-item" href="#">
+        <svg fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+        Workloads
+      </a>
+      <a class="nav-item" href="#">
+        <svg fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        Security
+        <span class="nav-badge amber">68</span>
+      </a>
+      <a class="nav-item" href="#">
+        <svg fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+        Optimization
+      </a>
+    </div>
+  </nav>
+
+  <!-- MAIN CONTENT -->
+  <main class="content">
+
+    <!-- HEADER -->
+    <div class="page-header">
+      <div class="page-title-block">
+        <div class="page-eyebrow">01 — Issues Dashboard</div>
+        <h1 class="page-title">Cluster Health</h1>
+        <p class="page-subtitle">370 active issues across 4 categories — last scanned 2 minutes ago</p>
+      </div>
+      <div class="header-actions">
+        <div class="last-updated">
+          <div class="live-dot"></div>
+          Updated 2m ago
+        </div>
+        <button class="btn">
+          <svg fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+          Refresh
+        </button>
+      </div>
+    </div>
+
+    <!-- HEALTH HERO -->
+    <div class="health-hero">
+      <div class="health-ring-wrap">
+        <svg viewBox="0 0 120 120">
+          <circle class="ring-bg" cx="60" cy="60" r="50"/>
+          <circle class="ring-fill" cx="60" cy="60" r="50" id="healthRing"/>
+        </svg>
+        <div class="health-ring-label">
+          <div class="health-score" id="healthScore">0%</div>
+          <div class="health-grade">HEALTH</div>
+        </div>
+      </div>
+
+      <div class="health-meta">
+        <div class="health-meta-title">Cluster needs attention</div>
+        <div class="health-meta-desc">
+          7 critical findings require immediate action. Security CVE exposure is the primary driver.
+          Pod health is clean — all workloads running normally.
+        </div>
+        <div class="health-indicators">
+          <div class="health-ind"><div class="health-ind-dot" style="background:var(--ok)"></div>Pod Health ✓</div>
+          <div class="health-ind"><div class="health-ind-dot" style="background:var(--crit)"></div>Security ✗</div>
+          <div class="health-ind"><div class="health-ind-dot" style="background:var(--high)"></div>Events ✗</div>
+          <div class="health-ind"><div class="health-ind-dot" style="background:var(--high)"></div>App Errors ✗</div>
+        </div>
+      </div>
+
+      <div class="health-counters">
+        <div class="health-counter crit">
+          <div class="health-counter-n">7</div>
+          <div class="health-counter-l">CRITICAL</div>
+        </div>
+        <div class="health-counter high">
+          <div class="health-counter-n">65</div>
+          <div class="health-counter-l">HIGH</div>
+        </div>
+        <div class="health-counter med">
+          <div class="health-counter-n">298</div>
+          <div class="health-counter-l">MEDIUM</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- NEEDS ACTION RAIL -->
+    <div class="action-rail">
+      <div class="rail-header">
+        <div class="rail-label">⚡ Needs Action Now</div>
+        <div class="rail-badge">3</div>
+      </div>
+      <div class="rail-items">
+        <div class="rail-item">
+          <div class="rail-sev-dot crit"></div>
+          <div>
+            <div class="rail-title">Critical CVEs — Container Images</div>
+            <div class="rail-sub">7 privileged container findings in kube-system, caretta namespace</div>
+          </div>
+          <div class="rail-meta">
+            <span class="rail-sev-tag crit">CRITICAL</span>
+            <span class="rail-age">4h ago</span>
+            <button class="rail-act">→ Security</button>
+          </div>
+        </div>
+        <div class="rail-item">
+          <div class="rail-sev-dot high"></div>
+          <div>
+            <div class="rail-title">CoreDNS Nameserver Limits Exceeded</div>
+            <div class="rail-sub">DNS resolution degraded — multiple pods affected in kube-system</div>
+          </div>
+          <div class="rail-meta">
+            <span class="rail-sev-tag high">HIGH</span>
+            <span class="rail-age">2h ago</span>
+            <button class="rail-act">→ Errors</button>
+          </div>
+        </div>
+        <div class="rail-item">
+          <div class="rail-sev-dot high"></div>
+          <div>
+            <div class="rail-title">298 Warning Events Active</div>
+            <div class="rail-sub">BackOff, FailedScheduling patterns — potential cascade risk</div>
+          </div>
+          <div class="rail-meta">
+            <span class="rail-sev-tag high">HIGH</span>
+            <span class="rail-age">ongoing</span>
+            <button class="rail-act">→ Events</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TABS -->
+    <div class="tab-bar">
+      <button class="tab active">All Issues <span class="tab-count">370</span></button>
+      <button class="tab">Pod Health <span class="tab-count">0</span></button>
+      <button class="tab">App Errors <span class="tab-count">4</span></button>
+      <button class="tab">Cluster Events <span class="tab-count crit">298</span></button>
+      <button class="tab">Security <span class="tab-count crit">68</span></button>
+    </div>
+
+    <!-- CATEGORY BREAKDOWN -->
+    <div class="breakdown">
+      <div class="breakdown-header">
+        <div class="breakdown-label">Category Breakdown</div>
+      </div>
+      <div class="breakdown-rows">
+
+        <!-- Pod Health — clean -->
+        <div class="cat-row clean" onclick="toggleDrill('drill-pod')">
+          <div class="cat-name">
+            <div class="cat-icon ok">
+              <svg fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            </div>
+            Pod Health
+          </div>
+          <div class="cat-count ok zero">0</div>
+          <div>
+            <div class="cat-bar"><div class="cat-bar-fill ok" style="width:0%"></div></div>
+            <div style="font-size:11px;color:var(--ok);margin-top:5px;font-family:'DM Mono',monospace">All pods healthy</div>
+          </div>
+          <div class="cat-desc">
+            <svg class="check-icon" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            OOMKilled · CrashLoop · Pending — none detected
+          </div>
+        </div>
+
+        <!-- App Errors -->
+        <div class="cat-row" onclick="toggleDrill('drill-errors')">
+          <div class="cat-name">
+            <div class="cat-icon high">
+              <svg fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            </div>
+            App Errors
+          </div>
+          <div class="cat-count high">4</div>
+          <div>
+            <div class="cat-bar"><div class="cat-bar-fill high loaded" id="bar-errors" style="width:0"></div></div>
+            <div style="font-size:11px;color:var(--muted);margin-top:5px;font-family:'DM Mono',monospace">4 of max 50 groups</div>
+          </div>
+          <div class="cat-desc">
+            <div class="cat-chips">
+              <span class="cat-chip">DNS×4</span>
+              <span class="cat-chip">Timeout×0</span>
+              <span class="cat-chip">5xx×0</span>
+            </div>
+          </div>
+        </div>
+        <div class="drill-panel" id="drill-errors">
+          <div class="drill-title">Application Errors — 4 open groups</div>
+          <div class="drill-issue">
+            <div class="drill-issue-dot high"></div>
+            <div>
+              <div class="drill-issue-title">DNS Failures — CoreDNS resolution issues</div>
+              <div class="drill-issue-sub">Nameserver limits exceeded. Multiple pods affected across kube-system namespace.</div>
+              <div class="drill-issue-tags">
+                <span class="drill-issue-tag">kube-system</span>
+                <span class="drill-issue-tag">4 occurrences</span>
+                <span class="drill-issue-tag">2h ago</span>
+              </div>
+            </div>
+          </div>
+          <div class="drill-footer">
+            <a href="#" class="drill-link">
+              View all in Errors
+              <svg fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            </a>
+          </div>
+        </div>
+
+        <!-- Cluster Events -->
+        <div class="cat-row" onclick="toggleDrill('drill-events')">
+          <div class="cat-name">
+            <div class="cat-icon med">
+              <svg fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            </div>
+            Cluster Events
+          </div>
+          <div class="cat-count med">298</div>
+          <div>
+            <div class="cat-bar"><div class="cat-bar-fill med" id="bar-events" style="width:0"></div></div>
+            <div style="font-size:11px;color:var(--muted);margin-top:5px;font-family:'DM Mono',monospace">275 warning, 0 critical</div>
+          </div>
+          <div class="cat-desc">
+            <div class="cat-chips">
+              <span class="cat-chip">BackOff</span>
+              <span class="cat-chip">FailedSched</span>
+              <span class="cat-chip">+5 more</span>
+            </div>
+          </div>
+        </div>
+        <div class="drill-panel" id="drill-events">
+          <div class="drill-title">Cluster Events — 298 warning events</div>
+          <div class="drill-issue">
+            <div class="drill-issue-dot med"></div>
+            <div>
+              <div class="drill-issue-title">Warning Events — Kubernetes cluster-wide</div>
+              <div class="drill-issue-sub">275 warning events active. Predominant patterns: BackOff, FailedScheduling, FailedMount.</div>
+              <div class="drill-issue-tags">
+                <span class="drill-issue-tag">cluster-wide</span>
+                <span class="drill-issue-tag">ongoing</span>
+              </div>
+            </div>
+          </div>
+          <div class="drill-footer">
+            <a href="#" class="drill-link">View all events <svg fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>
+          </div>
+        </div>
+
+        <!-- Security -->
+        <div class="cat-row" onclick="toggleDrill('drill-security')">
+          <div class="cat-name">
+            <div class="cat-icon crit">
+              <svg fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            </div>
+            Security CVEs
+          </div>
+          <div class="cat-count crit">68</div>
+          <div>
+            <div class="cat-bar"><div class="cat-bar-fill crit" id="bar-security" style="width:0"></div></div>
+            <div style="font-size:11px;color:var(--muted);margin-top:5px;font-family:'DM Mono',monospace">7 critical, 61 high</div>
+          </div>
+          <div class="cat-desc">
+            <div class="cat-chips">
+              <span class="cat-chip">Privileged×7</span>
+              <span class="cat-chip">HostPath×47</span>
+              <span class="cat-chip">+12</span>
+            </div>
+          </div>
+        </div>
+        <div class="drill-panel" id="drill-security">
+          <div class="drill-title">Security — 68 findings (CIS Benchmark 27%)</div>
+          <div class="drill-issue">
+            <div class="drill-issue-dot crit"></div>
+            <div>
+              <div class="drill-issue-title">Privileged Containers — CIS 5.2.1</div>
+              <div class="drill-issue-sub">7 containers running in privileged mode. Affected: kube-proxy, calico-node, caretta. Immediate remediation required.</div>
+              <div class="drill-issue-tags"><span class="drill-issue-tag">kube-system</span><span class="drill-issue-tag">caretta</span><span class="drill-issue-tag">CIS 5.2.1</span></div>
+            </div>
+          </div>
+          <div class="drill-issue">
+            <div class="drill-issue-dot high"></div>
+            <div>
+              <div class="drill-issue-title">HostPath Volumes — CIS 5.2.7</div>
+              <div class="drill-issue-sub">47 pods mount host filesystem paths. Potential for host escape.</div>
+              <div class="drill-issue-tags"><span class="drill-issue-tag">cluster-wide</span><span class="drill-issue-tag">CIS 5.2.7</span></div>
+            </div>
+          </div>
+          <div class="drill-footer">
+            <a href="#" class="drill-link">View all security findings <svg fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- AI ISSUES -->
+    <div class="ai-section">
+      <div class="ai-header">
+        <div class="ai-label">🤖 AI-Analyzed Issues</div>
+        <div class="ai-badge">3 findings</div>
+      </div>
+      <div class="ai-issues">
+        <div class="ai-issue">
+          <div>
+            <div class="ai-issue-title">
+              <span class="ai-issue-dot high"></span>
+              Liveness Probe Failure — elk/otel-collector
+            </div>
+            <div class="ai-issue-body">The otel-collector pod's liveness probe is failing with HTTP 503. This suggests the Elasticsearch instance it connects to is either down or rate-limiting. Likely causing service disruptions for downstream log consumers.</div>
+            <div class="ai-issue-tags">
+              <span class="ai-issue-tag">elk</span>
+              <span class="ai-issue-tag">reliability</span>
+              <span class="ai-issue-tag">HIGH</span>
+            </div>
+          </div>
+          <div class="ai-arrow">→</div>
+        </div>
+        <div class="ai-issue">
+          <div>
+            <div class="ai-issue-title">
+              <span class="ai-issue-dot med"></span>
+              DNS Configuration Issue — cylon node
+            </div>
+            <div class="ai-issue-body">Node '/cylon' has a DNS configuration issue where nameserver limits were exceeded, resulting in some nameservers being omitted. This could lead to DNS resolution issues for pods in the cluster.</div>
+            <div class="ai-issue-tags">
+              <span class="ai-issue-tag">kube-system</span>
+              <span class="ai-issue-tag">reliability</span>
+              <span class="ai-issue-tag">MEDIUM</span>
+            </div>
+          </div>
+          <div class="ai-arrow">→</div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+// Health ring animation
+window.addEventListener('load', () => {
+  const ring = document.getElementById('healthRing');
+  const score = document.getElementById('healthScore');
+  // 27% health score
+  const pct = 27;
+  const circumference = 2 * Math.PI * 50;
+  const offset = circumference * (1 - pct / 100);
+  setTimeout(() => {
+    ring.style.strokeDashoffset = offset;
+    // Count up
+    let n = 0;
+    const interval = setInterval(() => {
+      n = Math.min(n + 1, pct);
+      score.textContent = n + '%';
+      if (n >= pct) clearInterval(interval);
+    }, 40);
+  }, 200);
+
+  // Animate bar fills
+  setTimeout(() => {
+    document.getElementById('bar-errors').style.width = '8%';
+    document.getElementById('bar-events').style.width = '60%';
+    document.getElementById('bar-security').style.width = '100%';
+  }, 300);
+});
+
+function toggleDrill(id) {
+  const panel = document.getElementById(id);
+  if (!panel) return;
+  const isOpen = panel.classList.contains('open');
+  document.querySelectorAll('.drill-panel').forEach(p => p.classList.remove('open'));
+  if (!isOpen) panel.classList.add('open');
+}
+</script>
+</body>
+</html>

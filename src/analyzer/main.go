@@ -2407,61 +2407,24 @@ func (a *Analyzer) handleErrorsAnalyze(w http.ResponseWriter, r *http.Request) {
 	}
 	sb.WriteString("\nRespond with a JSON array where each element has: {\"index\": N, \"rootCause\": \"...\", \"impact\": \"...\", \"fix\": \"...\", \"severity\": \"critical|high|medium|low\"}\nOnly output valid JSON.")
 
-	// Call LLM
-	analysisCtx := map[string]any{
-		"ClusterID": a.config.ClusterID,
-		"Timestamp": time.Now().Format(time.RFC3339),
-		"Prompt":    sb.String(),
-	}
-
-	// Use a simple direct LLM call
-	llmReq := types.LLMRequest{
-		Model: a.config.LLMModel,
-		Messages: []types.LLMMessage{
-			{Role: "system", Content: "You are a Kubernetes SRE expert. Analyze error patterns and provide actionable root cause analysis. Always respond with valid JSON only."},
-			{Role: "user", Content: sb.String()},
-		},
-		MaxTokens:   a.config.MaxTokens,
-		Temperature: a.config.Temperature,
-	}
-
-	reqBody, _ := json.Marshal(llmReq)
-	httpReq, err := http.NewRequestWithContext(r.Context(), "POST", a.config.LLMEndpoint+"/chat/completions", bytes.NewReader(reqBody))
-	if err != nil {
-		http.Error(w, "failed to create LLM request: "+err.Error(), http.StatusInternalServerError)
+	// Route through rcaEngine's LLMClient which handles both Ollama and OpenAI formats
+	if a.rcaEngine == nil || a.rcaEngine.llmClient == nil {
+		http.Error(w, "LLM not configured", http.StatusServiceUnavailable)
 		return
 	}
-	httpReq.Header.Set("Content-Type", "application/json")
-	if a.config.LLMAPIKey != "" {
-		httpReq.Header.Set("Authorization", "Bearer "+a.config.LLMAPIKey)
+
+	llmMessages := []types.LLMMessage{
+		{Role: "system", Content: "You are a Kubernetes SRE expert. Analyze error patterns and provide actionable root cause analysis. Always respond with valid JSON only."},
+		{Role: "user", Content: sb.String()},
 	}
 
-	resp, err := a.httpClient.Do(httpReq)
+	llmResult, err := a.rcaEngine.llmClient.Complete(r.Context(), "error-analysis", llmMessages)
 	if err != nil {
 		http.Error(w, "LLM request failed: "+err.Error(), http.StatusBadGateway)
 		return
 	}
-	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		http.Error(w, fmt.Sprintf("LLM returned %d: %s", resp.StatusCode, string(body)), http.StatusBadGateway)
-		return
-	}
-
-	var llmResp types.LLMResponse
-	if err := json.NewDecoder(resp.Body).Decode(&llmResp); err != nil {
-		http.Error(w, "failed to decode LLM response: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	if len(llmResp.Choices) == 0 {
-		http.Error(w, "no choices in LLM response", http.StatusInternalServerError)
-		return
-	}
-
-	content := llmResp.Choices[0].Message.Content
-	content = extractJSON(content)
+	content := extractJSON(llmResult.Content)
 
 	// Parse the array response
 	var analyses []struct {
@@ -2509,8 +2472,6 @@ func (a *Analyzer) handleErrorsAnalyze(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	a.errorAggregator.mu.Unlock()
-
-	_ = analysisCtx // used for potential logging
 
 	writeJSON(w, map[string]any{
 		"analyzed": len(analyses),
@@ -2566,8 +2527,7 @@ func (a *Analyzer) handleStatus(w http.ResponseWriter, r *http.Request) {
 	a.unifiedDiagMu.RLock()
 	diag := a.unifiedDiag
 	a.unifiedDiagMu.RUnlock()
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{
+	resp := map[string]any{
 		"status":    status,
 		"hasReport": hasReport,
 		"hasScores": hasScores,
@@ -2575,7 +2535,22 @@ func (a *Analyzer) handleStatus(w http.ResponseWriter, r *http.Request) {
 			"errors":   diag.Errors,
 			"warnings": diag.Warnings,
 		},
-	})
+	}
+	if a.rcaEngine != nil {
+		used, budget := a.rcaEngine.TokenBudget()
+		budgetPct := 0.0
+		if budget > 0 {
+			budgetPct = float64(used) / float64(budget) * 100
+		}
+		resp["llmTokenBudget"] = map[string]any{
+			"used":      used,
+			"budget":    budget,
+			"budgetPct": budgetPct,
+			"exhausted": budget > 0 && used >= budget,
+		}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
 }
 
 // handleTriggerAnalysis triggers an immediate analysis
@@ -3089,6 +3064,11 @@ func main() {
 	// available model if the configured one doesn't exist.
 	rcaLLMCfg.Model = AutoDetectModel(rcaLLMCfg.Provider, rcaLLMCfg.Endpoint, rcaLLMCfg.Model, rcaLLMCfg.APIKey)
 	analyzer.rcaEngine = NewRCAEngine(rcaLLMCfg, analyzer.correlator)
+	analyzer.rcaEngine.SetHealthReporter(func() *types.ClusterHealthReport {
+		analyzer.reportMu.RLock()
+		defer analyzer.reportMu.RUnlock()
+		return analyzer.latestReport
+	})
 	// Rate-limited auto-RCA: only analyze 1 incident at a time to avoid
 	// overwhelming the LLM with hundreds of concurrent requests.
 	rcaQueue := make(chan int64, 100)
@@ -3134,6 +3114,36 @@ func main() {
 			analyzer.podHealthScanner = NewPodHealthScanner(cs)
 			analyzer.ingressScanner = NewIngressScanner(cs)
 			log.Info().Msg("Workload browser + security + pod health enabled")
+		}
+	}
+
+	// Wire Phase 2 enrichment sources into the RCA engine so buildPrompt can
+	// include live K8s events, pod logs, and Prometheus metrics.
+	if analyzer.rcaEngine != nil && analyzer.workloadHandler != nil {
+		analyzer.rcaEngine.SetEnrichmentSources(analyzer.workloadHandler.Clientset(), promURL)
+	}
+
+	// Signal-time log capture: fetch pod logs when a signal arrives, before pod restarts.
+	// Uses a 2-second per-pod deadline so ingestion is not materially delayed.
+	if analyzer.correlator != nil && analyzer.workloadHandler != nil {
+		cs := analyzer.workloadHandler.Clientset()
+		analyzer.correlator.SetSignalEnricher(func(ctx context.Context, sig *Signal) {
+			if snippet := rcaFetchPodLogs(ctx, cs, sig.Namespace, sig.Pod); snippet != "" {
+				sig.LogSnippet = truncate(snippet, 500)
+			}
+		})
+	}
+
+	// Phase 4: wire Qdrant vector store for semantic similar-incident search.
+	// Uses the same Ollama server as the main LLM for embeddings.
+	if analyzer.rcaEngine != nil {
+		qdrantURL := coalesce(os.Getenv("QDRANT_URL"), "")
+		embedModel := coalesce(os.Getenv("QDRANT_EMBED_MODEL"), "nomic-embed-text")
+		if qdrantURL != "" {
+			embedScorer := NewEmbeddingScorerAuto(rcaLLMCfg.Endpoint, embedModel, rcaLLMCfg.APIKey, nil)
+			vs := NewVectorStore(qdrantURL, embedScorer)
+			analyzer.rcaEngine.SetVectorStore(vs)
+			log.Info().Str("qdrant", qdrantURL).Str("embedModel", embedModel).Msg("Vector store enabled")
 		}
 	}
 

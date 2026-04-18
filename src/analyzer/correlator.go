@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -25,6 +26,9 @@ type Signal struct {
 	Kind      string    `json:"kind"` // exception, timeout, spike, restart, oom, etc.
 	Title     string    `json:"title"`
 	Details   string    `json:"details,omitempty"`
+	// LogSnippet is captured at signal ingestion time (before pod restarts wipe logs).
+	// Set by the signalEnricher callback when the signal has a Pod field.
+	LogSnippet string `json:"logSnippet,omitempty"`
 }
 
 // Incident represents a cluster of correlated signals.
@@ -51,6 +55,10 @@ type Correlator struct {
 
 	// Callback to trigger RCA when a new incident is created.
 	onNewIncident func(incidentID int64)
+
+	// signalEnricher is called synchronously (with a tight timeout) before
+	// a signal is stored, allowing log snippets to be captured before the pod restarts.
+	signalEnricher func(ctx context.Context, sig *Signal)
 }
 
 // NewCorrelator creates a correlator with the given time window.
@@ -63,9 +71,30 @@ func NewCorrelator(clusterID string, window time.Duration) *Correlator {
 	}
 }
 
+// SetSignalEnricher sets a callback that enriches signals at ingestion time.
+// The callback runs synchronously with a 2-second deadline so pod logs can be
+// captured before a restart wipes them. Pass nil to disable.
+func (c *Correlator) SetSignalEnricher(fn func(ctx context.Context, sig *Signal)) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.signalEnricher = fn
+}
+
 // IngestSignal processes a signal and either attaches it to an existing
 // open incident with matching topology or creates a new one.
 func (c *Correlator) IngestSignal(sig Signal) *Incident {
+	// Pre-enrich: capture pod logs before they're potentially overwritten.
+	if sig.Pod != "" && sig.Namespace != "" {
+		c.mu.RLock()
+		enricher := c.signalEnricher
+		c.mu.RUnlock()
+		if enricher != nil {
+			ctx2, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			enricher(ctx2, &sig)
+			cancel()
+		}
+	}
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -302,8 +331,8 @@ func (c *Correlator) handleGetIncident(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	c.mu.RLock()
+	defer c.mu.RUnlock()
 	inc, ok := c.incidents[id]
-	c.mu.RUnlock()
 	if !ok {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
@@ -322,6 +351,11 @@ func (c *Correlator) handleUpdateStatus(w http.ResponseWriter, r *http.Request) 
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	validStatuses := map[string]bool{"open": true, "investigating": true, "resolved": true, "dismissed": true}
+	if !validStatuses[body.Status] {
+		http.Error(w, "invalid status", http.StatusBadRequest)
 		return
 	}
 

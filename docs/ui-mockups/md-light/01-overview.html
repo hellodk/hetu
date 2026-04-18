@@ -1,0 +1,937 @@
+<!doctype html>
+<html lang="en" data-theme="md-light">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Cluster Intel — Material Light</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+/* ── MD3 Light Colour Tokens ──────────────────────────────────────────────── */
+:root {
+  --md-primary:           #6750A4;
+  --md-on-primary:        #FFFFFF;
+  --md-primary-container: #EADDFF;
+  --md-on-primary-container: #21005D;
+
+  --md-secondary:         #625B71;
+  --md-secondary-container: #E8DEF8;
+  --md-on-secondary-container: #1D192B;
+
+  --md-tertiary:          #7D5260;
+  --md-tertiary-container: #FFD8E4;
+
+  --md-surface:           #FFFBFE;
+  /* MD3 light elevation via primary overlay tints */
+  --md-surface-1:         #F7F2FA;  /* +5% primary  */
+  --md-surface-2:         #F3EDF7;  /* +8% primary  */
+  --md-surface-3:         #EFE9F4;  /* +11% primary */
+  --md-surface-variant:   #E7E0EC;
+  --md-on-surface:        #1C1B1F;
+  --md-on-surface-variant:#49454F;
+  --md-outline:           #79747E;
+  --md-outline-variant:   #CAC4D0;
+
+  --md-sev-crit:          #B3261E;
+  --md-sev-crit-container:#F9DEDC;
+  --md-sev-high:          #C2532A;
+  --md-sev-high-container:#FFDBB5;
+  --md-sev-warn:          #765D0F;
+  --md-sev-warn-container:#FDEEBF;
+  --md-sev-ok:            #146C2E;
+  --md-sev-ok-container:  #C4EED0;
+  --md-sev-info:          #0061A4;
+  --md-sev-info-container:#D1E4FF;
+
+  --nav-width: 240px;
+  --topbar-h:  64px;
+  --radius-sm: 4px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 28px;
+
+  /* MD3 light uses box-shadow for elevation */
+  --shadow-1: 0 1px 2px rgba(0,0,0,.12), 0 1px 3px rgba(0,0,0,.08);
+  --shadow-2: 0 1px 2px rgba(0,0,0,.12), 0 2px 6px rgba(0,0,0,.10);
+  --shadow-3: 0 4px 8px rgba(0,0,0,.10), 0 1px 3px rgba(0,0,0,.08);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Roboto', system-ui, sans-serif;
+  font-size: 14px;
+  background: var(--md-surface);
+  color: var(--md-on-surface);
+  -webkit-font-smoothing: antialiased;
+  display: grid;
+  grid-template-columns: var(--nav-width) 1fr;
+  grid-template-rows: var(--topbar-h) 1fr;
+  grid-template-areas:
+    "nav topbar"
+    "nav main";
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ── Navigation Rail / Drawer ─────────────────────────────────────────────── */
+.nav {
+  grid-area: nav;
+  background: var(--md-surface-1);
+  border-right: 1px solid var(--md-outline-variant);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.nav-logo {
+  height: var(--topbar-h);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--md-outline-variant);
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--md-on-surface);
+  letter-spacing: 0.01em;
+}
+.nav-logo svg { width: 24px; height: 24px; fill: none; stroke: var(--md-primary); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+.nav-label {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--md-on-surface-variant);
+  padding: 20px 20px 8px;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 12px;
+  height: 48px;
+  border-radius: var(--radius-xl);
+  margin: 2px 12px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--md-on-surface-variant);
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 150ms, color 150ms;
+  position: relative;
+}
+.nav-item:hover { background: rgba(103,80,164,0.08); color: var(--md-on-surface); }
+.nav-item.active {
+  background: var(--md-secondary-container);
+  color: var(--md-on-secondary-container);
+}
+.nav-item svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+.nav-item .badge {
+  margin-left: auto;
+  background: var(--md-primary);
+  color: var(--md-on-primary);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 999px;
+}
+
+.nav-divider { height: 1px; background: var(--md-outline-variant); margin: 8px 20px; }
+
+.nav-section-toggle {
+  display: flex; align-items: center; gap: 12px;
+  padding: 0 12px;
+  height: 40px;
+  margin: 0 12px;
+  border-radius: var(--radius-sm);
+  font-size: 13px; font-weight: 500;
+  color: var(--md-on-surface-variant);
+  cursor: pointer;
+}
+.nav-section-toggle svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; flex-shrink: 0; }
+.nav-section-toggle .chevron { margin-left: auto; width: 16px; height: 16px; }
+.nav-sub-items { padding-left: 16px; }
+.nav-sub-item {
+  display: block;
+  padding: 6px 12px 6px 32px;
+  font-size: 13px;
+  color: var(--md-on-surface-variant);
+  cursor: pointer;
+  text-decoration: none;
+  border-radius: var(--radius-sm);
+  transition: background 100ms;
+}
+.nav-sub-item:hover { background: rgba(103,80,164,0.06); }
+
+.nav-scroll { flex: 1; overflow-y: auto; }
+.nav-scroll::-webkit-scrollbar { width: 4px; }
+.nav-scroll::-webkit-scrollbar-thumb { background: var(--md-outline-variant); border-radius: 4px; }
+
+.nav-footer {
+  padding: 12px 16px;
+  border-top: 1px solid var(--md-outline-variant);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--md-on-surface-variant);
+}
+.nav-footer svg { width: 18px; height: 18px; fill: none; stroke: var(--md-primary); stroke-width: 1.8; stroke-linecap: round; flex-shrink: 0; }
+.nav-footer select {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--md-on-surface-variant);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  outline: none;
+}
+.nav-footer select option { background: var(--md-surface-2); color: var(--md-on-surface); }
+
+/* ── Top Bar ──────────────────────────────────────────────────────────────── */
+.topbar {
+  grid-area: topbar;
+  background: var(--md-surface-2);
+  border-bottom: 1px solid var(--md-outline-variant);
+  display: flex;
+  align-items: center;
+  padding: 0 24px;
+  gap: 16px;
+  box-shadow: var(--shadow-1);
+}
+.topbar-cluster {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 15px; font-weight: 500; color: var(--md-on-surface);
+}
+.topbar-cluster svg { width: 20px; height: 20px; fill: none; stroke: var(--md-primary); stroke-width: 1.8; stroke-linecap: round; }
+.profile-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 12px 4px 6px;
+  background: var(--md-surface-variant);
+  border-radius: 999px;
+  font-size: 12px; color: var(--md-on-surface-variant);
+  border: 1px solid var(--md-outline-variant);
+}
+.profile-chip svg { width: 14px; height: 14px; fill: none; stroke: var(--md-on-surface-variant); stroke-width: 1.8; }
+.live-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 10px;
+  background: var(--md-sev-ok-container);
+  border: 1px solid rgba(20,108,46,0.3);
+  border-radius: 999px;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.06em;
+  color: var(--md-sev-ok);
+}
+.live-dot {
+  width: 6px; height: 6px;
+  background: var(--md-sev-ok);
+  border-radius: 50%;
+  animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+.topbar-spacer { flex: 1; }
+.topbar-meta { font-size: 12px; color: var(--md-on-surface-variant); }
+.icon-btn {
+  width: 40px; height: 40px;
+  display: flex; align-items: center; justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 999px;
+  color: var(--md-on-surface-variant);
+  cursor: pointer;
+  transition: background 150ms;
+  position: relative;
+}
+.icon-btn:hover { background: rgba(103,80,164,0.08); color: var(--md-on-surface); }
+.icon-btn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+.notif-dot {
+  position: absolute; top: 7px; right: 7px;
+  width: 8px; height: 8px;
+  background: var(--md-sev-crit);
+  border-radius: 50%;
+  border: 2px solid var(--md-surface-2);
+}
+.avatar {
+  width: 36px; height: 36px;
+  background: var(--md-primary-container);
+  color: var(--md-on-primary-container);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 600; cursor: pointer;
+}
+
+/* ── Main Content ─────────────────────────────────────────────────────────── */
+.main {
+  grid-area: main;
+  overflow-y: auto;
+  padding: 24px;
+  background: var(--md-surface);
+}
+.main::-webkit-scrollbar { width: 6px; }
+.main::-webkit-scrollbar-thumb { background: var(--md-outline-variant); border-radius: 6px; }
+
+.page-header { margin-bottom: 20px; }
+.page-title {
+  font-size: 22px; font-weight: 400;
+  color: var(--md-on-surface);
+  letter-spacing: 0;
+  line-height: 1.27;
+}
+.page-subtitle { font-size: 13px; color: var(--md-on-surface-variant); margin-top: 4px; }
+
+/* ── Score Cards ──────────────────────────────────────────────────────────── */
+.score-row {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.score-card {
+  background: var(--md-surface-1);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  cursor: pointer;
+  transition: box-shadow 150ms, background 150ms;
+  position: relative;
+  overflow: hidden;
+  box-shadow: var(--shadow-1);
+  border: 1px solid var(--md-outline-variant);
+}
+.score-card:hover { box-shadow: var(--shadow-3); background: var(--md-surface-2); }
+/* MD3 light elevation: coloured top accent strip */
+.score-card::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0;
+  height: 3px;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+.sc-primary::before { background: var(--md-primary); }
+.sc-green::before   { background: var(--md-sev-ok); }
+.sc-purple::before  { background: var(--md-secondary); }
+.sc-teal::before    { background: var(--md-tertiary); }
+.sc-amber::before   { background: var(--md-sev-warn); }
+
+.score-card-top { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 14px; }
+.score-icon {
+  width: 36px; height: 36px;
+  border-radius: var(--radius-md);
+  display: flex; align-items: center; justify-content: center;
+}
+.sc-primary .score-icon { background: var(--md-primary-container); }
+.sc-green   .score-icon { background: var(--md-sev-ok-container); }
+.sc-purple  .score-icon { background: var(--md-secondary-container); }
+.sc-teal    .score-icon { background: var(--md-tertiary-container); }
+.sc-amber   .score-icon { background: var(--md-sev-warn-container); }
+.score-icon svg { width: 18px; height: 18px; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.sc-primary .score-icon svg { stroke: var(--md-on-primary-container); }
+.sc-green   .score-icon svg { stroke: var(--md-sev-ok); }
+.sc-purple  .score-icon svg { stroke: var(--md-on-secondary-container); }
+.sc-teal    .score-icon svg { stroke: var(--md-tertiary); }
+.sc-amber   .score-icon svg { stroke: var(--md-sev-warn); }
+
+.trend-chip {
+  font-size: 10px; font-weight: 600; letter-spacing: 0.04em;
+  padding: 2px 7px; border-radius: 999px;
+}
+.trend-up     { background: var(--md-sev-ok-container); color: var(--md-sev-ok); }
+.trend-stable { background: var(--md-surface-variant); color: var(--md-on-surface-variant); }
+.trend-down   { background: var(--md-sev-crit-container); color: var(--md-sev-crit); }
+
+.score-body { display: flex; align-items: center; gap: 14px; }
+.score-ring { position: relative; width: 56px; height: 56px; flex-shrink: 0; }
+.score-ring svg { width: 56px; height: 56px; transform: rotate(-90deg); }
+.ring-bg { fill: none; stroke: var(--md-outline-variant); stroke-width: 4; }
+.ring-fill { fill: none; stroke-width: 4; stroke-linecap: round; transition: stroke-dashoffset 0.6s ease; }
+.score-ring-num {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px; font-weight: 700;
+}
+.sc-primary .score-ring-num { color: var(--md-primary); }
+.sc-green   .score-ring-num { color: var(--md-sev-ok); }
+.sc-purple  .score-ring-num { color: var(--md-secondary); }
+.sc-teal    .score-ring-num { color: var(--md-tertiary); }
+.sc-amber   .score-ring-num { color: var(--md-sev-warn); }
+
+.score-meta { min-width: 0; }
+.score-label { font-size: 12px; color: var(--md-on-surface-variant); margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.score-status { font-size: 14px; font-weight: 500; }
+.sc-primary .score-status { color: var(--md-primary); }
+.sc-green   .score-status { color: var(--md-sev-ok); }
+.sc-purple  .score-status { color: var(--md-secondary); }
+.sc-teal    .score-status { color: var(--md-tertiary); }
+.sc-amber   .score-status { color: var(--md-sev-warn); }
+.score-drill { font-size: 11px; color: var(--md-on-surface-variant); margin-top: 2px; }
+
+/* ── Tabs ─────────────────────────────────────────────────────────────────── */
+.tab-bar {
+  display: flex; gap: 0;
+  border-bottom: 1px solid var(--md-outline-variant);
+  margin-bottom: 20px;
+}
+.tab-btn {
+  padding: 12px 16px;
+  background: transparent; border: none;
+  font-family: inherit; font-size: 14px; font-weight: 500;
+  color: var(--md-on-surface-variant);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color 150ms, border-color 150ms;
+  letter-spacing: 0.01em;
+}
+.tab-btn.active { color: var(--md-primary); border-bottom-color: var(--md-primary); }
+.tab-btn:hover:not(.active) { color: var(--md-on-surface); background: rgba(103,80,164,0.05); }
+
+/* ── Content Grid ─────────────────────────────────────────────────────────── */
+.content-grid {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 16px;
+}
+
+/* ── Section Cards ────────────────────────────────────────────────────────── */
+.section-card {
+  background: var(--md-surface-1);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--md-outline-variant);
+  padding: 20px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow-1);
+}
+.section-title {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 14px; font-weight: 500;
+  color: var(--md-on-surface);
+  margin-bottom: 16px;
+  letter-spacing: 0.01em;
+}
+.section-title svg { width: 18px; height: 18px; fill: none; stroke: var(--md-primary); stroke-width: 1.8; stroke-linecap: round; flex-shrink: 0; }
+
+/* ── Cluster Stats ────────────────────────────────────────────────────────── */
+.cluster-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
+  margin-bottom: 20px;
+}
+.cluster-tile {
+  background: var(--md-surface-2);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--md-outline-variant);
+  padding: 14px;
+}
+.tile-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.tile-row svg { width: 16px; height: 16px; fill: none; stroke-width: 1.8; stroke-linecap: round; flex-shrink: 0; }
+.ct-blue .tile-row svg   { stroke: var(--md-sev-info); }
+.ct-purple .tile-row svg { stroke: var(--md-secondary); }
+.ct-green .tile-row svg  { stroke: var(--md-sev-ok); }
+.ct-ok .tile-row svg     { stroke: var(--md-sev-ok); }
+.tile-label { font-size: 12px; color: var(--md-on-surface-variant); }
+.tile-value {
+  font-size: 22px; font-weight: 500;
+  color: var(--md-on-surface);
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Progress Bar ─────────────────────────────────────────────────────────── */
+.progress-label { font-size: 12px; color: var(--md-on-surface-variant); margin-bottom: 6px; }
+.progress-track { height: 8px; background: var(--md-surface-variant); border-radius: 999px; overflow: hidden; display: flex; }
+.progress-fill { height: 100%; }
+.pf-green  { background: var(--md-sev-ok); }
+.pf-yellow { background: var(--md-sev-warn); }
+.pf-red    { background: var(--md-sev-crit); }
+.progress-legend { display: flex; gap: 16px; margin-top: 8px; }
+.legend-item { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--md-on-surface-variant); }
+.legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+/* ── Issues ───────────────────────────────────────────────────────────────── */
+.issue-item {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 12px;
+  border-radius: var(--radius-md);
+  margin-bottom: 8px;
+  border-left: 3px solid;
+}
+.issue-item:last-child { margin-bottom: 0; }
+.issue-crit { background: rgba(179,38,30,0.06); border-color: var(--md-sev-crit); }
+.issue-high { background: rgba(194,83,42,0.06); border-color: var(--md-sev-high); }
+.issue-med  { background: rgba(118,93,15,0.06); border-color: var(--md-sev-warn); }
+.issue-icon { width: 32px; height: 32px; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px; }
+.issue-crit .issue-icon { background: var(--md-sev-crit-container); }
+.issue-high .issue-icon { background: var(--md-sev-high-container); }
+.issue-med  .issue-icon { background: var(--md-sev-warn-container); }
+.issue-icon svg { width: 16px; height: 16px; fill: none; stroke-width: 2; stroke-linecap: round; }
+.issue-crit .issue-icon svg { stroke: var(--md-sev-crit); }
+.issue-high .issue-icon svg { stroke: var(--md-sev-high); }
+.issue-med  .issue-icon svg { stroke: var(--md-sev-warn); }
+.issue-body { flex: 1; min-width: 0; }
+.issue-title { font-size: 13px; font-weight: 500; color: var(--md-on-surface); margin-bottom: 3px; }
+.issue-desc  { font-size: 12px; color: var(--md-on-surface-variant); line-height: 1.4; }
+.sev-chip {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.07em;
+  padding: 3px 8px; border-radius: 999px; flex-shrink: 0; align-self: flex-start; margin-top: 2px;
+}
+.sev-crit { background: var(--md-sev-crit-container); color: var(--md-sev-crit); }
+.sev-high { background: var(--md-sev-high-container); color: var(--md-sev-high); }
+.sev-med  { background: var(--md-sev-warn-container); color: var(--md-sev-warn); }
+
+/* ── AI Insights ──────────────────────────────────────────────────────────── */
+.insights-header-row {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 14px;
+}
+.cnt-badge {
+  font-size: 10px; font-weight: 700;
+  padding: 1px 6px; border-radius: 999px;
+}
+.cnt-crit { background: var(--md-sev-crit-container); color: var(--md-sev-crit); }
+.cnt-warn { background: var(--md-sev-warn-container); color: var(--md-sev-warn); }
+.cnt-opp  { background: var(--md-sev-ok-container); color: var(--md-sev-ok); }
+
+.insight-card {
+  border-radius: var(--radius-md);
+  padding: 12px;
+  margin-bottom: 8px;
+  border: 1px solid var(--md-outline-variant);
+  background: var(--md-surface-2);
+  transition: box-shadow 150ms, background 150ms;
+  cursor: pointer;
+}
+.insight-card:hover { box-shadow: var(--shadow-2); background: var(--md-surface-3); }
+.insight-card:last-child { margin-bottom: 0; }
+.insight-header {
+  display: flex; align-items: center; gap: 6px;
+  margin-bottom: 6px;
+}
+.insight-header svg { width: 14px; height: 14px; fill: none; stroke-width: 2; stroke-linecap: round; flex-shrink: 0; }
+.insight-crit .insight-header svg { stroke: var(--md-sev-crit); }
+.insight-sec  .insight-header svg { stroke: var(--md-secondary); }
+.insight-warn .insight-header svg { stroke: var(--md-sev-warn); }
+.insight-opp  .insight-header svg { stroke: var(--md-sev-ok); }
+.insight-type-label { font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; flex: 1; }
+.insight-crit .insight-type-label { color: var(--md-sev-crit); }
+.insight-sec  .insight-type-label { color: var(--md-secondary); }
+.insight-warn .insight-type-label { color: var(--md-sev-warn); }
+.insight-opp  .insight-type-label { color: var(--md-sev-ok); }
+.insight-source { font-size: 11px; color: var(--md-on-surface-variant); }
+.insight-ts { font-size: 11px; color: var(--md-outline); font-variant-numeric: tabular-nums; }
+.insight-title { font-size: 13px; font-weight: 500; color: var(--md-on-surface); margin-bottom: 3px; }
+.insight-desc  { font-size: 12px; color: var(--md-on-surface-variant); line-height: 1.45; }
+.insight-meta  { font-size: 11px; color: var(--md-outline); margin-top: 5px; font-family: 'Roboto Mono', monospace; }
+
+/* ── Resource Utilisation ─────────────────────────────────────────────────── */
+.util-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.util-row:last-child { margin-bottom: 0; }
+.util-label { font-size: 12px; color: var(--md-on-surface-variant); width: 100px; flex-shrink: 0; }
+.util-bar-track { flex: 1; height: 6px; background: var(--md-outline-variant); border-radius: 999px; overflow: hidden; }
+.util-bar-fill { height: 100%; border-radius: 999px; }
+.util-val { font-size: 12px; color: var(--md-on-surface); font-variant-numeric: tabular-nums; width: 48px; text-align: right; flex-shrink: 0; }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════ NAVIGATION ════════════════════════════ -->
+<nav class="nav">
+  <div class="nav-logo">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M8.56 2.75c4.37 6.03 6.02 9.42 8.03 17.72m2.54-15.38c-3.72 4.35-8.94 5.66-16.88 5.85m19.5 1.9c-3.5-.93-6.63-.82-8.94 0-2.58.92-5.01 2.86-7.44 6.32"/></svg>
+    Cluster Intel
+  </div>
+
+  <div class="nav-scroll">
+    <div class="nav-label">Main</div>
+
+    <a class="nav-item active" href="#">
+      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      Overview
+    </a>
+    <a class="nav-item" href="#">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      Errors
+      <span class="badge">24</span>
+    </a>
+    <a class="nav-item" href="#">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M8.56 2.75c4.37 6.03 6.02 9.42 8.03 17.72m2.54-15.38c-3.72 4.35-8.94 5.66-16.88 5.85"/></svg>
+      LB Logs
+    </a>
+    <a class="nav-item" href="#">
+      <svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+      Incidents &amp; RCA
+    </a>
+    <a class="nav-item" href="#">
+      <svg viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/></svg>
+      Optimization
+    </a>
+    <a class="nav-item" href="#">
+      <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      Anomalies
+    </a>
+    <a class="nav-item" href="#">
+      <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      Security
+    </a>
+    <a class="nav-item" href="#">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+      Settings
+    </a>
+
+    <div class="nav-divider"></div>
+    <div class="nav-label">Resources</div>
+
+    <div class="nav-section-toggle">
+      <svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>
+      Workloads
+      <svg class="chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>
+    <div class="nav-sub-items">
+      <a class="nav-sub-item" href="#">Pods</a>
+      <a class="nav-sub-item" href="#">Deployments</a>
+      <a class="nav-sub-item" href="#">StatefulSets</a>
+      <a class="nav-sub-item" href="#">DaemonSets</a>
+    </div>
+
+    <div class="nav-section-toggle">
+      <svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+      Service &amp; Networking
+      <svg class="chevron" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+    </div>
+
+    <div class="nav-section-toggle">
+      <svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+      Config &amp; Storage
+      <svg class="chevron" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+    </div>
+
+    <div class="nav-section-toggle">
+      <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+      Cluster
+      <svg class="chevron" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+    </div>
+  </div>
+
+  <div class="nav-footer">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+    <select>
+      <option>Graphite</option>
+      <option>Calm signal</option>
+      <option>Aurora</option>
+      <option>Prism</option>
+      <option>Material Dark</option>
+      <option selected>Material Light</option>
+    </select>
+  </div>
+</nav>
+
+<!-- ═══════════════════════════════ TOPBAR ════════════════════════════════ -->
+<header class="topbar">
+  <div class="topbar-cluster">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M8.56 2.75c4.37 6.03 6.02 9.42 8.03 17.72m2.54-15.38c-3.72 4.35-8.94 5.66-16.88 5.85m19.5 1.9c-3.5-.93-6.63-.82-8.94 0-2.58.92-5.01 2.86-7.44 6.32"/></svg>
+    prod-cluster-eu-west-1
+  </div>
+  <div class="profile-chip">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+    default
+  </div>
+  <div class="live-badge"><span class="live-dot"></span>LIVE</div>
+  <div class="topbar-spacer"></div>
+  <span class="topbar-meta">Updated 14:32:07</span>
+  <button class="icon-btn"><svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button>
+  <button class="icon-btn"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>
+  <button class="icon-btn"><svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg><span class="notif-dot"></span></button>
+  <div class="avatar">DK</div>
+</header>
+
+<!-- ═══════════════════════════════ MAIN ══════════════════════════════════ -->
+<main class="main">
+  <div class="page-header">
+    <div class="page-title">Cluster Health Overview</div>
+    <div class="page-subtitle">prod-cluster-eu-west-1 · Last analysis 2 minutes ago · AI-powered insights from 5 sources</div>
+  </div>
+
+  <!-- Score Cards -->
+  <div class="score-row">
+    <div class="score-card sc-primary">
+      <div class="score-card-top">
+        <div class="score-icon"><svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
+        <span class="trend-chip trend-up">+3%</span>
+      </div>
+      <div class="score-body">
+        <div class="score-ring">
+          <svg viewBox="0 0 56 56"><circle class="ring-bg" cx="28" cy="28" r="22"/><circle class="ring-fill" cx="28" cy="28" r="22" stroke="#6750A4" stroke-dasharray="138.2" stroke-dashoffset="18"/></svg>
+          <div class="score-ring-num">87</div>
+        </div>
+        <div class="score-meta">
+          <div class="score-label">Overall Health</div>
+          <div class="score-status">Good</div>
+          <div class="score-drill">Click to expand ↓</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="score-card sc-green">
+      <div class="score-card-top">
+        <div class="score-icon"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
+        <span class="trend-chip trend-stable">Stable</span>
+      </div>
+      <div class="score-body">
+        <div class="score-ring">
+          <svg viewBox="0 0 56 56"><circle class="ring-bg" cx="28" cy="28" r="22"/><circle class="ring-fill" cx="28" cy="28" r="22" stroke="#146C2E" stroke-dasharray="138.2" stroke-dashoffset="7"/></svg>
+          <div class="score-ring-num">95</div>
+        </div>
+        <div class="score-meta">
+          <div class="score-label">Reliability</div>
+          <div class="score-status">Excellent</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="score-card sc-purple">
+      <div class="score-card-top">
+        <div class="score-icon"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+        <span class="trend-chip trend-down">−2%</span>
+      </div>
+      <div class="score-body">
+        <div class="score-ring">
+          <svg viewBox="0 0 56 56"><circle class="ring-bg" cx="28" cy="28" r="22"/><circle class="ring-fill" cx="28" cy="28" r="22" stroke="#625B71" stroke-dasharray="138.2" stroke-dashoffset="41"/></svg>
+          <div class="score-ring-num">70</div>
+        </div>
+        <div class="score-meta">
+          <div class="score-label">Security</div>
+          <div class="score-status">Fair</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="score-card sc-teal">
+      <div class="score-card-top">
+        <div class="score-icon"><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+        <span class="trend-chip trend-up">+5%</span>
+      </div>
+      <div class="score-body">
+        <div class="score-ring">
+          <svg viewBox="0 0 56 56"><circle class="ring-bg" cx="28" cy="28" r="22"/><circle class="ring-fill" cx="28" cy="28" r="22" stroke="#7D5260" stroke-dasharray="138.2" stroke-dashoffset="28"/></svg>
+          <div class="score-ring-num">80</div>
+        </div>
+        <div class="score-meta">
+          <div class="score-label">Cost Efficiency</div>
+          <div class="score-status">Good</div>
+          <div class="score-drill">$2,400/mo savings</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="score-card sc-amber">
+      <div class="score-card-top">
+        <div class="score-icon"><svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg></div>
+        <span class="trend-chip trend-stable">Stable</span>
+      </div>
+      <div class="score-body">
+        <div class="score-ring">
+          <svg viewBox="0 0 56 56"><circle class="ring-bg" cx="28" cy="28" r="22"/><circle class="ring-fill" cx="28" cy="28" r="22" stroke="#765D0F" stroke-dasharray="138.2" stroke-dashoffset="48"/></svg>
+          <div class="score-ring-num">65</div>
+        </div>
+        <div class="score-meta">
+          <div class="score-label">Architecture</div>
+          <div class="score-status">Fair</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tab-bar">
+    <button class="tab-btn active">Overview</button>
+    <button class="tab-btn">Issues (8)</button>
+    <button class="tab-btn">Recommendations (14)</button>
+    <button class="tab-btn">Timeline</button>
+    <button class="tab-btn">Namespaces</button>
+  </div>
+
+  <!-- Content -->
+  <div class="content-grid">
+    <div>
+      <!-- Cluster Overview -->
+      <div class="section-card">
+        <div class="section-title">
+          <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/></svg>
+          Cluster Overview
+        </div>
+        <div class="cluster-grid">
+          <div class="cluster-tile ct-blue">
+            <div class="tile-row"><svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/></svg><span class="tile-label">Nodes</span></div>
+            <div class="tile-value">12</div>
+          </div>
+          <div class="cluster-tile ct-purple">
+            <div class="tile-row"><svg viewBox="0 0 24 24"><polygon points="12 2 2 7 2 17 12 22 22 17 22 7 12 2"/></svg><span class="tile-label">Namespaces</span></div>
+            <div class="tile-value">24</div>
+          </div>
+          <div class="cluster-tile ct-green">
+            <div class="tile-row"><svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/></svg><span class="tile-label">Total Pods</span></div>
+            <div class="tile-value">347</div>
+          </div>
+          <div class="cluster-tile ct-ok">
+            <div class="tile-row"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg><span class="tile-label">Pod Health</span></div>
+            <div class="tile-value">96%</div>
+          </div>
+        </div>
+        <div>
+          <div class="progress-label">Pod Status Distribution</div>
+          <div class="progress-track">
+            <div class="progress-fill pf-green" style="width:78%"></div>
+            <div class="progress-fill pf-yellow" style="width:14%"></div>
+            <div class="progress-fill pf-red" style="width:8%"></div>
+          </div>
+          <div class="progress-legend">
+            <div class="legend-item"><span class="legend-dot" style="background:var(--md-sev-ok)"></span>Healthy <strong style="color:var(--md-sev-ok);margin-left:3px">271</strong></div>
+            <div class="legend-item"><span class="legend-dot" style="background:var(--md-sev-warn)"></span>Pending <strong style="color:var(--md-sev-warn);margin-left:3px">49</strong></div>
+            <div class="legend-item"><span class="legend-dot" style="background:var(--md-sev-crit)"></span>Unhealthy <strong style="color:var(--md-sev-crit);margin-left:3px">27</strong></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Resource Utilisation -->
+      <div class="section-card">
+        <div class="section-title">
+          <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          Resource Utilisation
+          <span style="margin-left:auto;font-size:11px;font-weight:400;color:var(--md-sev-ok)">● Real-time</span>
+        </div>
+        <div class="util-row">
+          <div class="util-label">CPU</div>
+          <div class="util-bar-track"><div class="util-bar-fill pf-yellow" style="width:64%"></div></div>
+          <div class="util-val">64%</div>
+        </div>
+        <div class="util-row">
+          <div class="util-label">Memory</div>
+          <div class="util-bar-track"><div class="util-bar-fill pf-green" style="width:51%"></div></div>
+          <div class="util-val">51%</div>
+        </div>
+        <div class="util-row">
+          <div class="util-label">Storage</div>
+          <div class="util-bar-track"><div class="util-bar-fill pf-red" style="width:82%"></div></div>
+          <div class="util-val">82%</div>
+        </div>
+        <div class="util-row">
+          <div class="util-label">Network I/O</div>
+          <div class="util-bar-track"><div class="util-bar-fill pf-green" style="width:38%"></div></div>
+          <div class="util-val">38%</div>
+        </div>
+      </div>
+
+      <!-- Top Issues -->
+      <div class="section-card">
+        <div class="section-title">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          Active Issues
+        </div>
+        <div class="issue-item issue-crit">
+          <div class="issue-icon"><svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg></div>
+          <div class="issue-body">
+            <div class="issue-title">3 pods in CrashLoopBackOff — payment-service</div>
+            <div class="issue-desc">Repeated restart cycle in namespace payments. OOMKill likely cause.</div>
+          </div>
+          <span class="sev-chip sev-crit">CRIT</span>
+        </div>
+        <div class="issue-item issue-high">
+          <div class="issue-icon"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+          <div class="issue-body">
+            <div class="issue-title">Privileged containers in 4 namespaces — CIS 5.2.1</div>
+            <div class="issue-desc">Affects kube-system, monitoring, logging, default.</div>
+          </div>
+          <span class="sev-chip sev-high">HIGH</span>
+        </div>
+        <div class="issue-item issue-med">
+          <div class="issue-icon"><svg viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/></svg></div>
+          <div class="issue-body">
+            <div class="issue-title">CPU throttling at 78% — data-pipeline</div>
+            <div class="issue-desc">CPU requests set too low vs. actual usage. Recommend +40%.</div>
+          </div>
+          <span class="sev-chip sev-med">MED</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- AI Insights -->
+    <div>
+      <div class="section-card" style="padding:16px">
+        <div class="insights-header-row">
+          <div class="section-title" style="margin:0;flex:1">
+            <svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+            AI Insights
+            <span style="font-size:12px;font-weight:400;color:var(--md-on-surface-variant)">(12)</span>
+          </div>
+          <span class="cnt-badge cnt-crit">3</span>
+          <span class="cnt-badge cnt-warn">5</span>
+          <span class="cnt-badge cnt-opp">4</span>
+        </div>
+
+        <div class="insight-card insight-crit">
+          <div class="insight-header">
+            <svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
+            <span class="insight-type-label">Critical</span>
+            <span class="insight-source">Pod Health</span>
+            <span class="insight-ts">2m ago</span>
+          </div>
+          <div class="insight-title">3 pods crashloop · payment-service</div>
+          <div class="insight-desc">OOMKill. Memory limit 256Mi insufficient for load.</div>
+          <div class="insight-meta">payments/payment-svc · 3 affected</div>
+        </div>
+
+        <div class="insight-card insight-sec">
+          <div class="insight-header">
+            <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            <span class="insight-type-label">Security</span>
+            <span class="insight-source">Security Scanner</span>
+            <span class="insight-ts">8m ago</span>
+          </div>
+          <div class="insight-title">Privileged containers in kube-system</div>
+          <div class="insight-desc">CIS 5.2.1 violation. Remove privileged: true from security context.</div>
+          <div class="insight-meta">CIS K8s Benchmark · 4 resources</div>
+        </div>
+
+        <div class="insight-card insight-warn">
+          <div class="insight-header">
+            <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            <span class="insight-type-label">Anomaly</span>
+            <span class="insight-source">Anomaly Detector</span>
+            <span class="insight-ts">15m ago</span>
+          </div>
+          <div class="insight-title">CPU spike · api-gateway (z-score 4.2)</div>
+          <div class="insight-desc">Expected 120m, observed 680m. EU traffic surge likely cause.</div>
+          <div class="insight-meta">prod/api-gateway</div>
+        </div>
+
+        <div class="insight-card insight-opp">
+          <div class="insight-header">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+            <span class="insight-type-label">Optimization</span>
+            <span class="insight-source">Optimizer</span>
+            <span class="insight-ts">1h ago</span>
+          </div>
+          <div class="insight-title">Oversized PVC in analytics namespace</div>
+          <div class="insight-desc">500Gi provisioned, 48Gi used. Downsize to save $312/mo.</div>
+          <div class="insight-meta">$312/mo potential saving</div>
+        </div>
+
+        <div class="insight-card insight-warn">
+          <div class="insight-header">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            <span class="insight-type-label">Warning</span>
+            <span class="insight-source">Error Aggregator</span>
+            <span class="insight-ts">22m ago</span>
+          </div>
+          <div class="insight-title">ImagePullBackOff · 8 occurrences</div>
+          <div class="insight-desc">Registry credentials expired for quay.io/org/sidecar:v2.1.</div>
+          <div class="insight-meta">staging · 8 occurrences</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+</body>
+</html>

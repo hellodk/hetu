@@ -1,7 +1,8 @@
 import type { Metadata } from 'next'
-import { Inter, Space_Grotesk, Newsreader, Fraunces, JetBrains_Mono } from 'next/font/google'
+import { Inter, Space_Grotesk, Newsreader, Fraunces, JetBrains_Mono, Roboto } from 'next/font/google'
 import './globals.css'
 import { Navigation } from '@/components/Navigation'
+import { GlobalSearch } from '@/components/GlobalSearch'
 
 // Body (every theme uses Inter for UI copy)
 const inter = Inter({
@@ -36,6 +37,14 @@ const fraunces = Fraunces({
   display: 'swap',
 })
 
+// MD3 themes
+const roboto = Roboto({
+  subsets: ['latin'],
+  weight: ['300', '400', '500', '700'],
+  variable: '--font-roboto',
+  display: 'swap',
+})
+
 // Tabular numbers across every theme
 const jetbrainsMono = JetBrains_Mono({
   subsets: ['latin'],
@@ -58,6 +67,7 @@ const fontVars = [
   newsreader.variable,
   fraunces.variable,
   jetbrainsMono.variable,
+  roboto.variable,
 ].join(' ')
 
 export default function RootLayout({
@@ -67,6 +77,8 @@ export default function RootLayout({
 }) {
   // See previous version for why only NEXT_PUBLIC_API_URL is injected.
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || ''
+  // Escape < so an adversarial URL cannot inject </script> inside the inline script block.
+  const inlineApiUrl = JSON.stringify(apiUrl).replace(/</g, '\\u003c')
 
   return (
     <html lang="en" className={fontVars} suppressHydrationWarning>
@@ -74,16 +86,17 @@ export default function RootLayout({
         <script
           dangerouslySetInnerHTML={{
             __html: `
-              window.__CLUSTER_INTEL_API__=${JSON.stringify(apiUrl)};
+              window.__CLUSTER_INTEL_API__=${inlineApiUrl};
               (function () {
                 // FOUC-safe theme init.
-                // ci_theme may be: graphite | calm-signal | aurora | prism | auto
+                // ci_theme may be: graphite | calm-signal | aurora | prism | auto | md-dark | md-light
                 // "auto"   → dark OS prefers-dark ⇒ calm-signal, else graphite.
                 // unset    → graphite (system default).
                 // Legacy values from the old toggle (light/dark/system) get
                 // migrated: light ⇒ graphite, dark ⇒ calm-signal, system ⇒ auto.
                 try {
-                  var VALID = ['graphite','calm-signal','aurora','prism','auto'];
+                  var VALID = ['graphite','calm-signal','aurora','prism','auto','md-dark','md-light'];
+                  var LIGHT = ['graphite','prism','md-light'];
                   var LEGACY = { light: 'graphite', dark: 'calm-signal', system: 'auto' };
                   var stored = localStorage.getItem('ci_theme');
                   if (stored && LEGACY[stored]) {
@@ -98,8 +111,8 @@ export default function RootLayout({
                     : stored;
 
                   document.documentElement.setAttribute('data-theme', resolved);
-                  // Tailwind dark: variants fire for the three dark themes.
-                  var isDark = resolved !== 'graphite';
+                  // Tailwind dark: variants fire for dark themes (not light-palette themes).
+                  var isDark = LIGHT.indexOf(resolved) === -1;
                   document.documentElement.classList.toggle('dark', isDark);
                 } catch (e) {
                   // SSR / privacy mode — keep the data-theme='graphite' default.
@@ -115,6 +128,7 @@ export default function RootLayout({
           Skip to main content
         </a>
         <Navigation />
+        <GlobalSearch />
         <main id="main-content" className="lg:ml-56">
           {children}
         </main>

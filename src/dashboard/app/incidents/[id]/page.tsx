@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import ReactMarkdown from 'react-markdown'
@@ -8,7 +8,7 @@ import remarkGfm from 'remark-gfm'
 import { apiFetch, getApiUrl } from '@/lib/api'
 import {
   ArrowLeft, Loader2, Clock, AlertCircle, Zap,
-  RefreshCw, Send, CheckCircle, Shield, Wrench, Bot, User
+  Send, CheckCircle, Shield, Wrench, Bot, User, Copy, Check
 } from 'lucide-react'
 
 interface Signal {
@@ -48,45 +48,175 @@ interface Incident {
   rcaReport?: RCAReport
 }
 
+interface ChatMessage {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+}
+
+// Context that lets MarkdownCode know it's inside a MarkdownPre block.
+// This correctly handles bare fenced code blocks that carry no language-* class.
+const InCodeBlock = createContext(false)
+
+function MarkdownPre({ children }: { children?: React.ReactNode }) {
+  const [copied, setCopied] = useState(false)
+  const preRef = useRef<HTMLPreElement>(null)
+
+  const handleCopy = () => {
+    const text = preRef.current?.textContent ?? ''
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    }).catch(() => {})
+  }
+
+  return (
+    <InCodeBlock.Provider value={true}>
+      <div className="relative group mt-2 mb-2">
+        <pre ref={preRef} className="bg-gray-900 rounded p-3 overflow-x-auto pr-10">{children}</pre>
+        <button
+          onClick={handleCopy}
+          className="absolute top-2 right-2 p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity bg-gray-700 hover:bg-gray-600"
+          title="Copy code"
+        >
+          {copied
+            ? <Check className="w-3.5 h-3.5 text-green-400" />
+            : <Copy className="w-3.5 h-3.5 text-gray-400" />}
+        </button>
+      </div>
+    </InCodeBlock.Provider>
+  )
+}
+
+function MarkdownCode({ className, children }: { className?: string; children?: React.ReactNode }) {
+  const inBlock = useContext(InCodeBlock)
+  const lang = className?.replace('language-', '') ?? ''
+  const colorClass =
+    lang === 'bash' || lang === 'sh' || lang === 'shell' ? 'text-yellow-300' :
+    lang === 'json' ? 'text-cyan-300' :
+    lang === 'yaml' || lang === 'yml' ? 'text-orange-300' :
+    lang === 'go' ? 'text-blue-300' :
+    'text-green-300'
+  return inBlock ? (
+    <code className={`text-xs ${colorClass} font-mono ${className ?? ''}`}>{children}</code>
+  ) : (
+    <code className="bg-gray-900 text-green-300 px-1 py-0.5 rounded text-xs font-mono">{children}</code>
+  )
+}
+
+// streamRCA opens an SSE connection to /rca/stream and calls callbacks for
+// each phase update, the completed report, and finally the done signal.
+// abortSignal may be null (manual regenerate — no AbortController needed).
+function streamRCA(
+  id: string,
+  abortSignal: AbortSignal | null,
+  onPhase: (phase: string) => void,
+  onComplete: (report: RCAReport) => void,
+  onDone: () => void,
+) {
+  const url = `${getApiUrl()}/api/v1/incidents/${id}/rca/stream`
+  const es = new EventSource(url)
+  let closed = false
+
+  const cleanup = () => {
+    if (closed) return
+    closed = true
+    es.close()
+    onDone()
+  }
+
+  es.addEventListener('running', (e: MessageEvent) => {
+    try { onPhase((JSON.parse(e.data) as { phase: string }).phase) } catch {}
+  })
+  es.addEventListener('complete', (e: MessageEvent) => {
+    try { onComplete(JSON.parse(e.data) as RCAReport) } catch {}
+    cleanup()
+  })
+  es.addEventListener('error', () => cleanup())
+
+  if (abortSignal) abortSignal.addEventListener('abort', () => cleanup())
+}
+
+// Module-level constant — not recreated on every render.
+const markdownComponents = {
+  pre: MarkdownPre,
+  code: MarkdownCode,
+  p: ({ children }: { children?: React.ReactNode }) => <p className="mb-1 last:mb-0">{children}</p>,
+  ul: ({ children }: { children?: React.ReactNode }) => <ul className="list-disc list-inside space-y-0.5 mb-1">{children}</ul>,
+  ol: ({ children }: { children?: React.ReactNode }) => <ol className="list-decimal list-inside space-y-0.5 mb-1">{children}</ol>,
+  li: ({ children }: { children?: React.ReactNode }) => <li className="text-gray-300">{children}</li>,
+  strong: ({ children }: { children?: React.ReactNode }) => <strong className="text-white font-semibold">{children}</strong>,
+  h3: ({ children }: { children?: React.ReactNode }) => <h3 className="text-white font-semibold text-sm mt-2 mb-1">{children}</h3>,
+}
+
 export default function IncidentDetailPage() {
   const params = useParams()
   const id = params.id as string
   const [incident, setIncident] = useState<Incident | null>(null)
   const [loading, setLoading] = useState(true)
   const [regenerating, setRegenerating] = useState(false)
+  const [rcaPhase, setRcaPhase] = useState('')
   const [question, setQuestion] = useState('')
-  const [chatHistory, setChatHistory] = useState<{ role: 'user' | 'assistant'; content: string }[]>([])
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([])
   const [asking, setAsking] = useState(false)
+  const [confirmClear, setConfirmClear] = useState(false)
   const chatEndRef = useRef<HTMLDivElement>(null)
+  // Stored so we can clearTimeout on unmount (prevents setState after unmount).
+  const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout>>()
+
+  // Restore chat history from localStorage keyed by incident id.
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(`incident-chat-${id}`)
+      if (stored) {
+        const parsed = JSON.parse(stored) as ChatMessage[]
+        if (Array.isArray(parsed) && parsed.length > 0) setChatHistory(parsed)
+      }
+    } catch {}
+  }, [id])
+
+  // Persist chat history; cap at 50 messages to bound localStorage growth.
+  useEffect(() => {
+    if (chatHistory.length === 0) return
+    try {
+      localStorage.setItem(`incident-chat-${id}`, JSON.stringify(chatHistory.slice(-50)))
+    } catch {}
+  }, [chatHistory, id])
 
   useEffect(() => {
+    const ac = new AbortController()
     setLoading(true)
     apiFetch<Incident>(`/api/v1/incidents/${id}`)
       .then(data => {
+        if (ac.signal.aborted) return
         setIncident(data)
-        // Auto-run RCA if none exists yet so analysis is ready when user arrives
+        // Auto-run RCA via SSE stream if none exists yet.
         if (!data.rcaReport) {
           setRegenerating(true)
-          apiFetch<RCAReport>(`/api/v1/incidents/${id}/rca/regenerate`)
-            .then(report => setIncident(prev => prev ? { ...prev, rcaReport: report } : null))
-            .catch(() => {})
-            .finally(() => setRegenerating(false))
+          streamRCA(id, ac.signal,
+            phase => { if (!ac.signal.aborted) setRcaPhase(phase) },
+            report => { if (!ac.signal.aborted) setIncident(prev => prev ? { ...prev, rcaReport: report } : null) },
+            () => { if (!ac.signal.aborted) setRegenerating(false) },
+          )
         }
       })
       .catch(() => {})
-      .finally(() => setLoading(false))
+      .finally(() => { if (!ac.signal.aborted) setLoading(false) })
+    return () => { ac.abort(); clearTimeout(scrollTimeoutRef.current) }
   }, [id])
 
-  const regenerateRCA = async () => {
+  const regenerateRCA = () => {
     setRegenerating(true)
-    try {
-      const report = await apiFetch<RCAReport>(`/api/v1/incidents/${id}/rca/regenerate`)
-      setIncident(prev => prev ? { ...prev, rcaReport: report, status: 'investigating' } : null)
-    } catch {}
-    finally { setRegenerating(false) }
+    setRcaPhase('')
+    streamRCA(id, null,
+      phase => setRcaPhase(phase),
+      report => setIncident(prev => prev ? { ...prev, rcaReport: report, status: 'investigating' } : null),
+      () => setRegenerating(false),
+    )
   }
 
   const askAI = async () => {
+    if (asking) return
     const q = question.trim()
     if (!q) return
     setQuestion('')
@@ -94,17 +224,17 @@ export default function IncidentDetailPage() {
     // all prior turns (reading chatHistory after setChatHistory would be
     // a stale closure — the state update is async).
     const historySnapshot = chatHistory.map(m => ({ role: m.role, content: m.content }))
-    const userMsg = { role: 'user' as const, content: q }
+    const userMsg: ChatMessage = { id: `${Date.now()}-u`, role: 'user', content: q }
     setChatHistory(prev => [...prev, userMsg])
     setAsking(true)
-    setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
+    scrollTimeoutRef.current = setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
     try {
       const res = await fetch(`${getApiUrl()}/api/v1/llm/ask`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           question: q,
-          incidentId: parseInt(id),
+          incidentId: parseInt(id, 10),
           // history and context are forwarded for when the backend is
           // wired to accept them (currently handleAsk only reads question
           // + incidentId — backend needs updating to consume these).
@@ -116,14 +246,15 @@ export default function IncidentDetailPage() {
           },
         }),
       })
+      if (!res.ok) throw new Error(`${res.status}`)
       const data = await res.json()
       const answer = data.answer || 'No response from AI'
-      setChatHistory(prev => [...prev, { role: 'assistant', content: answer }])
+      setChatHistory(prev => [...prev, { id: `${Date.now()}-a`, role: 'assistant', content: answer }])
     } catch {
-      setChatHistory(prev => [...prev, { role: 'assistant', content: 'Failed to reach AI — check LLM configuration in Settings.' }])
+      setChatHistory(prev => [...prev, { id: `${Date.now()}-e`, role: 'assistant', content: 'Failed to reach AI — check LLM configuration in Settings.' }])
     } finally {
       setAsking(false)
-      setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
+      scrollTimeoutRef.current = setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
     }
   }
 
@@ -196,7 +327,9 @@ export default function IncidentDetailPage() {
           <Loader2 className="w-4 h-4 animate-spin text-purple-400 shrink-0" />
           <div>
             <p className="text-sm text-purple-300 font-medium">Running Root Cause Analysis…</p>
-            <p className="text-xs text-gray-500 mt-0.5">AI is analysing signals and correlating cluster state</p>
+            <p className="text-xs text-gray-500 mt-0.5">
+              {rcaPhase || 'AI is analysing signals and correlating cluster state'}
+            </p>
           </div>
         </div>
       )}
@@ -290,21 +423,33 @@ export default function IncidentDetailPage() {
           <h3 className="text-sm font-medium text-gray-400 flex items-center gap-2">
             <Bot className="w-4 h-4 text-blue-400" /> Ask AI
           </h3>
-          {chatHistory.length > 0 && (
+          {chatHistory.length > 0 && !confirmClear && (
             <button
-              onClick={() => setChatHistory([])}
+              onClick={() => setConfirmClear(true)}
               className="text-xs text-gray-600 hover:text-gray-400 transition-colors"
             >
               Clear history
             </button>
           )}
+          {confirmClear && (
+            <span className="flex items-center gap-2 text-xs">
+              <span className="text-gray-500">Clear all history?</span>
+              <button onClick={() => { setChatHistory([]); localStorage.removeItem(`incident-chat-${id}`); setConfirmClear(false) }} className="text-red-400 hover:text-red-300 transition-colors">Yes</button>
+              <button onClick={() => setConfirmClear(false)} className="text-gray-500 hover:text-gray-400 transition-colors">No</button>
+            </span>
+          )}
         </div>
 
         {/* Chat history */}
         {chatHistory.length > 0 && (
-          <div className="space-y-3 mb-4 max-h-[480px] overflow-y-auto pr-1">
-            {chatHistory.map((msg, i) => (
-              <div key={i} className={`flex gap-2.5 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
+          <div
+            role="log"
+            aria-live="polite"
+            aria-label="Chat history"
+            className="space-y-3 mb-4 max-h-[480px] overflow-y-auto pr-1"
+          >
+            {chatHistory.map(msg => (
+              <div key={msg.id} className={`flex gap-2.5 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
                 <span className={`mt-0.5 w-6 h-6 rounded-full shrink-0 flex items-center justify-center ${
                   msg.role === 'user' ? 'bg-blue-600' : 'bg-purple-900/60 border border-purple-700/40'
                 }`}>
@@ -318,32 +463,7 @@ export default function IncidentDetailPage() {
                     : 'bg-gray-800/60 border border-gray-700/50 text-gray-200'
                 }`}>
                   {msg.role === 'assistant' ? (
-                    <ReactMarkdown
-                      remarkPlugins={[remarkGfm]}
-                      components={{
-                        code({ className, children, ...props }) {
-                          const isBlock = className?.includes('language-')
-                          return isBlock ? (
-                            <pre className="bg-gray-900 rounded p-3 overflow-x-auto mt-2 mb-2">
-                              <code className={`text-xs text-green-300 ${className ?? ''}`} {...props}>
-                                {children}
-                              </code>
-                            </pre>
-                          ) : (
-                            <code className="bg-gray-900 text-green-300 px-1 py-0.5 rounded text-xs" {...props}>
-                              {children}
-                            </code>
-                          )
-                        },
-                        pre({ children }) { return <>{children}</> },
-                        p({ children }) { return <p className="mb-1 last:mb-0">{children}</p> },
-                        ul({ children }) { return <ul className="list-disc list-inside space-y-0.5 mb-1">{children}</ul> },
-                        ol({ children }) { return <ol className="list-decimal list-inside space-y-0.5 mb-1">{children}</ol> },
-                        li({ children }) { return <li className="text-gray-300">{children}</li> },
-                        strong({ children }) { return <strong className="text-white font-semibold">{children}</strong> },
-                        h3({ children }) { return <h3 className="text-white font-semibold text-sm mt-2 mb-1">{children}</h3> },
-                      }}
-                    >
+                    <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
                       {msg.content}
                     </ReactMarkdown>
                   ) : (
@@ -374,9 +494,11 @@ export default function IncidentDetailPage() {
             type="text"
             value={question}
             onChange={e => setQuestion(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && !e.shiftKey && askAI()}
+            onKeyDown={e => e.key === 'Enter' && !e.shiftKey && !asking && askAI()}
+            disabled={asking}
+            aria-label="Ask AI a question about this incident"
             placeholder={chatHistory.length === 0 ? 'Ask about this incident — e.g. "What is the affected pod?"' : 'Follow up…'}
-            className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-600"
+            className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-600 disabled:opacity-60"
           />
           <button
             onClick={askAI}

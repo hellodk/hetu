@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Cluster Intel — Executive Summary (Material Dark)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+:root{--md-primary:#6750A4;--md-on-primary:#FFFFFF;--md-primary-container:#EADDFF;--md-on-primary-container:#21005D;--md-secondary:#625B71;--md-secondary-container:#E8DEF8;--md-on-secondary-container:#1D192B;--md-tertiary:#7D5260;--md-tertiary-container:#FFD8E4;--md-surface:#FFFBFE;--md-surface-1:#F7F2FA;--md-surface-2:#F3EDF7;--md-surface-3:#EFE9F4;--md-surface-variant:#E7E0EC;--md-on-surface:#1C1B1F;--md-on-surface-variant:#49454F;--md-outline:#79747E;--md-outline-variant:#CAC4D0;--md-sev-crit:#B3261E;--md-sev-crit-container:#F9DEDC;--md-sev-high:#C2532A;--md-sev-high-container:#FFDBB5;--md-sev-warn:#765D0F;--md-sev-warn-container:#FDEEBF;--md-sev-ok:#146C2E;--md-sev-ok-container:#C4EED0;--md-sev-info:#0061A4;--md-sev-info-container:#D1E4FF;--nav-width:240px;--topbar-h:64px;--r-sm:4px;--r-md:12px;--r-lg:16px;--r-xl:28px}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Roboto',system-ui,sans-serif;font-size:14px;background:var(--md-surface);color:var(--md-on-surface);-webkit-font-smoothing:antialiased;display:grid;grid-template-columns:var(--nav-width) 1fr;grid-template-rows:var(--topbar-h) 1fr;grid-template-areas:"nav topbar" "nav main";height:100vh;overflow:hidden}
+.nav{grid-area:nav;background:var(--md-surface-1);border-right:1px solid var(--md-outline-variant);display:flex;flex-direction:column;overflow:hidden}
+.nav-logo{height:var(--topbar-h);display:flex;align-items:center;gap:12px;padding:0 20px;border-bottom:1px solid var(--md-outline-variant);font-size:16px;font-weight:500}
+.nav-logo svg{width:24px;height:24px;fill:none;stroke:var(--md-primary);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.nav-label{font-size:11px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--md-on-surface-variant);padding:20px 20px 8px}
+.nav-item{display:flex;align-items:center;gap:12px;padding:0 12px;height:48px;border-radius:var(--r-xl);margin:2px 12px;font-size:14px;font-weight:500;color:var(--md-on-surface-variant);cursor:pointer;text-decoration:none;transition:background 150ms}
+.nav-item:hover{background:rgba(103,80,164,.08)}
+.nav-item.active{background:var(--md-secondary-container);color:var(--md-on-secondary-container)}
+.nav-item svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+.nav-divider{height:1px;background:var(--md-outline-variant);margin:8px 20px}
+.nav-toggle{display:flex;align-items:center;gap:12px;padding:0 12px;height:40px;margin:0 12px;font-size:13px;font-weight:500;color:var(--md-on-surface-variant);cursor:pointer}
+.nav-toggle svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;flex-shrink:0}
+.nav-toggle .chev{margin-left:auto;width:16px;height:16px}
+.nav-scroll{flex:1;overflow-y:auto}
+.nav-scroll::-webkit-scrollbar{width:4px}
+.nav-scroll::-webkit-scrollbar-thumb{background:var(--md-outline-variant);border-radius:4px}
+.nav-footer{padding:12px 16px;border-top:1px solid var(--md-outline-variant);display:flex;align-items:center;gap:10px;font-size:13px;color:var(--md-on-surface-variant)}
+.nav-footer svg{width:18px;height:18px;fill:none;stroke:var(--md-primary);stroke-width:1.8;stroke-linecap:round;flex-shrink:0}
+.nav-footer select{flex:1;background:transparent;border:none;color:var(--md-on-surface-variant);font-size:13px;font-family:inherit;cursor:pointer;outline:none}
+.topbar{grid-area:topbar;background:var(--md-surface-1);border-bottom:1px solid var(--md-outline-variant);display:flex;align-items:center;padding:0 24px;gap:16px}
+.topbar-cluster{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:500}
+.topbar-cluster svg{width:20px;height:20px;fill:none;stroke:var(--md-primary);stroke-width:1.8;stroke-linecap:round}
+.profile-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 12px 4px 6px;background:var(--md-surface-3);border-radius:999px;font-size:12px;color:var(--md-on-surface-variant);border:1px solid var(--md-outline-variant)}
+.profile-chip svg{width:14px;height:14px;fill:none;stroke:var(--md-on-surface-variant);stroke-width:1.8}
+.live-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;background:rgba(20,108,46,.15);border:1px solid rgba(20,108,46,.3);border-radius:999px;font-size:11px;font-weight:700;letter-spacing:.06em;color:var(--md-sev-ok)}
+.live-dot{width:6px;height:6px;background:var(--md-sev-ok);border-radius:50%;animation:pulse 2s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.topbar-spacer{flex:1}
+.topbar-meta{font-size:12px;color:var(--md-on-surface-variant)}
+.icon-btn{width:40px;height:40px;display:flex;align-items:center;justify-content:center;background:transparent;border:none;border-radius:999px;color:var(--md-on-surface-variant);cursor:pointer;transition:background 150ms;position:relative}
+.icon-btn:hover{background:rgba(103,80,164,.08)}
+.icon-btn svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round}
+.notif-dot{position:absolute;top:7px;right:7px;width:8px;height:8px;background:var(--md-sev-crit);border-radius:50%;border:2px solid var(--md-surface-2)}
+.avatar{width:36px;height:36px;background:var(--md-primary-container);color:var(--md-on-primary-container);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;cursor:pointer}
+.main{grid-area:main;overflow-y:auto;padding:28px 32px;background:var(--md-surface)}
+.main::-webkit-scrollbar{width:6px}
+.main::-webkit-scrollbar-thumb{background:var(--md-outline-variant);border-radius:6px}
+/* EXEC HEADER */
+.exec-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:28px}
+.exec-title{font-size:28px;font-weight:300;color:var(--md-on-surface);letter-spacing:-.01em}
+.exec-sub{font-size:14px;color:var(--md-on-surface-variant);margin-top:6px}
+.report-chip{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;background:var(--md-primary-container);border-radius:999px;font-size:12px;font-weight:500;color:var(--md-on-primary-container)}
+.report-chip svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round}
+/* KPI CARDS */
+.kpi-row{display:grid;grid-template-columns:repeat(5,1fr);gap:16px;margin-bottom:28px}
+.kpi-card{background:var(--md-surface-2);border-radius:var(--r-lg);padding:20px 18px;position:relative;overflow:hidden;cursor:pointer;transition:background 150ms}
+.kpi-card:hover{background:var(--md-surface-3)}
+.kpi-card::before{content:'';position:absolute;top:0;left:0;right:0;height:4px;border-radius:var(--r-lg) var(--r-lg) 0 0}
+.kpi-ok::before{background:var(--md-sev-ok)}
+.kpi-warn::before{background:var(--md-sev-warn)}
+.kpi-crit::before{background:var(--md-sev-crit)}
+.kpi-info::before{background:var(--md-sev-info)}
+.kpi-purple::before{background:var(--md-primary)}
+.kpi-ring-wrap{position:relative;width:72px;height:72px;margin:0 auto 12px}
+.kpi-ring-wrap svg{width:72px;height:72px;transform:rotate(-90deg)}
+.kpi-ring-bg{fill:none;stroke:var(--md-outline-variant);stroke-width:5}
+.kpi-ring-fill{fill:none;stroke-width:5;stroke-linecap:round}
+.kpi-ring-num{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.kpi-score{font-size:20px;font-weight:700;line-height:1}
+.kpi-ok .kpi-score{color:var(--md-sev-ok)}
+.kpi-warn .kpi-score{color:var(--md-sev-warn)}
+.kpi-crit .kpi-score{color:var(--md-sev-crit)}
+.kpi-info .kpi-score{color:var(--md-sev-info)}
+.kpi-purple .kpi-score{color:var(--md-primary)}
+.kpi-name{font-size:12px;color:var(--md-on-surface-variant);text-align:center;margin-bottom:6px;font-weight:500}
+.kpi-status{font-size:13px;font-weight:500;text-align:center}
+.kpi-ok .kpi-status{color:var(--md-sev-ok)}
+.kpi-warn .kpi-status{color:var(--md-sev-warn)}
+.kpi-crit .kpi-status{color:var(--md-sev-crit)}
+.kpi-info .kpi-status{color:var(--md-sev-info)}
+.kpi-purple .kpi-status{color:var(--md-primary)}
+.kpi-trend{font-size:11px;color:var(--md-on-surface-variant);text-align:center;margin-top:3px}
+/* MAIN GRID */
+.exec-grid{display:grid;grid-template-columns:1fr 1fr 380px;gap:20px}
+/* COST CHART */
+.chart-card{background:var(--md-surface-2);border-radius:var(--r-lg);padding:20px}
+.card-title{font-size:14px;font-weight:500;color:var(--md-on-surface);margin-bottom:4px}
+.card-sub{font-size:12px;color:var(--md-on-surface-variant);margin-bottom:18px}
+.bar-chart{display:flex;align-items:flex-end;gap:8px;height:120px}
+.bar-col{display:flex;flex-direction:column;align-items:center;flex:1;gap:4px}
+.bar-wrap{flex:1;display:flex;align-items:flex-end;width:100%}
+.bar{width:100%;border-radius:4px 4px 0 0;transition:opacity 150ms}
+.bar-label{font-size:10px;color:var(--md-on-surface-variant);font-variant-numeric:tabular-nums}
+/* SLA */
+.sla-card{background:var(--md-surface-2);border-radius:var(--r-lg);padding:20px}
+.sla-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--md-outline-variant)}
+.sla-row:last-child{border-bottom:none}
+.sla-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.sla-name{font-size:13px;color:var(--md-on-surface);flex:1}
+.sla-pct{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums;width:56px;text-align:right}
+.sla-status{font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;width:64px;text-align:center}
+.sla-ok{color:var(--md-sev-ok)}
+.sla-warn{color:var(--md-sev-warn)}
+/* RISKS */
+.risks-card{background:var(--md-surface-2);border-radius:var(--r-lg);padding:20px}
+.risk-item{padding:14px;border-radius:var(--r-md);margin-bottom:10px;border-left:4px solid}
+.risk-item:last-child{margin-bottom:0}
+.risk-crit{background:rgba(179,38,30,.08);border-color:var(--md-sev-crit)}
+.risk-high{background:rgba(194,83,42,.08);border-color:var(--md-sev-high)}
+.risk-med{background:rgba(118,93,15,.08);border-color:var(--md-sev-warn)}
+.risk-header{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.risk-num{font-size:11px;font-weight:700;color:var(--md-on-surface-variant)}
+.risk-title{font-size:14px;font-weight:500;color:var(--md-on-surface)}
+.risk-impact{font-size:12px;color:var(--md-on-surface-variant);line-height:1.4}
+.risk-action{display:inline-flex;align-items:center;gap:4px;margin-top:8px;font-size:12px;font-weight:500;color:var(--md-primary);cursor:pointer}
+.risk-action svg{width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
+/* SECTION HEADER */
+.sec-header{font-size:13px;font-weight:500;color:var(--md-on-surface);letter-spacing:.01em;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.sec-header svg{width:16px;height:16px;fill:none;stroke:var(--md-primary);stroke-width:1.8;stroke-linecap:round}
+</style>
+</head>
+<body>
+<nav class="nav">
+  <div class="nav-logo"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M8.56 2.75c4.37 6.03 6.02 9.42 8.03 17.72m2.54-15.38c-3.72 4.35-8.94 5.66-16.88 5.85m19.5 1.9c-3.5-.93-6.63-.82-8.94 0-2.58.92-5.01 2.86-7.44 6.32"/></svg>Cluster Intel</div>
+  <div class="nav-scroll">
+    <div class="nav-label">Main</div>
+    <a class="nav-item" href="#"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Overview</a>
+    <a class="nav-item active" href="#"><svg viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/></svg>Executive Summary</a>
+    <a class="nav-item" href="#"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>Errors</a>
+    <a class="nav-item" href="#"><svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>Incidents &amp; RCA</a>
+    <a class="nav-item" href="#"><svg viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/></svg>Optimization</a>
+    <a class="nav-item" href="#"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>Security</a>
+    <a class="nav-item" href="#"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>Settings</a>
+    <div class="nav-divider"></div>
+    <div class="nav-label">Resources</div>
+    <div class="nav-toggle"><svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>Workloads<svg class="chev" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
+  </div>
+  <div class="nav-footer"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+    <select><option>Graphite</option><option>Calm signal</option><option>Aurora</option><option>Prism</option><option selected>Material Light</option><option>Material Light</option></select>
+  </div>
+</nav>
+
+<header class="topbar">
+  <div class="topbar-cluster"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M8.56 2.75c4.37 6.03 6.02 9.42 8.03 17.72m2.54-15.38c-3.72 4.35-8.94 5.66-16.88 5.85m19.5 1.9c-3.5-.93-6.63-.82-8.94 0-2.58.92-5.01 2.86-7.44 6.32"/></svg>prod-cluster-eu-west-1</div>
+  <div class="profile-chip"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>default</div>
+  <div class="live-badge"><span class="live-dot"></span>LIVE</div>
+  <div class="topbar-spacer"></div>
+  <span class="topbar-meta">Report: April 17, 2026</span>
+  <button class="icon-btn"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>
+  <button class="icon-btn"><svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg><span class="notif-dot"></span></button>
+  <div class="avatar">DK</div>
+</header>
+
+<main class="main">
+  <div class="exec-header">
+    <div>
+      <div class="exec-title">Executive Summary</div>
+      <div class="exec-sub">prod-cluster-eu-west-1 · Weekly report · April 11–17, 2026 · Prepared for VP Engineering &amp; CTO</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end">
+      <div class="report-chip"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Download PDF</div>
+      <span style="font-size:12px;color:var(--md-on-surface-variant)">Auto-generated by Cluster Intel AI</span>
+    </div>
+  </div>
+
+  <!-- KPI Cards -->
+  <div class="kpi-row">
+    <div class="kpi-card kpi-ok">
+      <div class="kpi-ring-wrap">
+        <svg viewBox="0 0 72 72"><circle class="kpi-ring-bg" cx="36" cy="36" r="30"/><circle class="kpi-ring-fill" cx="36" cy="36" r="30" stroke="#6DD58C" stroke-dasharray="188.5" stroke-dashoffset="25"/></svg>
+        <div class="kpi-ring-num"><span class="kpi-score">87</span></div>
+      </div>
+      <div class="kpi-name">Overall Health</div>
+      <div class="kpi-status">Good</div>
+      <div class="kpi-trend">↑ +3 vs last week</div>
+    </div>
+    <div class="kpi-card kpi-ok">
+      <div class="kpi-ring-wrap">
+        <svg viewBox="0 0 72 72"><circle class="kpi-ring-bg" cx="36" cy="36" r="30"/><circle class="kpi-ring-fill" cx="36" cy="36" r="30" stroke="#6DD58C" stroke-dasharray="188.5" stroke-dashoffset="9"/></svg>
+        <div class="kpi-ring-num"><span class="kpi-score">95</span></div>
+      </div>
+      <div class="kpi-name">Uptime / SLA</div>
+      <div class="kpi-status">On target</div>
+      <div class="kpi-trend">99.95% this week</div>
+    </div>
+    <div class="kpi-card kpi-warn">
+      <div class="kpi-ring-wrap">
+        <svg viewBox="0 0 72 72"><circle class="kpi-ring-bg" cx="36" cy="36" r="30"/><circle class="kpi-ring-fill" cx="36" cy="36" r="30" stroke="#F9DE7B" stroke-dasharray="188.5" stroke-dashoffset="56"/></svg>
+        <div class="kpi-ring-num"><span class="kpi-score">70</span></div>
+      </div>
+      <div class="kpi-name">Security Posture</div>
+      <div class="kpi-status">Needs attention</div>
+      <div class="kpi-trend">28 open findings</div>
+    </div>
+    <div class="kpi-card kpi-info">
+      <div class="kpi-ring-wrap">
+        <svg viewBox="0 0 72 72"><circle class="kpi-ring-bg" cx="36" cy="36" r="30"/><circle class="kpi-ring-fill" cx="36" cy="36" r="30" stroke="#82CAFF" stroke-dasharray="188.5" stroke-dashoffset="38"/></svg>
+        <div class="kpi-ring-num"><span class="kpi-score">80</span></div>
+      </div>
+      <div class="kpi-name">Cost Efficiency</div>
+      <div class="kpi-status">$2,400 saved</div>
+      <div class="kpi-trend">↑ +5 vs last month</div>
+    </div>
+    <div class="kpi-card kpi-crit">
+      <div class="kpi-ring-wrap">
+        <svg viewBox="0 0 72 72"><circle class="kpi-ring-bg" cx="36" cy="36" r="30"/><circle class="kpi-ring-fill" cx="36" cy="36" r="30" stroke="#FFB4AB" stroke-dasharray="188.5" stroke-dashoffset="94"/></svg>
+        <div class="kpi-ring-num"><span class="kpi-score">50</span></div>
+      </div>
+      <div class="kpi-name">Incident MTTR</div>
+      <div class="kpi-status">42 min avg</div>
+      <div class="kpi-trend">↓ target: 30 min</div>
+    </div>
+  </div>
+
+  <!-- Main content grid -->
+  <div class="exec-grid">
+    <!-- Cost trend chart -->
+    <div class="chart-card">
+      <div class="sec-header"><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Monthly Infrastructure Cost</div>
+      <div class="card-sub">Actual vs budget · Last 6 months</div>
+      <div class="bar-chart">
+        <div class="bar-col"><div class="bar-wrap"><div class="bar" style="height:70%;background:var(--md-outline-variant)"></div></div><div class="bar-label">Nov</div></div>
+        <div class="bar-col"><div class="bar-wrap"><div class="bar" style="height:75%;background:var(--md-outline-variant)"></div></div><div class="bar-label">Dec</div></div>
+        <div class="bar-col"><div class="bar-wrap"><div class="bar" style="height:82%;background:var(--md-outline-variant)"></div></div><div class="bar-label">Jan</div></div>
+        <div class="bar-col"><div class="bar-wrap"><div class="bar" style="height:90%;background:var(--md-sev-warn)"></div></div><div class="bar-label">Feb</div></div>
+        <div class="bar-col"><div class="bar-wrap"><div class="bar" style="height:85%;background:var(--md-sev-warn)"></div></div><div class="bar-label">Mar</div></div>
+        <div class="bar-col"><div class="bar-wrap"><div class="bar" style="height:78%;background:var(--md-sev-ok)"></div></div><div class="bar-label">Apr</div></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:12px;font-size:12px;color:var(--md-on-surface-variant)">
+        <span>Budget: <strong style="color:var(--md-on-surface)">$48,000/mo</strong></span>
+        <span>Actual Apr: <strong style="color:var(--md-sev-ok)">$43,600</strong></span>
+        <span style="color:var(--md-sev-ok)">↓ 9% under budget</span>
+      </div>
+    </div>
+
+    <!-- SLA status -->
+    <div class="sla-card">
+      <div class="sec-header"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>SLA Status — This Week</div>
+      <div class="sla-row"><span class="sla-dot" style="background:var(--md-sev-ok)"></span><span class="sla-name">API Gateway</span><span class="sla-pct" style="color:var(--md-sev-ok)">99.98%</span><span class="sla-status" style="background:rgba(20,108,46,.15);color:var(--md-sev-ok);border-radius:999px;padding:2px 8px;font-size:11px">Met</span></div>
+      <div class="sla-row"><span class="sla-dot" style="background:var(--md-sev-ok)"></span><span class="sla-name">Payment Service</span><span class="sla-pct" style="color:var(--md-sev-warn)">99.72%</span><span class="sla-status" style="background:rgba(118,93,15,.15);color:var(--md-sev-warn);border-radius:999px;padding:2px 8px;font-size:11px">At risk</span></div>
+      <div class="sla-row"><span class="sla-dot" style="background:var(--md-sev-ok)"></span><span class="sla-name">Auth Service</span><span class="sla-pct" style="color:var(--md-sev-ok)">100%</span><span class="sla-status" style="background:rgba(20,108,46,.15);color:var(--md-sev-ok);border-radius:999px;padding:2px 8px;font-size:11px">Met</span></div>
+      <div class="sla-row"><span class="sla-dot" style="background:var(--md-sev-ok)"></span><span class="sla-name">Data Pipeline</span><span class="sla-pct" style="color:var(--md-sev-ok)">99.91%</span><span class="sla-status" style="background:rgba(20,108,46,.15);color:var(--md-sev-ok);border-radius:999px;padding:2px 8px;font-size:11px">Met</span></div>
+      <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--md-outline-variant);font-size:12px;color:var(--md-on-surface-variant)">SLA target: 99.9% uptime. 3 of 4 services meeting target.</div>
+    </div>
+
+    <!-- Top 3 risks -->
+    <div class="risks-card">
+      <div class="sec-header"><svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>Top 3 Risks Requiring Action</div>
+
+      <div class="risk-item risk-crit">
+        <div class="risk-header"><span class="risk-num">RISK 1 — CRITICAL</span></div>
+        <div class="risk-title">Payment service OOM — revenue impact</div>
+        <div class="risk-impact">3 pods crashing repeatedly. Payment transactions failing during peak hours. Estimated revenue at risk: $8K–12K per hour of degradation.</div>
+        <div class="risk-action"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>Increase memory limit to 512Mi — SRE action required today</div>
+      </div>
+
+      <div class="risk-item risk-high">
+        <div class="risk-header"><span class="risk-num">RISK 2 — HIGH</span></div>
+        <div class="risk-title">TLS certificate expired — 4 services affected</div>
+        <div class="risk-impact">Ingress TLS cert for payments.example.com expired 6h ago. Browser warnings shown to end users. Renewal blocked on cert-manager misconfiguration.</div>
+        <div class="risk-action"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>Renew certificate — Platform team action required</div>
+      </div>
+
+      <div class="risk-item risk-med">
+        <div class="risk-header"><span class="risk-num">RISK 3 — MEDIUM</span></div>
+        <div class="risk-title">Security posture below target (70/100)</div>
+        <div class="risk-impact">5 critical CIS benchmark failures including privileged containers and missing network policies. Compliance review due in 14 days.</div>
+        <div class="risk-action"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>Schedule security sprint — Engineering action this sprint</div>
+      </div>
+    </div>
+  </div>
+</main>
+</body>
+</html>

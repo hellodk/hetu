@@ -36,6 +36,9 @@ func NewWorkloadHandler(cs kubernetes.Interface, dyn dynamic.Interface, disc dis
 	return &WorkloadHandler{clientset: cs, dynamic: dyn, discovery: disc}
 }
 
+// Clientset returns the underlying Kubernetes clientset for use by other components.
+func (h *WorkloadHandler) Clientset() kubernetes.Interface { return h.clientset }
+
 // RegisterRoutes adds all workload browser routes to the supplied mux.
 func (h *WorkloadHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/k8s/resources", h.handleResources)

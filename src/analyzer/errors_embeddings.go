@@ -258,6 +258,32 @@ func (s *EmbeddingScorer) fetchEmbedding(ctx context.Context, text string) ([]fl
 	return out.Data[0].Embedding, nil
 }
 
+// Embed returns the embedding vector for arbitrary text. Unlike Score, it
+// does not use the token-cache key (which assumes sorted token slices) — it
+// hashes the raw text so full sentences are cached correctly.
+// Used by VectorStore to embed incident text for Qdrant upsert / search.
+func (s *EmbeddingScorer) Embed(ctx context.Context, text string) ([]float64, error) {
+	h := sha1.New()
+	h.Write([]byte(text))
+	key := hex.EncodeToString(h.Sum(nil))
+
+	s.mu.Lock()
+	if v, ok := s.cache[key]; ok {
+		s.mu.Unlock()
+		return v, nil
+	}
+	s.mu.Unlock()
+
+	v, err := s.fetchEmbedding(ctx, text)
+	if err != nil {
+		return nil, err
+	}
+	s.mu.Lock()
+	s.cache[key] = v
+	s.mu.Unlock()
+	return v, nil
+}
+
 // Evict drops cached vectors whose keys are NOT in the keepKeys set.
 // The aggregator calls this after its own eviction pass so unused
 // vectors don't accumulate indefinitely. keepKeys is built by the

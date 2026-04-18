@@ -1,0 +1,1172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Time Controls — MD3 &amp; Platform Standards</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+/* ─── Reset ──────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+button { font-family: inherit; cursor: pointer; border: none; background: none; }
+input  { font-family: inherit; }
+
+/* ─── Page chrome ────────────────────────────────────────────────── */
+body {
+  font-family: 'Roboto', system-ui, sans-serif;
+  font-size: 14px;
+  background: #F4EFF4;
+  color: #1C1B1F;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+.page { max-width: 1040px; margin: 0 auto; padding: 48px 32px 80px; }
+.page-title {
+  font-size: 22px; font-weight: 400; color: #1C1B1F;
+  margin-bottom: 4px; letter-spacing: 0;
+}
+.page-sub { font-size: 14px; color: #49454F; margin-bottom: 48px; }
+
+/* Section headings */
+.section { margin-bottom: 48px; }
+.section-head {
+  font-size: 11px; font-weight: 500; letter-spacing: 0.1em;
+  text-transform: uppercase; color: #79747E;
+  margin-bottom: 20px;
+  display: flex; align-items: center; gap: 12px;
+}
+.section-head::after { content:''; flex:1; height:1px; background:#CAC4D0; }
+
+/* Card wrapper */
+.card {
+  background: #FFFBFE;
+  border-radius: 16px;
+  padding: 28px;
+  box-shadow: 0 1px 2px rgba(0,0,0,.08), 0 1px 3px rgba(0,0,0,.06);
+  display: flex; flex-direction: column; gap: 24px;
+}
+.card-dark {
+  background: #1C1B1F;
+  border-radius: 16px;
+  padding: 28px;
+  box-shadow: none;
+  display: flex; flex-direction: column; gap: 24px;
+}
+.card-grafana {
+  background: #181B1F;
+  border: 1px solid #2D3036;
+  border-radius: 8px;
+  padding: 24px;
+  display: flex; flex-direction: column; gap: 20px;
+}
+
+.row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.col { display: flex; flex-direction: column; gap: 8px; }
+.label-sm {
+  font-size: 11px; font-weight: 500; letter-spacing: 0.06em;
+  text-transform: uppercase; color: #79747E;
+}
+.label-sm-dark { color: #938F99; }
+.label-sm-gf   { color: #6E7A8A; font-family: 'Roboto', sans-serif; font-size: 12px; font-weight: 500; letter-spacing: 0.04em; text-transform: none; }
+
+/* ─────────────────────────────────────────────────────────────────
+   MD3 LIGHT  ─ Time range preset buttons (segmented)
+───────────────────────────────────────────────────────────────── */
+
+/* MD3 Outlined Segmented Button */
+.m3-seg {
+  display: inline-flex;
+  border: 1px solid #CAC4D0;
+  border-radius: 20px;
+  overflow: hidden;
+  height: 40px;
+}
+.m3-seg-btn {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 0 16px;
+  font-size: 14px; font-weight: 500; color: #49454F;
+  background: transparent;
+  border-right: 1px solid #CAC4D0;
+  transition: background 150ms;
+  white-space: nowrap;
+  min-width: 48px;
+  position: relative;
+  overflow: hidden;
+}
+.m3-seg-btn:last-child { border-right: none; }
+.m3-seg-btn:hover { background: rgba(103,80,164,0.08); color: #1C1B1F; }
+.m3-seg-btn.active {
+  background: #E8DEF8;
+  color: #21005D;
+}
+.m3-seg-btn.active::before {
+  content: '';
+  display: inline-block;
+  width: 18px; height: 18px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2321005D' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'/%3E%3C/svg%3E") center/contain no-repeat;
+  flex-shrink: 0;
+}
+/* Ripple on segmented */
+.m3-seg-btn::after {
+  content: ''; position: absolute; inset: 0;
+  background: rgba(103,80,164,0); transition: background 200ms;
+}
+.m3-seg-btn:active::after { background: rgba(103,80,164,0.12); }
+
+/* ─────────────────────────────────────────────────────────────────
+   MD3 LIGHT ─ Filled tonal preset chips (alternative)
+───────────────────────────────────────────────────────────────── */
+.m3-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.m3-chip {
+  display: inline-flex; align-items: center; gap: 8px;
+  height: 32px; padding: 0 16px;
+  border-radius: 8px;
+  font-size: 14px; font-weight: 500; color: #49454F;
+  background: transparent;
+  border: 1px solid #CAC4D0;
+  transition: all 150ms;
+}
+.m3-chip:hover { background: rgba(103,80,164,0.08); border-color: #79747E; }
+.m3-chip.active {
+  background: #6750A4;
+  color: #FFFFFF;
+  border-color: transparent;
+}
+.m3-chip.active svg { stroke: #FFFFFF; }
+.m3-chip svg { width: 18px; height: 18px; fill: none; stroke: #49454F; stroke-width: 1.8; stroke-linecap: round; flex-shrink: 0; }
+
+/* ─────────────────────────────────────────────────────────────────
+   MD3 LIGHT ─ Timezone toggle (segmented / switch)
+───────────────────────────────────────────────────────────────── */
+
+/* A: Segmented */
+.m3-tz-seg { display: inline-flex; border: 1px solid #CAC4D0; border-radius: 20px; overflow: hidden; height: 40px; }
+.m3-tz-btn {
+  display: flex; align-items: center; gap: 8px;
+  padding: 0 20px;
+  font-size: 14px; font-weight: 500; color: #49454F;
+  background: transparent;
+  border-right: 1px solid #CAC4D0;
+  transition: background 150ms;
+  white-space: nowrap;
+}
+.m3-tz-btn:last-child { border-right: none; }
+.m3-tz-btn:hover { background: rgba(103,80,164,0.08); }
+.m3-tz-btn.active { background: #E8DEF8; color: #21005D; font-weight: 600; }
+.m3-tz-btn.active svg { stroke: #21005D; }
+.m3-tz-btn svg { width: 16px; height: 16px; fill: none; stroke: #79747E; stroke-width: 1.8; stroke-linecap: round; flex-shrink: 0; }
+
+/* B: Switch with label */
+.m3-switch-row { display: flex; align-items: center; gap: 12px; }
+.m3-switch-label { font-size: 14px; color: #1C1B1F; }
+.m3-switch {
+  position: relative; width: 52px; height: 32px;
+  cursor: pointer;
+}
+.m3-switch input { opacity: 0; width: 0; height: 0; position: absolute; }
+.m3-switch-track {
+  position: absolute; inset: 0;
+  background: #E7E0EC;
+  border: 2px solid #79747E;
+  border-radius: 16px;
+  transition: background 150ms, border-color 150ms;
+}
+.m3-switch input:checked + .m3-switch-track {
+  background: #6750A4;
+  border-color: #6750A4;
+}
+.m3-switch-thumb {
+  position: absolute;
+  top: 50%; transform: translateY(-50%);
+  left: 6px;
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  background: #79747E;
+  transition: left 150ms cubic-bezier(.2,.0,0,1), width 150ms, background 150ms;
+}
+.m3-switch input:checked ~ .m3-switch-thumb {
+  left: 26px; background: #FFFFFF;
+}
+.m3-switch:hover input:not(:checked) + .m3-switch-track { background: rgba(0,0,0,0.05); }
+
+/* C: Filled tonal toggle chip */
+.m3-tz-chip-row { display: flex; gap: 8px; }
+.m3-tz-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 40px; padding: 0 20px;
+  border-radius: 20px;
+  font-size: 14px; font-weight: 500;
+  background: #E8DEF8; color: #21005D;
+  border: none;
+  transition: all 150ms;
+}
+.m3-tz-chip:hover { background: rgba(103,80,164,0.24); }
+.m3-tz-chip.inactive { background: transparent; border: 1px solid #CAC4D0; color: #49454F; }
+.m3-tz-chip.inactive:hover { background: rgba(103,80,164,0.08); }
+.m3-tz-chip svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; flex-shrink: 0; }
+
+/* ─────────────────────────────────────────────────────────────────
+   MD3 LIGHT ─ Date range picker trigger (Outlined text field)
+───────────────────────────────────────────────────────────────── */
+.m3-field {
+  position: relative;
+  display: inline-flex; flex-direction: column;
+  min-width: 200px;
+}
+.m3-field-input {
+  height: 56px;
+  padding: 16px 14px 8px;
+  background: transparent;
+  border: 1px solid #79747E;
+  border-radius: 4px;
+  font-size: 16px; color: #1C1B1F;
+  outline: none;
+  transition: border-color 150ms;
+  font-family: 'Roboto', sans-serif;
+  cursor: pointer;
+}
+.m3-field-input:hover { border-color: #1C1B1F; }
+.m3-field-input:focus { border-color: #6750A4; border-width: 2px; }
+.m3-field-label {
+  position: absolute; left: 14px; top: 50%;
+  transform: translateY(-50%) scale(1);
+  font-size: 16px; color: #49454F;
+  pointer-events: none;
+  transition: all 150ms;
+  transform-origin: left;
+  background: #FFFBFE;
+  padding: 0 4px;
+}
+.m3-field-input:focus ~ .m3-field-label,
+.m3-field-input:not(:placeholder-shown) ~ .m3-field-label {
+  top: 0; font-size: 12px; color: #6750A4;
+}
+.m3-field-icon {
+  position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+  color: #49454F; pointer-events: none;
+}
+.m3-field-icon svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; display: block; }
+
+/* Date range row */
+.m3-daterange { display: flex; align-items: center; gap: 8px; }
+.m3-daterange-sep { color: #49454F; font-size: 20px; }
+
+/* ─────────────────────────────────────────────────────────────────
+   MD3 LIGHT ─ Date picker dropdown
+───────────────────────────────────────────────────────────────── */
+.m3-picker-wrap { position: relative; display: inline-flex; }
+.m3-picker-panel {
+  position: absolute; top: calc(100% + 4px); left: 0; z-index: 10;
+  background: #FFFBFE;
+  border-radius: 16px;
+  box-shadow: 0 2px 6px 2px rgba(0,0,0,0.15), 0 1px 2px rgba(0,0,0,0.3);
+  width: 360px;
+  overflow: hidden;
+  display: none;
+}
+.m3-picker-panel.open { display: block; animation: m3PopIn 180ms cubic-bezier(.22,.61,.36,1); }
+@keyframes m3PopIn { from { opacity:0; transform: scale(.97) translateY(-4px); } }
+
+.m3-picker-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 24px 8px;
+}
+.m3-picker-month-btn {
+  display: flex; align-items: center; gap: 4px;
+  font-size: 14px; font-weight: 500; color: #1C1B1F;
+  border-radius: 4px; padding: 4px 8px;
+  transition: background 100ms;
+}
+.m3-picker-month-btn:hover { background: rgba(103,80,164,0.08); }
+.m3-picker-month-btn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+.m3-picker-nav { display: flex; gap: 4px; }
+.m3-picker-nav-btn {
+  width: 40px; height: 40px; border-radius: 20px;
+  display: flex; align-items: center; justify-content: center;
+  color: #49454F; transition: background 100ms;
+}
+.m3-picker-nav-btn:hover { background: rgba(103,80,164,0.08); }
+.m3-picker-nav-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+
+.m3-cal-grid {
+  display: grid; grid-template-columns: repeat(7,1fr);
+  padding: 0 12px;
+}
+.m3-cal-dow {
+  text-align: center; padding: 8px 0;
+  font-size: 12px; font-weight: 500; color: #49454F;
+  letter-spacing: 0.02em;
+}
+.m3-cal-day {
+  display: flex; align-items: center; justify-content: center;
+  height: 40px; width: 40px; margin: 0 auto;
+  font-size: 14px; color: #1C1B1F;
+  border-radius: 20px; cursor: pointer;
+  transition: background 100ms;
+  font-weight: 400; position: relative;
+}
+.m3-cal-day:hover { background: rgba(103,80,164,0.08); }
+.m3-cal-day.today {
+  border: 1px solid #6750A4; color: #6750A4; font-weight: 700;
+}
+.m3-cal-day.selected {
+  background: #6750A4; color: #FFFFFF;
+  border-radius: 20px; font-weight: 500;
+}
+.m3-cal-day.range-start {
+  background: #6750A4; color: #FFFFFF;
+  border-radius: 20px 0 0 20px;
+}
+.m3-cal-day.range-end {
+  background: #6750A4; color: #FFFFFF;
+  border-radius: 0 20px 20px 0;
+}
+.m3-cal-day.range-start.range-end { border-radius: 20px; }
+.m3-cal-day.in-range {
+  background: #E8DEF8; color: #21005D; border-radius: 0;
+}
+.m3-cal-day.other { color: #CAC4D0; }
+.m3-cal-day.disabled { pointer-events: none; opacity: 0.38; }
+
+.m3-picker-footer {
+  display: flex; justify-content: flex-end; gap: 8px;
+  padding: 8px 16px 16px;
+}
+.m3-btn-text {
+  height: 40px; padding: 0 12px;
+  border-radius: 20px;
+  font-size: 14px; font-weight: 500;
+  color: #6750A4; transition: background 100ms;
+}
+.m3-btn-text:hover { background: rgba(103,80,164,0.08); }
+.m3-btn-filled {
+  height: 40px; padding: 0 24px;
+  border-radius: 20px;
+  font-size: 14px; font-weight: 500;
+  background: #6750A4; color: #FFFFFF;
+  transition: box-shadow 100ms, background 100ms;
+}
+.m3-btn-filled:hover { box-shadow: 0 1px 2px rgba(0,0,0,.3), 0 1px 3px 1px rgba(0,0,0,.15); }
+
+/* Preset row inside picker */
+.m3-picker-presets {
+  display: flex; flex-wrap: wrap; gap: 6px;
+  padding: 12px 16px;
+  border-bottom: 1px solid #E7E0EC;
+}
+.m3-picker-preset {
+  height: 30px; padding: 0 14px;
+  border-radius: 8px;
+  font-size: 13px; font-weight: 500; color: #49454F;
+  border: 1px solid #CAC4D0;
+  transition: all 100ms;
+}
+.m3-picker-preset:hover { background: rgba(103,80,164,0.08); border-color: #79747E; }
+.m3-picker-preset.active { background: #6750A4; color: #FFFFFF; border-color: transparent; }
+
+/* ─────────────────────────────────────────────────────────────────
+   MD3 DARK ─ variants
+───────────────────────────────────────────────────────────────── */
+/* Segmented dark */
+.m3d-seg { display: inline-flex; border: 1px solid #49454F; border-radius: 20px; overflow: hidden; height: 40px; }
+.m3d-seg-btn {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 0 16px;
+  font-size: 14px; font-weight: 500; color: #CAC4D0;
+  border-right: 1px solid #49454F;
+  transition: background 150ms;
+  white-space: nowrap; min-width: 48px; position: relative;
+}
+.m3d-seg-btn:last-child { border-right: none; }
+.m3d-seg-btn:hover { background: rgba(208,188,255,0.08); color: #E6E1E5; }
+.m3d-seg-btn.active { background: #4A4458; color: #E8DEF8; font-weight: 500; }
+.m3d-seg-btn.active::before {
+  content: '';
+  display: inline-block; width: 18px; height: 18px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23E8DEF8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'/%3E%3C/svg%3E") center/contain no-repeat;
+  flex-shrink: 0;
+}
+
+/* Chips dark */
+.m3d-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.m3d-chip {
+  height: 32px; padding: 0 16px;
+  border-radius: 8px;
+  font-size: 14px; font-weight: 500; color: #CAC4D0;
+  border: 1px solid #49454F;
+  transition: all 150ms;
+}
+.m3d-chip:hover { background: rgba(208,188,255,0.08); border-color: #938F99; }
+.m3d-chip.active { background: #4A4458; color: #E8DEF8; border-color: transparent; }
+
+/* TZ seg dark */
+.m3d-tz-seg { display: inline-flex; border: 1px solid #49454F; border-radius: 20px; overflow: hidden; height: 40px; }
+.m3d-tz-btn {
+  display: flex; align-items: center; gap: 8px;
+  padding: 0 20px;
+  font-size: 14px; font-weight: 500; color: #CAC4D0;
+  border-right: 1px solid #49454F; transition: background 150ms;
+}
+.m3d-tz-btn:last-child { border-right: none; }
+.m3d-tz-btn:hover { background: rgba(208,188,255,0.08); }
+.m3d-tz-btn.active { background: #4A4458; color: #E8DEF8; }
+.m3d-tz-btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; flex-shrink: 0; }
+
+/* Date picker trigger dark */
+.m3d-trigger {
+  display: inline-flex; align-items: center; gap: 12px;
+  height: 48px; padding: 0 16px;
+  background: #2E2C34;
+  border: 1px solid #49454F;
+  border-radius: 4px;
+  font-size: 14px; color: #E6E1E5;
+  transition: border-color 150ms; cursor: pointer;
+  font-family: 'Roboto', sans-serif;
+}
+.m3d-trigger:hover { border-color: #938F99; }
+.m3d-trigger svg { width: 18px; height: 18px; fill: none; stroke: #CAC4D0; stroke-width: 1.8; stroke-linecap: round; flex-shrink: 0; }
+.m3d-trigger-sep { color: #49454F; font-size: 18px; margin: 0 4px; }
+.m3d-trigger-value { font-family: 'Roboto Mono', monospace; font-size: 13px; color: #E6E1E5; }
+.m3d-trigger-arrow { color: #938F99; margin-left: 4px; }
+.m3d-trigger-arrow svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+
+/* Full date picker dark */
+.m3d-picker-panel {
+  background: #28262D;
+  border: 1px solid #49454F;
+  border-radius: 16px;
+  width: 360px;
+  box-shadow: 0 4px 8px 3px rgba(0,0,0,0.45), 0 1px 3px rgba(0,0,0,0.3);
+  overflow: hidden;
+}
+.m3d-picker-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 24px 8px;
+}
+.m3d-picker-month {
+  display: flex; align-items: center; gap: 4px;
+  font-size: 14px; font-weight: 500; color: #E6E1E5;
+  padding: 4px 8px; border-radius: 4px; transition: background 100ms;
+}
+.m3d-picker-month:hover { background: rgba(208,188,255,0.08); }
+.m3d-picker-month svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+.m3d-picker-nav { display: flex; gap: 4px; }
+.m3d-nav-btn {
+  width: 40px; height: 40px; border-radius: 20px;
+  display: flex; align-items: center; justify-content: center;
+  color: #CAC4D0; transition: background 100ms;
+}
+.m3d-nav-btn:hover { background: rgba(208,188,255,0.08); }
+.m3d-nav-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+.m3d-cal-grid { display: grid; grid-template-columns: repeat(7,1fr); padding: 0 12px; }
+.m3d-cal-dow {
+  text-align: center; padding: 8px 0;
+  font-size: 12px; font-weight: 500; color: #938F99;
+}
+.m3d-cal-day {
+  display: flex; align-items: center; justify-content: center;
+  height: 40px; width: 40px; margin: 0 auto;
+  font-size: 14px; color: #E6E1E5;
+  border-radius: 20px; cursor: pointer;
+  transition: background 100ms; font-weight: 400;
+}
+.m3d-cal-day:hover { background: rgba(208,188,255,0.08); }
+.m3d-cal-day.today { border: 1px solid #D0BCFF; color: #D0BCFF; font-weight: 700; }
+.m3d-cal-day.range-start { background: #D0BCFF; color: #381E72; border-radius: 20px 0 0 20px; font-weight: 500; }
+.m3d-cal-day.range-end   { background: #D0BCFF; color: #381E72; border-radius: 0 20px 20px 0; font-weight: 500; }
+.m3d-cal-day.range-start.range-end { border-radius: 20px; }
+.m3d-cal-day.in-range    { background: #4A4458; color: #E8DEF8; border-radius: 0; }
+.m3d-cal-day.other       { color: #49454F; }
+.m3d-picker-footer {
+  display: flex; justify-content: flex-end; gap: 8px;
+  padding: 8px 16px 16px;
+}
+.m3d-btn-text { height: 40px; padding: 0 12px; border-radius: 20px; font-size: 14px; font-weight: 500; color: #D0BCFF; transition: background 100ms; }
+.m3d-btn-text:hover { background: rgba(208,188,255,0.08); }
+.m3d-btn-filled { height: 40px; padding: 0 24px; border-radius: 20px; font-size: 14px; font-weight: 500; background: #D0BCFF; color: #381E72; transition: box-shadow 100ms; }
+.m3d-btn-filled:hover { box-shadow: 0 1px 2px rgba(0,0,0,.5); }
+.m3d-picker-presets {
+  display: flex; flex-wrap: wrap; gap: 6px;
+  padding: 12px 16px; border-bottom: 1px solid #49454F;
+}
+.m3d-picker-preset {
+  height: 30px; padding: 0 14px; border-radius: 8px;
+  font-size: 13px; font-weight: 500; color: #CAC4D0;
+  border: 1px solid #49454F; transition: all 100ms;
+}
+.m3d-picker-preset:hover { background: rgba(208,188,255,0.08); border-color: #938F99; }
+.m3d-picker-preset.active { background: #4A4458; color: #E8DEF8; border-color: transparent; }
+
+/* ─────────────────────────────────────────────────────────────────
+   GRAFANA-STYLE
+───────────────────────────────────────────────────────────────── */
+.gf-timerange {
+  display: inline-flex; align-items: center;
+  background: #22252B;
+  border: 1px solid #2D3036;
+  border-radius: 2px;
+  height: 32px;
+}
+.gf-tr-part {
+  display: flex; align-items: center; gap: 6px;
+  padding: 0 12px; height: 100%; cursor: pointer;
+  font-size: 14px; color: #D8DCE2;
+  border-right: 1px solid #2D3036;
+  transition: background 100ms;
+}
+.gf-tr-part:last-child { border-right: none; }
+.gf-tr-part:hover { background: rgba(255,255,255,0.07); }
+.gf-tr-part svg { width: 14px; height: 14px; fill: none; stroke: #9DA5B4; stroke-width: 1.8; stroke-linecap: round; flex-shrink: 0; }
+.gf-tr-icon-btn {
+  display: flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; cursor: pointer;
+  color: #9DA5B4; border-right: 1px solid #2D3036;
+  transition: background 100ms;
+}
+.gf-tr-icon-btn:hover { background: rgba(255,255,255,0.07); color: #D8DCE2; }
+.gf-tr-icon-btn:last-child { border-right: none; }
+.gf-tr-icon-btn svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+.gf-time-val { font-family: 'Roboto', sans-serif; font-size: 14px; color: #D8DCE2; }
+.gf-time-sep { color: #6E7A8A; margin: 0 6px; }
+
+/* Grafana panel */
+.gf-panel {
+  background: #1F2228;
+  border: 1px solid #2D3036;
+  border-radius: 2px;
+  width: 480px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.6);
+}
+.gf-panel-tabs {
+  display: flex; border-bottom: 1px solid #2D3036;
+}
+.gf-tab {
+  padding: 10px 20px;
+  font-size: 13px; font-weight: 500; color: #9DA5B4;
+  cursor: pointer; transition: color 100ms;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+.gf-tab:hover { color: #D8DCE2; }
+.gf-tab.active { color: #FF7A00; border-bottom-color: #FF7A00; }
+
+.gf-panel-body { padding: 16px; }
+.gf-quick-ranges {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  background: #22252B;
+  border: 1px solid #2D3036;
+  border-radius: 2px;
+  overflow: hidden;
+}
+.gf-qr-item {
+  display: block; padding: 7px 12px;
+  font-size: 13px; color: #9DA5B4;
+  background: #1F2228; cursor: pointer; text-align: left;
+  transition: background 80ms, color 80ms;
+}
+.gf-qr-item:hover { background: rgba(255,122,0,0.1); color: #FF7A00; }
+.gf-qr-item.active { background: rgba(255,122,0,0.15); color: #FF7A00; font-weight: 500; }
+
+.gf-custom { margin-top: 16px; }
+.gf-input-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+.gf-label { font-size: 11px; font-weight: 500; color: #6E7A8A; letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 4px; }
+.gf-input {
+  width: 100%; height: 32px; padding: 0 8px;
+  background: #111217;
+  border: 1px solid #2D3036;
+  border-radius: 2px;
+  font-size: 14px; color: #D8DCE2; font-family: 'Roboto', sans-serif;
+  outline: none; transition: border-color 100ms;
+}
+.gf-input:focus { border-color: #FF7A00; }
+.gf-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.gf-btn {
+  height: 32px; padding: 0 16px; border-radius: 2px;
+  font-size: 14px; font-weight: 500; cursor: pointer;
+  transition: background 100ms;
+}
+.gf-btn-secondary { background: #22252B; color: #D8DCE2; border: 1px solid #2D3036; }
+.gf-btn-secondary:hover { background: #2C3038; }
+.gf-btn-primary { background: #FF7A00; color: #1A1B1E; border: none; }
+.gf-btn-primary:hover { background: #FF8B1A; }
+
+/* Grafana TZ row */
+.gf-tz-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 16px;
+  border-top: 1px solid #2D3036;
+  background: #181B1F;
+}
+.gf-tz-label { font-size: 12px; color: #6E7A8A; flex-shrink: 0; }
+.gf-tz-select {
+  flex: 1; height: 28px; padding: 0 8px;
+  background: #111217; border: 1px solid #2D3036;
+  border-radius: 2px; font-size: 13px; color: #D8DCE2;
+  font-family: 'Roboto', sans-serif; outline: none;
+}
+.gf-tz-btns { display: flex; }
+.gf-tz-btn-item {
+  height: 28px; padding: 0 12px;
+  font-size: 12px; font-weight: 500; color: #9DA5B4;
+  background: #22252B; border: 1px solid #2D3036;
+  cursor: pointer; transition: all 80ms;
+  border-right: none;
+}
+.gf-tz-btn-item:first-child { border-radius: 2px 0 0 2px; }
+.gf-tz-btn-item:last-child  { border-radius: 0 2px 2px 0; border-right: 1px solid #2D3036; }
+.gf-tz-btn-item:hover { background: #2C3038; color: #D8DCE2; }
+.gf-tz-btn-item.active { background: #FF7A00; color: #1A1B1E; border-color: #FF7A00; font-weight: 700; }
+
+/* ─────────────────────────────────────────────────────────────────
+   LIVE time display
+───────────────────────────────────────────────────────────────── */
+.live-display {
+  display: inline-flex; align-items: center; gap: 10px;
+  padding: 6px 14px;
+  border-radius: 4px;
+  font-family: 'Roboto Mono', monospace;
+  font-size: 13px;
+}
+.live-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  animation: livepulse 2s ease-in-out infinite;
+}
+@keyframes livepulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+.live-light { background: #E8DEF8; color: #21005D; }
+.live-light .live-dot { background: #6750A4; }
+.live-dark  { background: #2E2C34; color: #D0BCFF; }
+.live-dark  .live-dot { background: #D0BCFF; }
+.live-gf    { background: rgba(255,122,0,0.12); color: #FF7A00; border: 1px solid rgba(255,122,0,0.25); border-radius: 2px; }
+.live-gf    .live-dot { background: #FF7A00; }
+
+/* ─────────────────────────────────────────────────────────────────
+   Refresh interval (shared)
+───────────────────────────────────────────────────────────────── */
+.m3-refresh { display: inline-flex; align-items: center; gap: 8px; }
+.m3-refresh-select {
+  height: 40px; padding: 0 12px;
+  background: transparent; border: 1px solid #CAC4D0;
+  border-radius: 4px; font-size: 14px; color: #1C1B1F;
+  font-family: 'Roboto', sans-serif; outline: none;
+  transition: border-color 150ms;
+}
+.m3-refresh-select:hover { border-color: #79747E; }
+.m3-refresh-select:focus { border-color: #6750A4; }
+.m3d-refresh-select {
+  height: 40px; padding: 0 12px;
+  background: transparent; border: 1px solid #49454F;
+  border-radius: 4px; font-size: 14px; color: #E6E1E5;
+  font-family: 'Roboto', sans-serif; outline: none;
+}
+.m3d-refresh-select:focus { border-color: #D0BCFF; }
+.gf-refresh-select {
+  height: 32px; padding: 0 8px;
+  background: #22252B; border: 1px solid #2D3036;
+  border-radius: 2px; font-size: 13px; color: #D8DCE2;
+  font-family: 'Roboto', sans-serif; outline: none;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   Layout helpers
+───────────────────────────────────────────────────────────────── */
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+@media (max-width: 680px) { .two-col { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="page-title">Time Range &amp; Timezone Controls</div>
+  <div class="page-sub">Material Design 3 (light &amp; dark) · Grafana-style · standard platform patterns</div>
+
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!--  MD3  LIGHT                                            -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <section class="section">
+    <div class="section-head">Material Design 3 — Light theme</div>
+    <div class="card">
+
+      <!-- 1. Segmented preset buttons -->
+      <div class="col">
+        <div class="label-sm">Segmented button — quick presets</div>
+        <div class="row">
+          <div class="m3-seg" id="seg-light">
+            <button class="m3-seg-btn" data-group="seg-light">15m</button>
+            <button class="m3-seg-btn active" data-group="seg-light">1h</button>
+            <button class="m3-seg-btn" data-group="seg-light">6h</button>
+            <button class="m3-seg-btn" data-group="seg-light">24h</button>
+            <button class="m3-seg-btn" data-group="seg-light">7d</button>
+            <button class="m3-seg-btn" data-group="seg-light">30d</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. Filter chips -->
+      <div class="col">
+        <div class="label-sm">Filter chips — quick ranges</div>
+        <div class="m3-chips" id="chips-light">
+          <button class="m3-chip" data-group="chips-light">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Last 15m
+          </button>
+          <button class="m3-chip active" data-group="chips-light">
+            <svg viewBox="0 0 24 24" style="stroke:#fff"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Last 1h
+          </button>
+          <button class="m3-chip" data-group="chips-light">Last 6h</button>
+          <button class="m3-chip" data-group="chips-light">Last 24h</button>
+          <button class="m3-chip" data-group="chips-light">Last 7d</button>
+          <button class="m3-chip" data-group="chips-light">Last 30d</button>
+        </div>
+      </div>
+
+      <!-- 3. Date range picker + live -->
+      <div class="col">
+        <div class="label-sm">Date range picker (outlined text fields)</div>
+        <div class="row">
+          <div class="m3-daterange">
+            <!-- From field -->
+            <div class="m3-picker-wrap">
+              <div class="m3-field" style="width:190px">
+                <input class="m3-field-input" type="text" id="f-from" value="2026-04-10" placeholder=" " onclick="togglePicker('light-picker')"/>
+                <label class="m3-field-label" for="f-from">From</label>
+                <span class="m3-field-icon"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
+              </div>
+              <!-- Date picker panel -->
+              <div class="m3-picker-panel" id="light-picker">
+                <div class="m3-picker-presets" id="lp-presets">
+                  <button class="m3-picker-preset" data-pp="lp-presets" onclick="setPP(this,'lp-presets')">Today</button>
+                  <button class="m3-picker-preset" data-pp="lp-presets" onclick="setPP(this,'lp-presets')">Yesterday</button>
+                  <button class="m3-picker-preset active" data-pp="lp-presets" onclick="setPP(this,'lp-presets')">Last 7 days</button>
+                  <button class="m3-picker-preset" data-pp="lp-presets" onclick="setPP(this,'lp-presets')">Last 30 days</button>
+                  <button class="m3-picker-preset" data-pp="lp-presets" onclick="setPP(this,'lp-presets')">This month</button>
+                </div>
+                <div class="m3-picker-header">
+                  <button class="m3-picker-month-btn">April 2026 <svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></button>
+                  <div class="m3-picker-nav">
+                    <button class="m3-picker-nav-btn"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+                    <button class="m3-picker-nav-btn"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
+                  </div>
+                </div>
+                <div class="m3-cal-grid" id="light-cal"></div>
+                <div class="m3-picker-footer">
+                  <button class="m3-btn-text" onclick="togglePicker('light-picker')">Cancel</button>
+                  <button class="m3-btn-filled" onclick="togglePicker('light-picker')">OK</button>
+                </div>
+              </div>
+            </div>
+
+            <span class="m3-daterange-sep">→</span>
+
+            <!-- To field -->
+            <div class="m3-field" style="width:190px">
+              <input class="m3-field-input" type="text" id="f-to" value="now" placeholder=" "/>
+              <label class="m3-field-label" for="f-to">To</label>
+              <span class="m3-field-icon"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
+            </div>
+          </div>
+
+          <!-- Live indicator -->
+          <div class="live-display live-light">
+            <span class="live-dot"></span>
+            <span id="live-clock-l"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4. Timezone -->
+      <div class="col">
+        <div class="label-sm">Timezone selector — three variants</div>
+        <div class="row" style="flex-wrap:wrap;gap:20px">
+          <!-- A: Segmented -->
+          <div class="col">
+            <div style="font-size:12px;color:#79747E;margin-bottom:6px">A — Segmented button</div>
+            <div class="m3-tz-seg" id="tzl-a">
+              <button class="m3-tz-btn active" data-tz="tzl-a">
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                UTC
+              </button>
+              <button class="m3-tz-btn" data-tz="tzl-a">
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                Browser
+              </button>
+            </div>
+          </div>
+          <!-- B: Switch -->
+          <div class="col">
+            <div style="font-size:12px;color:#79747E;margin-bottom:6px">B — Switch</div>
+            <div class="m3-switch-row">
+              <span class="m3-switch-label">UTC</span>
+              <label class="m3-switch">
+                <input type="checkbox" onchange="this.closest('.m3-switch-row').querySelector('.m3-switch-label').textContent=this.checked?'Browser':'UTC'"/>
+                <span class="m3-switch-track"></span>
+                <span class="m3-switch-thumb"></span>
+              </label>
+              <span class="m3-switch-label" style="color:#79747E">Browser</span>
+            </div>
+          </div>
+          <!-- C: Tonal chips -->
+          <div class="col">
+            <div style="font-size:12px;color:#79747E;margin-bottom:6px">C — Tonal chips</div>
+            <div class="m3-tz-chip-row" id="tzl-c">
+              <button class="m3-tz-chip" data-tz="tzl-c" onclick="tzChip(this,'tzl-c')">
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                UTC
+              </button>
+              <button class="m3-tz-chip inactive" data-tz="tzl-c" onclick="tzChip(this,'tzl-c')">
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                Browser
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5. Refresh interval -->
+      <div class="col">
+        <div class="label-sm">Auto-refresh interval</div>
+        <div class="row">
+          <select class="m3-refresh-select" aria-label="Refresh interval">
+            <option>Off</option>
+            <option>10s</option>
+            <option selected>30s</option>
+            <option>1m</option>
+            <option>5m</option>
+            <option>15m</option>
+          </select>
+          <span style="font-size:13px;color:#49454F">refresh interval</span>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!--  MD3  DARK                                             -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <section class="section">
+    <div class="section-head">Material Design 3 — Dark theme</div>
+    <div class="card-dark">
+
+      <!-- 1. Segmented preset -->
+      <div class="col">
+        <div class="label-sm label-sm-dark">Segmented button</div>
+        <div class="row">
+          <div class="m3d-seg" id="seg-dark">
+            <button class="m3d-seg-btn" data-group="seg-dark">15m</button>
+            <button class="m3d-seg-btn active" data-group="seg-dark">1h</button>
+            <button class="m3d-seg-btn" data-group="seg-dark">6h</button>
+            <button class="m3d-seg-btn" data-group="seg-dark">24h</button>
+            <button class="m3d-seg-btn" data-group="seg-dark">7d</button>
+            <button class="m3d-seg-btn" data-group="seg-dark">30d</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. Filter chips -->
+      <div class="col">
+        <div class="label-sm label-sm-dark">Filter chips</div>
+        <div class="m3d-chips" id="chips-dark">
+          <button class="m3d-chip" data-group="chips-dark">15m</button>
+          <button class="m3d-chip active" data-group="chips-dark">1h</button>
+          <button class="m3d-chip" data-group="chips-dark">6h</button>
+          <button class="m3d-chip" data-group="chips-dark">24h</button>
+          <button class="m3d-chip" data-group="chips-dark">7d</button>
+          <button class="m3d-chip" data-group="chips-dark">30d</button>
+        </div>
+      </div>
+
+      <!-- 3. Date range trigger + picker -->
+      <div class="col">
+        <div class="label-sm label-sm-dark">Date range picker + live indicator</div>
+        <div class="row" style="flex-wrap:wrap;gap:12px">
+          <div style="position:relative;display:inline-flex;align-items:center;gap:8px">
+            <button class="m3d-trigger" onclick="togglePicker('dark-picker')">
+              <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+              <span class="m3d-trigger-value">2026-04-10 00:00</span>
+              <span class="m3d-trigger-sep">—</span>
+              <span class="m3d-trigger-value">now</span>
+              <span class="m3d-trigger-arrow"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></span>
+            </button>
+            <!-- Dark date picker panel -->
+            <div class="m3d-picker-panel" id="dark-picker" style="position:absolute;top:calc(100% + 4px);left:0;z-index:10;display:none">
+              <div class="m3d-picker-presets" id="dp-presets">
+                <button class="m3d-picker-preset" onclick="setPP(this,'dp-presets')">Today</button>
+                <button class="m3d-picker-preset active" onclick="setPP(this,'dp-presets')">Last 7 days</button>
+                <button class="m3d-picker-preset" onclick="setPP(this,'dp-presets')">Last 30 days</button>
+                <button class="m3d-picker-preset" onclick="setPP(this,'dp-presets')">This month</button>
+              </div>
+              <div class="m3d-picker-header">
+                <button class="m3d-picker-month">April 2026 <svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></button>
+                <div class="m3d-picker-nav">
+                  <button class="m3d-nav-btn"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+                  <button class="m3d-nav-btn"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
+                </div>
+              </div>
+              <div class="m3d-cal-grid" id="dark-cal"></div>
+              <div class="m3d-picker-footer">
+                <button class="m3d-btn-text" onclick="togglePicker('dark-picker')">Cancel</button>
+                <button class="m3d-btn-filled" onclick="togglePicker('dark-picker')">OK</button>
+              </div>
+            </div>
+          </div>
+          <div class="live-display live-dark">
+            <span class="live-dot"></span>
+            <span id="live-clock-d"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4. Timezone -->
+      <div class="col">
+        <div class="label-sm label-sm-dark">Timezone — segmented button</div>
+        <div class="m3d-tz-seg" id="tzd-a">
+          <button class="m3d-tz-btn active" data-tz="tzd-a">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+            UTC
+          </button>
+          <button class="m3d-tz-btn" data-tz="tzd-a">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+            Browser
+          </button>
+        </div>
+      </div>
+
+      <!-- 5. Refresh -->
+      <div class="col">
+        <div class="label-sm label-sm-dark">Auto-refresh</div>
+        <div class="row">
+          <select class="m3d-refresh-select" style="background:#2E2C34">
+            <option>Off</option><option>10s</option><option selected>30s</option><option>1m</option><option>5m</option>
+          </select>
+          <span style="font-size:13px;color:#938F99">refresh interval</span>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!--  GRAFANA                                               -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <section class="section">
+    <div class="section-head">Grafana-style — dark monitoring platform</div>
+    <div class="card-grafana">
+
+      <!-- Time range bar (Grafana topbar style) -->
+      <div class="col">
+        <div class="label-sm-gf" style="color:#6E7A8A;margin-bottom:8px">Time range bar</div>
+        <div class="row" style="gap:8px;flex-wrap:wrap">
+          <!-- Back / Forward nav -->
+          <div class="gf-timerange">
+            <div class="gf-tr-icon-btn" title="Move time range back">
+              <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+            </div>
+            <div class="gf-tr-part" onclick="togglePicker('gf-picker')">
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              <span class="gf-time-val">2026-04-10 00:00:00</span>
+              <span class="gf-time-sep">to</span>
+              <span class="gf-time-val">now</span>
+              <svg viewBox="0 0 24 24" style="width:12px;height:12px;fill:none;stroke:#9DA5B4;stroke-width:2;stroke-linecap:round;margin-left:4px"><polyline points="6 9 12 15 18 9"/></svg>
+            </div>
+            <div class="gf-tr-icon-btn" title="Move time range forward">
+              <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+            </div>
+            <div class="gf-tr-icon-btn" title="Zoom out (time range)">
+              <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+            </div>
+          </div>
+
+          <!-- Refresh controls -->
+          <select class="gf-refresh-select" aria-label="Refresh">
+            <option>Off</option><option>5s</option><option selected>30s</option><option>1m</option><option>5m</option>
+          </select>
+          <button class="gf-btn gf-btn-secondary" style="height:32px;padding:0 10px;display:flex;align-items:center;gap:6px">
+            <svg style="width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+            Refresh
+          </button>
+
+          <div class="live-display live-gf">
+            <span class="live-dot"></span>
+            <span id="live-clock-g"></span> UTC
+          </div>
+        </div>
+      </div>
+
+      <!-- Panel -->
+      <div class="col">
+        <div class="label-sm-gf" style="color:#6E7A8A;margin-bottom:8px">Time range picker panel (click bar above to toggle)</div>
+        <div style="position:relative;display:inline-block">
+          <div class="gf-panel" id="gf-picker" style="display:none">
+            <div class="gf-panel-tabs">
+              <div class="gf-tab active">Absolute time range</div>
+              <div class="gf-tab">Recent</div>
+            </div>
+            <div class="gf-panel-body">
+              <!-- Quick ranges (shown in "recent" context but visible here) -->
+              <div class="label-sm-gf" style="margin-bottom:8px">Quick ranges</div>
+              <div class="gf-quick-ranges" id="gf-qr">
+                <button class="gf-qr-item" onclick="gfQR(this)">Last 5 minutes</button>
+                <button class="gf-qr-item" onclick="gfQR(this)">Last 15 minutes</button>
+                <button class="gf-qr-item active" onclick="gfQR(this)">Last 1 hour</button>
+                <button class="gf-qr-item" onclick="gfQR(this)">Last 3 hours</button>
+                <button class="gf-qr-item" onclick="gfQR(this)">Last 6 hours</button>
+                <button class="gf-qr-item" onclick="gfQR(this)">Last 12 hours</button>
+                <button class="gf-qr-item" onclick="gfQR(this)">Last 24 hours</button>
+                <button class="gf-qr-item" onclick="gfQR(this)">Last 2 days</button>
+                <button class="gf-qr-item" onclick="gfQR(this)">Last 7 days</button>
+                <button class="gf-qr-item" onclick="gfQR(this)">Last 30 days</button>
+                <button class="gf-qr-item" onclick="gfQR(this)">Last 90 days</button>
+                <button class="gf-qr-item" onclick="gfQR(this)">Last 6 months</button>
+              </div>
+              <!-- Custom -->
+              <div class="gf-custom">
+                <div class="gf-input-row">
+                  <div>
+                    <div class="gf-label">From</div>
+                    <input class="gf-input" type="text" value="now-1h"/>
+                  </div>
+                  <div>
+                    <div class="gf-label">To</div>
+                    <input class="gf-input" type="text" value="now"/>
+                  </div>
+                </div>
+                <div class="gf-actions">
+                  <button class="gf-btn gf-btn-secondary" onclick="togglePicker('gf-picker')">Cancel</button>
+                  <button class="gf-btn gf-btn-primary" onclick="togglePicker('gf-picker')">Apply time range</button>
+                </div>
+              </div>
+            </div>
+            <!-- TZ footer -->
+            <div class="gf-tz-row">
+              <span class="gf-tz-label">Timezone</span>
+              <div class="gf-tz-btns" id="gf-tz">
+                <button class="gf-tz-btn-item active" onclick="gfTZ(this)">UTC</button>
+                <button class="gf-tz-btn-item" onclick="gfTZ(this)">Browser</button>
+                <button class="gf-tz-btn-item" onclick="gfTZ(this)">Custom</button>
+              </div>
+              <select class="gf-tz-select" style="flex:0;width:140px;display:none" id="gf-tz-custom">
+                <option>Asia/Kolkata (+5:30)</option>
+                <option>America/New_York (-4:00)</option>
+                <option>Europe/London (+1:00)</option>
+                <option>Asia/Tokyo (+9:00)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+</div><!-- .page -->
+
+<script>
+// ── Generic segmented/chip toggle ──────────────────────────────
+function makeToggle(selector, activeClass, inactiveClass) {
+  document.querySelectorAll(selector).forEach(btn => {
+    btn.addEventListener('click', function() {
+      const group = this.dataset.group || this.dataset.tz;
+      document.querySelectorAll(`[data-group="${group}"],[data-tz="${group}"]`).forEach(b => {
+        b.classList.remove(activeClass);
+        if (inactiveClass) b.classList.add(inactiveClass);
+      });
+      this.classList.add(activeClass);
+      if (inactiveClass) this.classList.remove(inactiveClass);
+    });
+  });
+}
+makeToggle('.m3-seg-btn', 'active', null);
+makeToggle('.m3-chip', 'active', null);
+makeToggle('.m3d-seg-btn', 'active', null);
+makeToggle('.m3d-chip', 'active', null);
+makeToggle('.m3-tz-btn', 'active', null);
+makeToggle('.m3d-tz-btn', 'active', null);
+
+function tzChip(btn, id) {
+  document.querySelectorAll(`[data-tz="${id}"]`).forEach(b => { b.classList.add('inactive'); b.classList.remove('m3-tz-chip'); b.classList.add('m3-tz-chip'); });
+  // simpler: toggle active/inactive
+  document.querySelectorAll(`[data-tz="${id}"]`).forEach(b => { b.classList.toggle('inactive', b !== btn); });
+}
+
+// ── Picker toggle ──────────────────────────────────────────────
+function togglePicker(id) {
+  const p = document.getElementById(id);
+  if (!p) return;
+  const isOpen = p.classList.contains('open') || p.style.display === 'block';
+  // close all
+  document.querySelectorAll('.m3-picker-panel').forEach(x => x.classList.remove('open'));
+  document.querySelectorAll('#dark-picker, #gf-picker').forEach(x => x.style.display = 'none');
+  if (!isOpen) {
+    if (p.classList !== undefined && p.id !== 'dark-picker' && p.id !== 'gf-picker') p.classList.add('open');
+    else p.style.display = 'block';
+  }
+}
+document.addEventListener('click', e => {
+  if (!e.target.closest('.m3-picker-wrap') && !e.target.closest('#dark-picker') && !e.target.closest('#gf-picker')) {
+    document.querySelectorAll('.m3-picker-panel').forEach(x => x.classList.remove('open'));
+    ['dark-picker','gf-picker'].forEach(id => { const el = document.getElementById(id); if(el) el.style.display='none'; });
+  }
+});
+
+// ── Picker presets ─────────────────────────────────────────────
+function setPP(btn, id) {
+  document.querySelectorAll(`[data-pp="${id}"]`).forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+// ── Grafana quick range ────────────────────────────────────────
+function gfQR(btn) {
+  document.querySelectorAll('#gf-qr .gf-qr-item').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+function gfTZ(btn) {
+  document.querySelectorAll('#gf-tz .gf-tz-btn-item').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('gf-tz-custom').style.display = btn.textContent.trim() === 'Custom' ? 'block' : 'none';
+}
+
+// ── Build calendars ────────────────────────────────────────────
+function buildCal(containerId, startDay, rangeStartDay, rangeEndDay, prefix, month, year) {
+  const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const DOWS = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+  const today = new Date(); const todayD = today.getDate(); const todayM = today.getMonth(); const todayY = today.getFullYear();
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  const m = month ?? today.getMonth(); const y = year ?? today.getFullYear();
+  const firstDow = new Date(y, m, 1).getDay();
+  const daysInMonth = new Date(y, m+1, 0).getDate();
+  let html = '';
+  DOWS.forEach(d => { html += `<div class="${prefix}cal-dow">${d}</div>`; });
+  for (let i=0; i<firstDow; i++) html += '<div></div>';
+  for (let d=1; d<=daysInMonth; d++) {
+    let cls = `${prefix}cal-day`;
+    if (d===todayD && m===todayM && y===todayY) cls += ' today';
+    if (d===rangeStartDay) cls += d===rangeEndDay ? ' range-start range-end' : ' range-start';
+    else if (d===rangeEndDay) cls += ' range-end';
+    else if (d>rangeStartDay && d<rangeEndDay) cls += ' in-range';
+    html += `<div class="${cls}">${d}</div>`;
+  }
+  container.innerHTML = html;
+}
+buildCal('light-cal', 0, 10, 17, 'm3-', 3, 2026);
+buildCal('dark-cal',  0, 10, 17, 'm3d-', 3, 2026);
+
+// ── Live clocks ────────────────────────────────────────────────
+function updateClocks() {
+  const now = new Date();
+  const hh = now.getUTCHours().toString().padStart(2,'0');
+  const mm = now.getUTCMinutes().toString().padStart(2,'0');
+  const ss = now.getUTCSeconds().toString().padStart(2,'0');
+  const str = `${hh}:${mm}:${ss} UTC`;
+  ['live-clock-l','live-clock-d','live-clock-g'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = id === 'live-clock-g' ? `${hh}:${mm}:${ss}` : str;
+  });
+}
+updateClocks();
+setInterval(updateClocks, 1000);
+</script>
+</body>
+</html>
