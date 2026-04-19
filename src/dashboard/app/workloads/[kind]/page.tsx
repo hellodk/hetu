@@ -277,7 +277,7 @@ function LogStreamPanel({
       wsRefs.current.forEach(ws => ws.close())
       wsRefs.current = []
     }
-  }, [connectAll])
+  }, [connectAll, targetPods.length])
 
   // Teleprompter scroll: newest log line sits at the viewport midpoint.
   // A spacer div (50% of container height) below the log lines creates

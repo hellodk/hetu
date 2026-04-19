@@ -1,0 +1,1031 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Issues — Swimlane Matrix</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,400;0,600;0,700;0,900;1,400&family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --white: #ffffff;
+    --black: #000000;
+    --rule: #000000;
+    --rule-light: #cccccc;
+    --rule-mid: #888888;
+    --bg: #f4f2ed;
+    --col-crit: #ff2020;
+    --col-high: #ff7a00;
+    --col-med: #1a1a1a;
+    --col-low: #555555;
+    --mono: 'Courier Prime', monospace;
+    --cond: 'Barlow Condensed', sans-serif;
+  }
+
+  html, body {
+    min-height: 100%;
+    background: var(--bg);
+    color: var(--black);
+    font-family: var(--cond);
+    font-size: 13px;
+    overflow-x: hidden;
+  }
+
+  /* ── MASTHEAD ───────────────────────────── */
+  .masthead {
+    border-bottom: 4px solid var(--black);
+    padding: 0;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: var(--white);
+  }
+
+  .masthead-top {
+    display: flex;
+    align-items: stretch;
+    border-bottom: 1px solid var(--black);
+  }
+
+  .logo-block {
+    padding: 10px 24px;
+    border-right: 1px solid var(--black);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  .logo-eyebrow {
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: var(--rule-mid);
+    font-family: var(--cond);
+  }
+  .logo-name {
+    font-family: var(--cond);
+    font-weight: 900;
+    font-size: 26px;
+    letter-spacing: -0.5px;
+    line-height: 1;
+    text-transform: uppercase;
+  }
+
+  .headline-block {
+    flex: 1;
+    padding: 10px 24px;
+    display: flex;
+    align-items: center;
+    gap: 40px;
+  }
+  .headline-main {
+    font-family: var(--cond);
+    font-weight: 900;
+    font-size: 32px;
+    text-transform: uppercase;
+    letter-spacing: -0.5px;
+    line-height: 1;
+  }
+  .headline-sub {
+    font-family: var(--cond);
+    font-weight: 400;
+    font-style: italic;
+    font-size: 14px;
+    color: var(--rule-mid);
+    max-width: 300px;
+    line-height: 1.3;
+  }
+
+  .meta-block {
+    display: flex;
+    border-left: 1px solid var(--black);
+  }
+  .meta-cell {
+    padding: 10px 20px;
+    border-right: 1px solid var(--rule-light);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-end;
+    min-width: 80px;
+  }
+  .meta-cell:last-child { border-right: none; }
+  .meta-num {
+    font-family: var(--cond);
+    font-weight: 900;
+    font-size: 28px;
+    line-height: 1;
+  }
+  .meta-label {
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--rule-mid);
+    margin-top: 2px;
+  }
+  .num-red { color: var(--col-crit); }
+  .num-orange { color: var(--col-high); }
+
+  /* column header row */
+  .col-headers {
+    display: grid;
+    grid-template-columns: 180px repeat(4, 1fr);
+    border-top: 1px solid var(--rule-light);
+  }
+  .ch-spacer {
+    border-right: 2px solid var(--black);
+    padding: 6px 12px;
+    display: flex;
+    align-items: center;
+  }
+  .ch-spacer-label {
+    font-size: 9px;
+    letter-spacing: 3px;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--rule-mid);
+  }
+  .col-head {
+    padding: 6px 16px;
+    border-right: 1px solid var(--rule-light);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .col-head:last-child { border-right: none; }
+  .ch-title {
+    font-family: var(--cond);
+    font-weight: 900;
+    font-size: 14px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+  .ch-rule {
+    display: block;
+    width: 20px;
+    height: 4px;
+    margin-top: 2px;
+  }
+  .ch-count {
+    font-family: var(--mono);
+    font-size: 22px;
+    font-weight: 700;
+    line-height: 1;
+  }
+  .head-critical .ch-title, .head-critical .ch-count { color: var(--col-crit); }
+  .head-critical .ch-rule { background: var(--col-crit); }
+  .head-high .ch-title, .head-high .ch-count { color: var(--col-high); }
+  .head-high .ch-rule { background: var(--col-high); }
+  .head-medium { }
+  .head-low .ch-title, .head-low .ch-count { color: var(--rule-mid); }
+  .head-low .ch-rule { background: var(--rule-mid); }
+
+  /* ── SWIMLANE GRID ──────────────────────── */
+  .board {
+    display: grid;
+    grid-template-columns: 180px repeat(4, 1fr);
+    min-height: calc(100vh - 140px);
+  }
+
+  /* Row label cells */
+  .row-label {
+    border-right: 2px solid var(--black);
+    border-bottom: 1px solid var(--rule-light);
+    padding: 12px;
+    background: var(--white);
+    position: sticky;
+    left: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: 4px;
+  }
+  .row-label-name {
+    font-family: var(--cond);
+    font-weight: 700;
+    font-size: 12px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    writing-mode: horizontal-tb;
+  }
+  .row-label-count {
+    font-family: var(--mono);
+    font-size: 20px;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--rule-mid);
+    margin-top: auto;
+  }
+  .row-label-bar {
+    height: 2px;
+    background: var(--black);
+    width: 100%;
+    margin-top: 4px;
+  }
+
+  /* Board cells */
+  .cell {
+    border-right: 1px solid var(--rule-light);
+    border-bottom: 1px solid var(--rule-light);
+    padding: 10px;
+    vertical-align: top;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-height: 130px;
+  }
+  .cell:last-child { border-right: none; }
+
+  /* Issue card */
+  .card {
+    background: var(--white);
+    border: 1px solid var(--black);
+    padding: 8px 10px;
+    cursor: pointer;
+    transition: transform 0.08s, box-shadow 0.08s;
+    position: relative;
+  }
+  .card:hover {
+    transform: translate(-1px, -2px);
+    box-shadow: 3px 3px 0 var(--black);
+  }
+  .card.crit { border-left: 4px solid var(--col-crit); }
+  .card.high { border-left: 4px solid var(--col-high); }
+  .card.med { border-left: 4px solid var(--black); }
+  .card.low { border-left: 4px solid var(--rule-mid); }
+
+  .card-title {
+    font-family: var(--cond);
+    font-weight: 600;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    line-height: 1.3;
+  }
+  .card-meta {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-top: 4px;
+    flex-wrap: wrap;
+  }
+  .card-count {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .card-count.c-red { color: var(--col-crit); }
+  .card-count.c-orange { color: var(--col-high); }
+  .card-ns {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--rule-mid);
+    border: 1px solid var(--rule-light);
+    padding: 0 4px;
+  }
+  .card-age {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--rule-mid);
+    margin-left: auto;
+  }
+
+  /* critical cell background tint */
+  .cell-crit { background: rgba(255,32,32,0.02); }
+  .cell-high { background: rgba(255,122,0,0.015); }
+
+  /* empty cell */
+  .cell-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--cond);
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: var(--rule-light);
+    text-transform: uppercase;
+    font-style: italic;
+  }
+
+  /* count pill for "more" */
+  .more-pill {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--rule-mid);
+    border-top: 1px dashed var(--rule-light);
+    padding-top: 4px;
+    text-align: right;
+    width: 100%;
+  }
+
+  /* ── DETAIL MODAL ───────────────────────── */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--white);
+    border: 2px solid var(--black);
+    width: 680px;
+    max-width: 95vw;
+    max-height: 80vh;
+    overflow-y: auto;
+    position: relative;
+  }
+  .modal-header {
+    border-bottom: 2px solid var(--black);
+    padding: 16px 20px;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .modal-sev-bar {
+    width: 6px;
+    align-self: stretch;
+    flex-shrink: 0;
+  }
+  .modal-title {
+    font-family: var(--cond);
+    font-weight: 900;
+    font-size: 20px;
+    text-transform: uppercase;
+    line-height: 1.2;
+    flex: 1;
+  }
+  .modal-close {
+    font-size: 24px;
+    cursor: pointer;
+    border: 1px solid var(--black);
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    background: var(--white);
+    flex-shrink: 0;
+  }
+  .modal-close:hover { background: var(--black); color: var(--white); }
+  .modal-body { padding: 20px; }
+  .modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .modal-section-title {
+    font-family: var(--cond);
+    font-weight: 700;
+    font-size: 10px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--black);
+    padding-bottom: 4px;
+    margin-bottom: 8px;
+  }
+  .modal-text {
+    font-family: var(--cond);
+    font-size: 14px;
+    line-height: 1.5;
+    color: #333;
+  }
+  .modal-code {
+    background: #f0ede7;
+    border: 1px solid var(--rule-mid);
+    padding: 10px 12px;
+    font-family: var(--mono);
+    font-size: 11px;
+    line-height: 1.6;
+    white-space: pre;
+  }
+  .modal-action {
+    font-family: var(--cond);
+    font-weight: 700;
+    font-size: 12px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 8px 20px;
+    border: 2px solid var(--black);
+    background: var(--white);
+    cursor: pointer;
+    margin-top: 12px;
+    display: inline-block;
+    transition: all 0.1s;
+  }
+  .modal-action:hover { background: var(--black); color: var(--white); }
+  .modal-action.primary { background: var(--black); color: var(--white); }
+  .modal-action.primary:hover { background: #333; }
+
+  /* ── FOOTER STATS ───────────────────────── */
+  .footer-stats {
+    border-top: 4px solid var(--black);
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    background: var(--white);
+    position: sticky;
+    bottom: 0;
+    z-index: 90;
+  }
+  .fs-cell {
+    padding: 10px 16px;
+    border-right: 1px solid var(--rule-light);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .fs-cell:last-child { border-right: none; }
+  .fs-label {
+    font-size: 9px;
+    letter-spacing: 3px;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--rule-mid);
+  }
+  .fs-val {
+    font-family: var(--mono);
+    font-size: 15px;
+    font-weight: 700;
+  }
+
+  /* print-style rule lines across bg */
+  .board-rule-overlay {
+    display: none;
+  }
+</style>
+</head>
+<body>
+
+<!-- ── MASTHEAD ── -->
+<header class="masthead">
+  <div class="masthead-top">
+    <div class="logo-block">
+      <span class="logo-eyebrow">Kubernetes</span>
+      <span class="logo-name">Cluster Intel</span>
+    </div>
+    <div class="headline-block">
+      <div>
+        <div class="headline-main">Issue Matrix</div>
+      </div>
+      <div class="headline-sub">Severity × Category view — cluster-prod-01 — 18 Apr 2026 09:41 UTC</div>
+    </div>
+    <div class="meta-block">
+      <div class="meta-cell">
+        <div class="meta-num num-red">7</div>
+        <div class="meta-label">Critical</div>
+      </div>
+      <div class="meta-cell">
+        <div class="meta-num num-orange">65</div>
+        <div class="meta-label">High</div>
+      </div>
+      <div class="meta-cell">
+        <div class="meta-num">298</div>
+        <div class="meta-label">Medium</div>
+      </div>
+      <div class="meta-cell">
+        <div class="meta-num" style="color:var(--rule-mid)">370</div>
+        <div class="meta-label">Low</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-headers">
+    <div class="ch-spacer">
+      <span class="ch-spacer-label">Category ↓ / Severity →</span>
+    </div>
+    <div class="col-head head-critical">
+      <div>
+        <div class="ch-title">Critical</div>
+        <span class="ch-rule"></span>
+      </div>
+      <div class="ch-count">7</div>
+    </div>
+    <div class="col-head head-high">
+      <div>
+        <div class="ch-title">High</div>
+        <span class="ch-rule"></span>
+      </div>
+      <div class="ch-count">65</div>
+    </div>
+    <div class="col-head head-medium">
+      <div>
+        <div class="ch-title">Medium</div>
+        <span class="ch-rule" style="background:var(--black)"></span>
+      </div>
+      <div class="ch-count">298</div>
+    </div>
+    <div class="col-head head-low">
+      <div>
+        <div class="ch-title">Low</div>
+        <span class="ch-rule"></span>
+      </div>
+      <div class="ch-count">370</div>
+    </div>
+  </div>
+</header>
+
+<!-- ── SWIMLANE BOARD ── -->
+<div class="board">
+
+  <!-- ── ROW: NETWORKING ── -->
+  <div class="row-label">
+    <div class="row-label-name">Networking</div>
+    <div class="row-label-bar"></div>
+    <div class="row-label-count">18</div>
+  </div>
+  <!-- CRITICAL -->
+  <div class="cell cell-crit">
+    <div class="card crit" onclick="openModal('dns-crash')">
+      <div class="card-title">CoreDNS CrashLoopBackOff</div>
+      <div class="card-meta">
+        <span class="card-count c-red">×4 pods</span>
+        <span class="card-ns">kube-system</span>
+        <span class="card-age">2h 14m</span>
+      </div>
+    </div>
+  </div>
+  <!-- HIGH -->
+  <div class="cell cell-high">
+    <div class="card high" onclick="openModal('net-high-1')">
+      <div class="card-title">NetworkPolicy blocking cross-ns traffic</div>
+      <div class="card-meta">
+        <span class="card-count c-orange">×3</span>
+        <span class="card-ns">production</span>
+        <span class="card-age">4h</span>
+      </div>
+    </div>
+    <div class="card high" onclick="openModal('net-high-2')">
+      <div class="card-title">Ingress SSL cert expiring in 8 days</div>
+      <div class="card-meta">
+        <span class="card-count c-orange">×2</span>
+        <span class="card-ns">ingress-nginx</span>
+        <span class="card-age">8d left</span>
+      </div>
+    </div>
+  </div>
+  <!-- MEDIUM -->
+  <div class="cell">
+    <div class="card med" onclick="openModal('net-med-1')">
+      <div class="card-title">Service ClusterIP not resolving from namespace</div>
+      <div class="card-meta">
+        <span class="card-count">×6</span>
+        <span class="card-ns">staging</span>
+        <span class="card-age">1d</span>
+      </div>
+    </div>
+    <div class="card med">
+      <div class="card-title">LoadBalancer pending IP assignment</div>
+      <div class="card-meta">
+        <span class="card-count">×2</span>
+        <span class="card-ns">dev</span>
+        <span class="card-age">45m</span>
+      </div>
+    </div>
+    <div class="more-pill">+ 1 more</div>
+  </div>
+  <!-- LOW -->
+  <div class="cell">
+    <div class="card low">
+      <div class="card-title">Unused Services (no endpoints)</div>
+      <div class="card-meta">
+        <span class="card-count" style="color:var(--rule-mid)">×8</span>
+        <span class="card-ns">dev</span>
+        <span class="card-age">14d</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── ROW: WORKLOADS ── -->
+  <div class="row-label">
+    <div class="row-label-name">Workloads</div>
+    <div class="row-label-bar"></div>
+    <div class="row-label-count">42</div>
+  </div>
+  <!-- CRITICAL -->
+  <div class="cell cell-crit">
+    <div class="card crit" onclick="openModal('etcd-latency')">
+      <div class="card-title">etcd disk I/O latency >500ms</div>
+      <div class="card-meta">
+        <span class="card-count c-red">×1</span>
+        <span class="card-ns">kube-system</span>
+        <span class="card-age">45m</span>
+      </div>
+    </div>
+    <div class="card crit" onclick="openModal('oom-crit')">
+      <div class="card-title">payment-service CrashLoop — DB conn timeout</div>
+      <div class="card-meta">
+        <span class="card-count c-red">×3</span>
+        <span class="card-ns">payments</span>
+        <span class="card-age">20m</span>
+      </div>
+    </div>
+  </div>
+  <!-- HIGH -->
+  <div class="cell cell-high">
+    <div class="card high">
+      <div class="card-title">OOMKilled — payment-service 5 restarts</div>
+      <div class="card-meta">
+        <span class="card-count c-orange">512Mi limit</span>
+        <span class="card-ns">payments</span>
+        <span class="card-age">1h</span>
+      </div>
+    </div>
+    <div class="card high">
+      <div class="card-title">Pending pods — insufficient CPU nodes</div>
+      <div class="card-meta">
+        <span class="card-count c-orange">×12</span>
+        <span class="card-ns">production</span>
+        <span class="card-age">2h</span>
+      </div>
+    </div>
+    <div class="more-pill">+ 6 more</div>
+  </div>
+  <!-- MEDIUM -->
+  <div class="cell">
+    <div class="card med">
+      <div class="card-title">High pod restart count (&gt;10 in 1h)</div>
+      <div class="card-meta">
+        <span class="card-count">×17</span>
+        <span class="card-ns">various</span>
+      </div>
+    </div>
+    <div class="card med">
+      <div class="card-title">Deployment rollout stuck at 60%</div>
+      <div class="card-meta">
+        <span class="card-count">×4</span>
+        <span class="card-ns">production</span>
+        <span class="card-age">30m</span>
+      </div>
+    </div>
+    <div class="more-pill">+ 14 more</div>
+  </div>
+  <!-- LOW -->
+  <div class="cell">
+    <div class="card low">
+      <div class="card-title">ImagePullBackOff — tag not found</div>
+      <div class="card-meta">
+        <span class="card-count" style="color:var(--rule-mid)">×2</span>
+        <span class="card-ns">dev</span>
+      </div>
+    </div>
+    <div class="card low">
+      <div class="card-title">Pods without liveness probes</div>
+      <div class="card-meta">
+        <span class="card-count" style="color:var(--rule-mid)">×23</span>
+        <span class="card-ns">staging</span>
+      </div>
+    </div>
+    <div class="more-pill">+ 8 more</div>
+  </div>
+
+  <!-- ── ROW: SECURITY ── -->
+  <div class="row-label">
+    <div class="row-label-name">Security</div>
+    <div class="row-label-bar"></div>
+    <div class="row-label-count">104</div>
+  </div>
+  <!-- CRITICAL -->
+  <div class="cell cell-crit">
+    <div class="card crit">
+      <div class="card-title">Privileged container in production namespace</div>
+      <div class="card-meta">
+        <span class="card-count c-red">×2</span>
+        <span class="card-ns">production</span>
+        <span class="card-age">6d</span>
+      </div>
+    </div>
+  </div>
+  <!-- HIGH -->
+  <div class="cell cell-high">
+    <div class="card high">
+      <div class="card-title">28 CVEs in nginx:1.21 — 3 critical</div>
+      <div class="card-meta">
+        <span class="card-count c-orange">CVSS 9.4</span>
+        <span class="card-ns">ingress-nginx</span>
+        <span class="card-age">3d</span>
+      </div>
+    </div>
+    <div class="card high">
+      <div class="card-title">RBAC: ClusterAdmin role bound to user</div>
+      <div class="card-meta">
+        <span class="card-count c-orange">×3</span>
+        <span class="card-ns">cluster-wide</span>
+        <span class="card-age">12d</span>
+      </div>
+    </div>
+    <div class="more-pill">+ 9 more</div>
+  </div>
+  <!-- MEDIUM -->
+  <div class="cell">
+    <div class="card med">
+      <div class="card-title">CIS Benchmark violations — 16 controls</div>
+      <div class="card-meta">
+        <span class="card-count">×16</span>
+        <span class="card-ns">cluster</span>
+      </div>
+    </div>
+    <div class="card med">
+      <div class="card-title">Containers running as root UID 0</div>
+      <div class="card-meta">
+        <span class="card-count">×34</span>
+        <span class="card-ns">various</span>
+      </div>
+    </div>
+    <div class="more-pill">+ 28 more</div>
+  </div>
+  <!-- LOW -->
+  <div class="cell">
+    <div class="card low">
+      <div class="card-title">Pods missing securityContext.readOnlyRootFilesystem</div>
+      <div class="card-meta">
+        <span class="card-count" style="color:var(--rule-mid)">×41</span>
+        <span class="card-ns">various</span>
+      </div>
+    </div>
+    <div class="more-pill">+ 11 more</div>
+  </div>
+
+  <!-- ── ROW: EVENTS ── -->
+  <div class="row-label">
+    <div class="row-label-name">Events</div>
+    <div class="row-label-bar"></div>
+    <div class="row-label-count">311</div>
+  </div>
+  <!-- CRITICAL -->
+  <div class="cell cell-crit cell-empty">—</div>
+  <!-- HIGH -->
+  <div class="cell cell-high">
+    <div class="card high">
+      <div class="card-title">Node NotReady — kubelet stopped posting</div>
+      <div class="card-meta">
+        <span class="card-count c-orange">×1</span>
+        <span class="card-ns">node-03</span>
+        <span class="card-age">15m</span>
+      </div>
+    </div>
+  </div>
+  <!-- MEDIUM -->
+  <div class="cell">
+    <div class="card med">
+      <div class="card-title">298 Warning events — BackOff threshold</div>
+      <div class="card-meta">
+        <span class="card-count">47 pods</span>
+        <span class="card-ns">production</span>
+        <span class="card-age">ongoing</span>
+      </div>
+    </div>
+  </div>
+  <!-- LOW -->
+  <div class="cell">
+    <div class="card low">
+      <div class="card-title">Repeated Pulling events — slow registry</div>
+      <div class="card-meta">
+        <span class="card-count" style="color:var(--rule-mid)">×12</span>
+        <span class="card-ns">various</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── ROW: STORAGE ── -->
+  <div class="row-label">
+    <div class="row-label-name">Storage</div>
+    <div class="row-label-bar"></div>
+    <div class="row-label-count">14</div>
+  </div>
+  <!-- CRITICAL -->
+  <div class="cell cell-crit cell-empty">—</div>
+  <!-- HIGH -->
+  <div class="cell cell-high">
+    <div class="card high">
+      <div class="card-title">PV at 96% capacity — postgres-data-0</div>
+      <div class="card-meta">
+        <span class="card-count c-orange">1 vol</span>
+        <span class="card-ns">data</span>
+        <span class="card-age">30m</span>
+      </div>
+    </div>
+  </div>
+  <!-- MEDIUM -->
+  <div class="cell">
+    <div class="card med">
+      <div class="card-title">PVs above 85% utilization</div>
+      <div class="card-meta">
+        <span class="card-count">×5</span>
+        <span class="card-ns">data</span>
+      </div>
+    </div>
+    <div class="card med">
+      <div class="card-title">PVC unbound — StorageClass unavailable</div>
+      <div class="card-meta">
+        <span class="card-count">×2</span>
+        <span class="card-ns">dev</span>
+      </div>
+    </div>
+  </div>
+  <!-- LOW -->
+  <div class="cell">
+    <div class="card low">
+      <div class="card-title">Unused PVCs (Released state)</div>
+      <div class="card-meta">
+        <span class="card-count" style="color:var(--rule-mid)">×6</span>
+        <span class="card-ns">staging</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── ROW: CONFIG ── -->
+  <div class="row-label">
+    <div class="row-label-name">Config</div>
+    <div class="row-label-bar"></div>
+    <div class="row-label-count">251</div>
+  </div>
+  <!-- CRITICAL -->
+  <div class="cell cell-crit cell-empty">—</div>
+  <!-- HIGH -->
+  <div class="cell cell-high">
+    <div class="card high">
+      <div class="card-title">Secret referenced in pod but missing</div>
+      <div class="card-meta">
+        <span class="card-count c-orange">×4</span>
+        <span class="card-ns">production</span>
+      </div>
+    </div>
+  </div>
+  <!-- MEDIUM -->
+  <div class="cell">
+    <div class="card med">
+      <div class="card-title">ConfigMap out of sync with deployment</div>
+      <div class="card-meta">
+        <span class="card-count">×11</span>
+        <span class="card-ns">various</span>
+      </div>
+    </div>
+    <div class="more-pill">+ 18 more</div>
+  </div>
+  <!-- LOW -->
+  <div class="cell">
+    <div class="card low">
+      <div class="card-title">Resource requests not set</div>
+      <div class="card-meta">
+        <span class="card-count" style="color:var(--rule-mid)">×17</span>
+        <span class="card-ns">staging</span>
+      </div>
+    </div>
+    <div class="card low">
+      <div class="card-title">Deprecated API versions in manifests</div>
+      <div class="card-meta">
+        <span class="card-count" style="color:var(--rule-mid)">×9</span>
+        <span class="card-ns">various</span>
+      </div>
+    </div>
+    <div class="more-pill">+ 191 more</div>
+  </div>
+
+</div>
+
+<!-- ── FOOTER ── -->
+<div class="footer-stats">
+  <div class="fs-cell">
+    <div class="fs-label">Total Issues</div>
+    <div class="fs-val">740</div>
+  </div>
+  <div class="fs-cell">
+    <div class="fs-label">Namespaces</div>
+    <div class="fs-val">12</div>
+  </div>
+  <div class="fs-cell">
+    <div class="fs-label">Affected Pods</div>
+    <div class="fs-val">143</div>
+  </div>
+  <div class="fs-cell">
+    <div class="fs-label">Cluster Score</div>
+    <div class="fs-val" style="color:var(--col-crit)">27%</div>
+  </div>
+  <div class="fs-cell">
+    <div class="fs-label">Last Scan</div>
+    <div class="fs-val" style="font-size:12px">09:41:03</div>
+  </div>
+  <div class="fs-cell">
+    <div class="fs-label">Status</div>
+    <div class="fs-val" style="font-size:12px;color:var(--col-crit)">DEGRADED</div>
+  </div>
+</div>
+
+<!-- ── MODAL ── -->
+<div class="modal-overlay" id="modal" onclick="closeModal(event)">
+  <div class="modal" id="modal-inner">
+    <div class="modal-header">
+      <div class="modal-sev-bar" id="modal-sev-bar"></div>
+      <div class="modal-title" id="modal-title">Issue Detail</div>
+      <div class="modal-close" onclick="closeModalDirect()">×</div>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+  </div>
+</div>
+
+<script>
+  const issues = {
+    'dns-crash': {
+      title: 'CoreDNS CrashLoopBackOff — DNS Resolution Failing',
+      sev: 'critical',
+      body: `<div class="modal-grid">
+        <div>
+          <div class="modal-section-title">Root Cause</div>
+          <p class="modal-text">CoreDNS pods are crash-looping due to a ConfigMap misconfiguration. The forward plugin targets an unreachable upstream resolver at 10.96.0.20:53, causing all DNS queries to time out and the pod to restart.</p>
+          <br>
+          <div class="modal-section-title">Impact</div>
+          <p class="modal-text">All service-to-service DNS resolution is failing cluster-wide. HTTP 502/503 errors are cascading through dependent services.</p>
+        </div>
+        <div>
+          <div class="modal-section-title">Fix Commands</div>
+          <div class="modal-code">$ kubectl rollout restart \\
+  deploy/coredns \\
+  -n kube-system
+
+# Or revert the ConfigMap:
+$ kubectl rollout undo \\
+  deploy/coredns \\
+  -n kube-system</div>
+          <button class="modal-action primary">Apply Rollback</button>
+          <button class="modal-action">View Logs</button>
+        </div>
+      </div>`
+    },
+    'etcd-latency': {
+      title: 'etcd Disk I/O Latency Exceeding 500ms',
+      sev: 'critical',
+      body: `<div class="modal-grid">
+        <div>
+          <div class="modal-section-title">Root Cause</div>
+          <p class="modal-text">etcd WAL sync time averaging 620ms due to disk saturation on the control plane node. This is causing leader election timeouts and API server slowdowns. DB size is 4.2GB.</p>
+        </div>
+        <div>
+          <div class="modal-section-title">Diagnostics</div>
+          <div class="modal-code">etcdctl endpoint status \\
+  --write-out=table
+
+DB Size: 4.2GB
+Latency: 620ms avg
+Defrag needed: YES</div>
+          <button class="modal-action primary">Run Defrag</button>
+        </div>
+      </div>`
+    },
+    'net-high-1': {
+      title: 'NetworkPolicy Blocking Cross-Namespace Traffic',
+      sev: 'high',
+      body: `<div class="modal-grid">
+        <div>
+          <div class="modal-section-title">Issue</div>
+          <p class="modal-text">3 NetworkPolicy rules are over-restrictive and blocking legitimate cross-namespace communication. Services in the production namespace cannot reach the shared-services namespace.</p>
+        </div>
+        <div>
+          <div class="modal-section-title">Affected Policies</div>
+          <div class="modal-code">production/deny-all-ingress
+production/restrict-egress
+shared/allow-internal
+
+Blocking:
+  prod → shared-db: DENIED
+  prod → auth-svc:  DENIED</div>
+          <button class="modal-action primary">Review Policies</button>
+        </div>
+      </div>`
+    },
+    default: {
+      title: 'Issue Detail',
+      sev: 'medium',
+      body: '<p class="modal-text" style="padding:20px">Full details would appear here in the production implementation, including root cause analysis, affected resources, remediation steps, and AI-generated fix suggestions.</p>'
+    }
+  };
+
+  function openModal(id) {
+    const issue = issues[id] || issues['default'];
+    document.getElementById('modal-title').textContent = issue.title;
+    document.getElementById('modal-body').innerHTML = issue.body;
+    const bar = document.getElementById('modal-sev-bar');
+    bar.style.background = issue.sev === 'critical' ? 'var(--col-crit)'
+      : issue.sev === 'high' ? 'var(--col-high)' : 'var(--black)';
+    document.getElementById('modal').classList.add('open');
+  }
+
+  function closeModal(e) {
+    if (e.target === document.getElementById('modal')) {
+      document.getElementById('modal').classList.remove('open');
+    }
+  }
+
+  function closeModalDirect() {
+    document.getElementById('modal').classList.remove('open');
+  }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') document.getElementById('modal').classList.remove('open');
+  });
+</script>
+</body>
+</html>

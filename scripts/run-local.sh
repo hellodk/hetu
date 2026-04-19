@@ -13,9 +13,10 @@
 #   scripts/run-local.sh start [-e dev|uat|prod] [--yes] [--non-interactive]
 #   scripts/run-local.sh stop
 #   scripts/run-local.sh status
-#   scripts/run-local.sh restart [...]
+#   scripts/run-local.sh restart            # stop → start with existing settings (no prompts)
 #   scripts/run-local.sh logs [analyzer|dashboard|collector|all]
 #   scripts/run-local.sh build
+#   scripts/run-local.sh publish            # docker build + push to REGISTRY
 #   scripts/run-local.sh setup [-e dev|uat|prod]   # writes env/<env>.env
 #   scripts/run-local.sh doctor                    # pre-flight checks
 #   scripts/run-local.sh lint                      # validate env file only
@@ -26,7 +27,7 @@
 #   DASHBOARD_MODE, ANALYZER_PORT, METRICS_PORT, COLLECTOR_PORT,
 #   DASHBOARD_PORT, COLLECTOR_URL, LLM_PROVIDER, LLM_ENDPOINT, LLM_MODEL,
 #   LLM_API_KEY, MOCK_INTERVAL, ANALYSIS_INTERVAL, EVICT_INTERVAL,
-#   KUBECONFIG, LOG_DIR
+#   KUBECONFIG, LOG_DIR, REGISTRY
 # ─────────────────────────────────────────────────────────────────────────────
 
 set -euo pipefail
@@ -345,6 +346,7 @@ ENV_FILE_VARS=(
   LLM_PROVIDER LLM_ENDPOINT LLM_MODEL LLM_API_KEY
   MOCK_INTERVAL ANALYSIS_INTERVAL EVICT_INTERVAL
   KUBECONFIG
+  REGISTRY
 )
 
 load_env_file() {
@@ -397,6 +399,7 @@ apply_defaults() {
   ANALYSIS_INTERVAL="${ANALYSIS_INTERVAL:-30s}"
   EVICT_INTERVAL="${EVICT_INTERVAL:-30s}"
   KUBECONFIG="${KUBECONFIG:-$HOME/.kube/config}"
+  REGISTRY="${REGISTRY:-}"
 }
 
 # ── Interactive collectors ───────────────────────────────────────────────────
@@ -902,6 +905,8 @@ cmd_status() {
 
 cmd_restart() {
   cmd_stop
+  # Restart re-uses whatever is already in the env file — no re-prompting needed.
+  YES=1
   cmd_start "$@"
 }
 
@@ -919,6 +924,79 @@ cmd_logs() {
 cmd_build() {
   build_analyzer_if_stale
   build_collector_if_stale
+}
+
+cmd_publish() {
+  resolve_env_file
+  load_env_file
+  apply_defaults
+
+  command -v docker >/dev/null 2>&1 || fatal "docker not found — install Docker to build and push images"
+
+  # Resolve registry — required; prompt if not already set.
+  if [[ -z "${REGISTRY:-}" ]]; then
+    if (( YES )) || (( NON_INTERACTIVE )); then
+      fatal "REGISTRY is not set — add REGISTRY=registry.example.com/myorg to your env file or export it"
+    fi
+    _prompt_input "REGISTRY (e.g. ghcr.io/myorg or docker.io/myuser)" ""
+    REGISTRY="${PROMPT_RESULT%/}"
+    [[ -n "$REGISTRY" ]] || fatal "REGISTRY may not be empty"
+  fi
+  REGISTRY="${REGISTRY%/}"
+
+  # Default tag: short git SHA, falls back to "latest" in a dirty tree.
+  local default_tag
+  default_tag="$(git -C "$REPO_ROOT" rev-parse --short HEAD 2>/dev/null || echo latest)"
+  _prompt_input "IMAGE_TAG" "$default_tag"
+  local tag="$PROMPT_RESULT"
+  [[ -n "$tag" ]] || tag="$default_tag"
+
+  header "Building and publishing images"
+  info "Registry : $REGISTRY"
+  info "Tag      : $tag"
+  echo "" >&2
+
+  # Each entry: image-suffix | build-context | dockerfile (relative to context)
+  # Mirrors the build: sections in docker-compose.yml exactly.
+  local -a NAMES=( analyzer     collector               dashboard )
+  local -a CONTEXTS=( "$REPO_ROOT" "$REPO_ROOT"         "$REPO_ROOT/src/dashboard" )
+  local -a DOCKERFILES=( "src/analyzer/Dockerfile" "src/collector/Dockerfile" "Dockerfile" )
+
+  local failed=0
+  local i
+  for i in "${!NAMES[@]}"; do
+    local name="${NAMES[$i]}"
+    local ctx="${CONTEXTS[$i]}"
+    local dfile="${DOCKERFILES[$i]}"
+    local image="$REGISTRY/cluster-intel-$name"
+
+    info "[$((i+1))/${#NAMES[@]}] Building $image:$tag …"
+    if ! docker build \
+        --progress=plain \
+        --file "$ctx/$dfile" \
+        --tag  "$image:$tag" \
+        --tag  "$image:latest" \
+        "$ctx" 2>&1 | sed 's/^/    /'; then
+      error "Build failed: $name"
+      failed=$((failed+1))
+      continue
+    fi
+    success "Built   $image:$tag"
+
+    info "Pushing $image:$tag …"
+    if ! docker push "$image:$tag" && docker push "$image:latest"; then
+      error "Push failed: $name"
+      failed=$((failed+1))
+      continue
+    fi
+    success "Pushed  $image:$tag  +  $image:latest"
+    echo "" >&2
+  done
+
+  if (( failed > 0 )); then
+    fatal "$failed image(s) failed — check output above"
+  fi
+  success "All images published → $REGISTRY  tag=$tag"
 }
 
 tool_version() {
@@ -984,6 +1062,18 @@ cmd_doctor() {
     success "collector binary: $REPO_ROOT/bin/collector"
   else
     warn "collector binary missing — will be built on start (live profile only)"
+  fi
+
+  # Optional: Qdrant vector store connectivity
+  local qdrant_url="${QDRANT_URL:-}"
+  if [[ -n "$qdrant_url" ]]; then
+    if curl -sf "${qdrant_url}/health" >/dev/null 2>&1; then
+      success "qdrant: reachable at ${qdrant_url} (embed model: ${QDRANT_EMBED_MODEL:-nomic-embed-text})"
+    else
+      warn "qdrant: QDRANT_URL=${qdrant_url} set but unreachable — semantic search disabled"
+    fi
+  else
+    warn "qdrant: QDRANT_URL not set — semantic similar-incident search disabled (run: docker compose up qdrant -d)"
   fi
 
   if (( fails > 0 )); then
@@ -1095,9 +1185,10 @@ ${BOLD}Commands:${NC}
   ${CYAN}start${NC}    [-e ENV] [--yes] [--non-interactive]   Configure → validate → start
   ${CYAN}stop${NC}                                            Stop services and clean pidfiles
   ${CYAN}status${NC}                                          Tabular status of all services
-  ${CYAN}restart${NC}  [...]                                  stop → start
+  ${CYAN}restart${NC}                                         stop → start (reuses existing settings)
   ${CYAN}logs${NC}     [analyzer|dashboard|collector|all]     tail -F selected logs
-  ${CYAN}build${NC}                                           Build the analyzer binary
+  ${CYAN}build${NC}                                           Build Go binaries (analyzer + collector)
+  ${CYAN}publish${NC}  [--registry URL] [--tag TAG]           docker build + push to REGISTRY
   ${CYAN}setup${NC}    [-e ENV]                               Wizard: write env/<ENV>.env
   ${CYAN}doctor${NC}                                          Pre-flight: tool & env checks
   ${CYAN}lint${NC}                                            Validate env file only
@@ -1144,7 +1235,7 @@ main() {
       usage; fatal "no command given (cannot prompt with --yes/--non-interactive)"
     fi
     _prompt_select "What would you like to do?" "start" \
-      "start" "stop" "status" "restart" "logs" "build" "setup" "doctor" "lint" "version" "help"
+      "start" "stop" "status" "restart" "logs" "build" "publish" "setup" "doctor" "lint" "version" "help"
     cmd="$PROMPT_RESULT"
   fi
 
@@ -1155,6 +1246,7 @@ main() {
     restart)            cmd_restart "$@" ;;
     logs)               cmd_logs    "$@" ;;
     build)              cmd_build   "$@" ;;
+    publish)            cmd_publish "$@" ;;
     setup)              cmd_setup   "$@" ;;
     doctor)             cmd_doctor  "$@" ;;
     lint)               cmd_lint    "$@" ;;

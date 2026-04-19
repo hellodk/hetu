@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Cluster Intel — LB Logs (Material Dark)</title>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --md-primary: #D0BCFF; --md-on-primary: #381E72;
+  --md-primary-container: #4F378B; --md-on-primary-container: #EADDFF;
+  --md-secondary: #CCC2DC; --md-secondary-container: #4A4458; --md-on-secondary-container: #E8DEF8;
+  --md-surface: #1C1B1F; --md-surface-1: #28262D; --md-surface-2: #2E2C34; --md-surface-3: #34323C;
+  --md-surface-variant: #49454F; --md-on-surface: #E6E1E5; --md-on-surface-variant: #CAC4D0;
+  --md-outline: #938F99; --md-outline-variant: #49454F;
+  --md-sev-crit: #FFB4AB; --md-sev-crit-container: #93000A;
+  --md-sev-high: #FFB77C; --md-sev-high-container: #6A2E00;
+  --md-sev-warn: #F9DE7B; --md-sev-warn-container: #4B3900;
+  --md-sev-ok: #6DD58C; --md-sev-ok-container: #005320;
+  --md-sev-info: #82CAFF; --md-sev-info-container: #00344B;
+  --nav-width:240px; --topbar-h:64px;
+  --r-sm:4px; --r-md:12px; --r-lg:16px; --r-xl:28px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Roboto',system-ui,sans-serif;font-size:14px;background:var(--md-surface);color:var(--md-on-surface);-webkit-font-smoothing:antialiased;display:grid;grid-template-columns:var(--nav-width) 1fr;grid-template-rows:var(--topbar-h) 1fr;grid-template-areas:"nav topbar" "nav main";height:100vh;overflow:hidden}
+.nav{grid-area:nav;background:var(--md-surface-1);border-right:1px solid var(--md-outline-variant);display:flex;flex-direction:column;overflow:hidden}
+.nav-logo{height:var(--topbar-h);display:flex;align-items:center;gap:12px;padding:0 20px;border-bottom:1px solid var(--md-outline-variant);font-size:16px;font-weight:500;color:var(--md-on-surface)}
+.nav-logo svg{width:24px;height:24px;fill:none;stroke:var(--md-primary);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.nav-label{font-size:11px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--md-on-surface-variant);padding:20px 20px 8px}
+.nav-item{display:flex;align-items:center;gap:12px;padding:0 12px;height:48px;border-radius:var(--r-xl);margin:2px 12px;font-size:14px;font-weight:500;color:var(--md-on-surface-variant);cursor:pointer;text-decoration:none;transition:background 150ms}
+.nav-item:hover{background:rgba(208,188,255,.08);color:var(--md-on-surface)}
+.nav-item.active{background:var(--md-secondary-container);color:var(--md-on-secondary-container)}
+.nav-item svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+.nav-item .badge{margin-left:auto;background:var(--md-sev-crit);color:#fff;font-size:10px;font-weight:700;padding:2px 6px;border-radius:999px}
+.nav-divider{height:1px;background:var(--md-outline-variant);margin:8px 20px}
+.nav-scroll{flex:1;overflow-y:auto}
+.nav-footer{padding:12px 16px;border-top:1px solid var(--md-outline-variant);display:flex;align-items:center;gap:10px;font-size:13px;color:var(--md-on-surface-variant)}
+.nav-footer svg{width:18px;height:18px;fill:none;stroke:var(--md-primary);stroke-width:1.8;stroke-linecap:round;flex-shrink:0}
+.nav-footer select{flex:1;background:transparent;border:none;color:var(--md-on-surface-variant);font-size:13px;font-family:inherit;cursor:pointer;outline:none}
+.topbar{grid-area:topbar;background:var(--md-surface-1);border-bottom:1px solid var(--md-outline-variant);display:flex;align-items:center;padding:0 24px;gap:16px}
+.topbar-cluster{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:500}
+.topbar-cluster svg{width:20px;height:20px;fill:none;stroke:var(--md-primary);stroke-width:1.8;stroke-linecap:round}
+.profile-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 12px 4px 6px;background:var(--md-surface-3);border-radius:999px;font-size:12px;color:var(--md-on-surface-variant);border:1px solid var(--md-outline-variant)}
+.profile-chip svg{width:14px;height:14px;fill:none;stroke:var(--md-on-surface-variant);stroke-width:1.8}
+.live-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;background:rgba(109,213,140,.15);border:1px solid rgba(109,213,140,.3);border-radius:999px;font-size:11px;font-weight:700;letter-spacing:.06em;color:var(--md-sev-ok)}
+.live-dot{width:6px;height:6px;background:var(--md-sev-ok);border-radius:50%;animation:pulse 2s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.topbar-spacer{flex:1}
+.topbar-meta{font-size:12px;color:var(--md-on-surface-variant)}
+.icon-btn{width:40px;height:40px;display:flex;align-items:center;justify-content:center;background:transparent;border:none;border-radius:999px;color:var(--md-on-surface-variant);cursor:pointer;transition:background 150ms;position:relative}
+.icon-btn:hover{background:rgba(208,188,255,.08)}
+.icon-btn svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round}
+.notif-dot{position:absolute;top:7px;right:7px;width:8px;height:8px;background:var(--md-sev-crit);border-radius:50%;border:2px solid var(--md-surface-1)}
+.avatar{width:36px;height:36px;background:var(--md-primary-container);color:var(--md-on-primary-container);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;cursor:pointer}
+.main{grid-area:main;overflow-y:auto;padding:24px;background:var(--md-surface)}
+.main::-webkit-scrollbar{width:6px}
+.main::-webkit-scrollbar-thumb{background:var(--md-outline-variant);border-radius:6px}
+.page-header{margin-bottom:20px;display:flex;align-items:flex-start;justify-content:space-between}
+.page-title{font-size:22px;font-weight:400;color:var(--md-on-surface);line-height:1.27}
+.page-subtitle{font-size:13px;color:var(--md-on-surface-variant);margin-top:4px}
+.summary-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}
+.sum-tile{background:var(--md-surface-2);border-radius:var(--r-lg);padding:16px;position:relative;overflow:hidden}
+.sum-tile::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;border-radius:var(--r-lg) var(--r-lg) 0 0}
+.sum-ok::before{background:var(--md-sev-ok)}
+.sum-crit::before{background:var(--md-sev-crit)}
+.sum-warn::before{background:var(--md-sev-warn)}
+.sum-info::before{background:var(--md-sev-info)}
+.sum-num{font-size:28px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1}
+.sum-ok .sum-num{color:var(--md-sev-ok)}
+.sum-crit .sum-num{color:var(--md-sev-crit)}
+.sum-warn .sum-num{color:var(--md-sev-warn)}
+.sum-info .sum-num{color:var(--md-sev-info)}
+.sum-label{font-size:12px;color:var(--md-on-surface-variant);margin-top:4px}
+.card{background:var(--md-surface-1);border-radius:var(--r-lg);padding:20px}
+.card-title{font-size:13px;font-weight:500;letter-spacing:.05em;text-transform:uppercase;color:var(--md-on-surface-variant);margin-bottom:16px}
+.table-card{background:var(--md-surface-1);border-radius:var(--r-lg);overflow:hidden;margin-bottom:16px}
+.table-head{padding:10px 16px;background:var(--md-surface-2);border-bottom:1px solid var(--md-outline-variant);font-size:11px;font-weight:500;letter-spacing:.05em;text-transform:uppercase;color:var(--md-on-surface-variant);display:grid}
+.table-row{padding:12px 16px;border-bottom:1px solid var(--md-outline-variant);align-items:center;cursor:pointer;transition:background 150ms;display:grid}
+.table-row:last-child{border-bottom:none}
+.table-row:hover{background:rgba(208,188,255,.05)}
+.sev-chip{font-size:10px;font-weight:700;letter-spacing:.07em;padding:3px 8px;border-radius:999px}
+.sc-crit{background:var(--md-sev-crit-container);color:var(--md-sev-crit)}
+.sc-high{background:var(--md-sev-high-container);color:var(--md-sev-high)}
+.sc-warn{background:var(--md-sev-warn-container);color:var(--md-sev-warn)}
+.sc-ok{background:var(--md-sev-ok-container);color:var(--md-sev-ok)}
+.sc-info{background:var(--md-sev-info-container);color:var(--md-sev-info)}
+.mono{font-family:'Roboto Mono',monospace;font-size:12px;font-variant-numeric:tabular-nums}
+.filter-bar{display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+.filter-chip{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:var(--r-xl);font-size:13px;font-weight:500;cursor:pointer;border:1px solid var(--md-outline-variant);background:transparent;color:var(--md-on-surface-variant);font-family:inherit}
+.filter-chip.active{background:var(--md-secondary-container);color:var(--md-on-secondary-container);border-color:transparent}
+.search-box{display:flex;align-items:center;gap:8px;background:var(--md-surface-2);border:1px solid var(--md-outline-variant);border-radius:var(--r-xl);padding:6px 14px;flex:1;max-width:320px}
+.search-box svg{width:16px;height:16px;fill:none;stroke:var(--md-on-surface-variant);stroke-width:1.8;stroke-linecap:round;flex-shrink:0}
+.search-box input{background:transparent;border:none;outline:none;font-family:inherit;font-size:13px;color:var(--md-on-surface);flex:1}
+.search-box input::placeholder{color:var(--md-on-surface-variant)}
+
+/* Page-specific */
+.log-cols{grid-template-columns:160px 60px 80px 2fr 80px 80px 120px}
+.status-2xx{color:var(--md-sev-ok)}
+.status-3xx{color:var(--md-sev-info)}
+.status-4xx{color:var(--md-sev-warn)}
+.status-5xx{color:var(--md-sev-crit)}
+.dist-bar-row{display:flex;align-items:center;gap:10px;margin-bottom:8px;font-size:12px}
+.dist-label{width:40px;font-weight:500}
+.dist-track{flex:1;height:8px;background:var(--md-surface-3);border-radius:4px;overflow:hidden}
+.dist-fill{height:100%;border-radius:4px}
+.dist-pct{width:42px;text-align:right;color:var(--md-on-surface-variant)}
+.latency-val{color:var(--md-sev-warn)}
+.latency-ok{color:var(--md-sev-ok)}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-logo">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M8.56 2.75c4.37 6.03 6.02 9.42 8.03 17.72m2.54-15.38c-3.72 4.35-8.94 5.66-16.88 5.85m19.5 1.9c-3.5-.93-6.63-.82-8.94 0-2.58.92-5.01 2.86-7.44 6.32"/></svg>
+    Cluster Intel
+  </div>
+  <div class="nav-scroll">
+    <div class="nav-label">Main</div>
+    <a class="nav-item" href="#">
+      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      Overview
+    </a>
+    <a class="nav-item" href="#">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      Errors<span class="badge">24</span>
+    </a>
+    <a class="nav-item active" href="#">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M8.56 2.75c4.37 6.03 6.02 9.42 8.03 17.72m2.54-15.38c-3.72 4.35-8.94 5.66-16.88 5.85"/></svg>
+      LB Logs
+    </a>
+    <a class="nav-item" href="#">
+      <svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+      Incidents &amp; RCA
+    </a>
+    <a class="nav-item" href="#">
+      <svg viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+      Optimization
+    </a>
+    <a class="nav-item" href="#">
+      <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      Anomalies
+    </a>
+    <a class="nav-item" href="#">
+      <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      Security
+    </a>
+    <a class="nav-item" href="#">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+      Settings
+    </a>
+  </div>
+  <div class="nav-footer">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+    <select>
+      <option>Graphite</option><option>Calm signal</option><option>Aurora</option><option>Prism</option><option selected>Material Dark</option><option>Material Light</option>
+    </select>
+  </div>
+</nav>
+
+<header class="topbar">
+  <div class="topbar-cluster">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M8.56 2.75c4.37 6.03 6.02 9.42 8.03 17.72m2.54-15.38c-3.72 4.35-8.94 5.66-16.88 5.85m19.5 1.9c-3.5-.93-6.63-.82-8.94 0-2.58.92-5.01 2.86-7.44 6.32"/></svg>
+    prod-cluster-eu-west-1
+  </div>
+  <div class="profile-chip">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+    default
+  </div>
+  <div class="live-badge"><span class="live-dot"></span>LIVE</div>
+  <div class="topbar-spacer"></div>
+  <span class="topbar-meta">Updated 14:32:07</span>
+  <button class="icon-btn">
+    <svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+  </button>
+  <button class="icon-btn">
+    <svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+    <span class="notif-dot"></span>
+  </button>
+  <div class="avatar">DK</div>
+</header>
+
+<main class="main">
+  <div class="page-header">
+    <div>
+      <div class="page-title">LB Access Logs</div>
+      <div class="page-subtitle">Load balancer request log stream — prod-cluster-eu-west-1 · nginx-ingress</div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="filter-chip" style="gap:6px">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Export
+      </button>
+      <button class="filter-chip active">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        Time range: 1h
+      </button>
+    </div>
+  </div>
+
+  <!-- Summary tiles -->
+  <div class="summary-row">
+    <div class="sum-tile sum-info">
+      <div class="sum-num">2.4M</div>
+      <div class="sum-label">Requests / 24h</div>
+    </div>
+    <div class="sum-tile sum-ok">
+      <div class="sum-num">99.2%</div>
+      <div class="sum-label">Success rate (2xx)</div>
+    </div>
+    <div class="sum-tile sum-crit">
+      <div class="sum-num">0.8%</div>
+      <div class="sum-label">Error rate (5xx)</div>
+    </div>
+    <div class="sum-tile sum-warn">
+      <div class="sum-num">142ms</div>
+      <div class="sum-label">P95 latency</div>
+    </div>
+  </div>
+
+  <!-- Filter bar -->
+  <div class="filter-bar">
+    <div class="search-box">
+      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input type="text" placeholder="Search path, IP, status…"/>
+    </div>
+    <button class="filter-chip active">All</button>
+    <button class="filter-chip">2xx</button>
+    <button class="filter-chip">3xx</button>
+    <button class="filter-chip">4xx</button>
+    <button class="filter-chip">5xx</button>
+    <button class="filter-chip" style="margin-left:auto">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="11" y1="18" x2="13" y2="18"/></svg>
+      Columns
+    </button>
+  </div>
+
+  <!-- Log table -->
+  <div class="table-card">
+    <div class="table-head log-cols">
+      <span>Timestamp</span>
+      <span>Method</span>
+      <span>Status</span>
+      <span>Path</span>
+      <span>Latency</span>
+      <span>Size</span>
+      <span>Source IP</span>
+    </div>
+
+    <div class="table-row log-cols">
+      <span class="mono" style="color:var(--md-on-surface-variant)">14:32:07.441</span>
+      <span class="mono" style="color:var(--md-sev-info)">GET</span>
+      <span class="mono status-2xx">200</span>
+      <span class="mono">/api/v1/pods?namespace=default</span>
+      <span class="mono latency-ok">38ms</span>
+      <span class="mono" style="color:var(--md-on-surface-variant)">4.2KB</span>
+      <span class="mono" style="color:var(--md-on-surface-variant)">10.0.1.14</span>
+    </div>
+    <div class="table-row log-cols">
+      <span class="mono" style="color:var(--md-on-surface-variant)">14:32:06.887</span>
+      <span class="mono" style="color:var(--md-sev-ok)">POST</span>
+      <span class="mono status-2xx">201</span>
+      <span class="mono">/api/v1/namespaces/staging/deployments</span>
+      <span class="mono latency-ok">61ms</span>
+      <span class="mono" style="color:var(--md-on-surface-variant)">1.8KB</span>
+      <span class="mono" style="color:var(--md-on-surface-variant)">10.0.2.55</span>
+    </div>
+    <div class="table-row log-cols">
+      <span class="mono" style="color:var(--md-on-surface-variant)">14:32:05.203</span>
+      <span class="mono" style="color:var(--md-sev-info)">GET</span>
+      <span class="mono status-2xx">200</span>
+      <span class="mono">/api/v1/nodes</span>
+      <span class="mono latency-ok">22ms</span>
+      <span class="mono" style="color:var(--md-on-surface-variant)">9.7KB</span>
+      <span class="mono" style="color:var(--md-on-surface-variant)">10.0.1.14</span>
+    </div>
+    <div class="table-row log-cols">
+      <span class="mono" style="color:var(--md-on-surface-variant)">14:32:04.991</span>
+      <span class="mono" style="color:var(--md-sev-info)">GET</span>
+      <span class="mono status-3xx">301</span>
+      <span class="mono">/api/v1/deployments</span>
+      <span class="mono latency-ok">8ms</span>
+      <span class="mono" style="color:var(--md-on-surface-variant)">0.3KB</span>
+      <span class="mono" style="color:var(--md-on-surface-variant)">172.16.4.22</span>
+    </div>
+    <div class="table-row log-cols">
+      <span class="mono" style="color:var(--md-on-surface-variant)">14:32:03.774</span>
+      <span class="mono" style="color:var(--md-sev-info)">GET</span>
+      <span class="mono status-2xx">200</span>
+      <span class="mono">/healthz</span>
+      <span class="mono latency-ok">4ms</span>
+      <span class="mono" style="color:var(--md-on-surface-variant)">0.1KB</span>
+      <span class="mono" style="color:var(--md-on-surface-variant)">10.0.0.1</span>
+    </div>
+    <div class="table-row log-cols">
+      <span class="mono" style="color:var(--md-on-surface-variant)">14:32:02.558</span>
+      <span class="mono" style="color:var(--md-sev-warn)">DELETE</span>
+      <span class="mono status-4xx">404</span>
+      <span class="mono">/api/v1/namespaces/prod/services/old-svc</span>
+      <span class="mono latency-ok">18ms</span>
+      <span class="mono" style="color:var(--md-on-surface-variant)">0.6KB</span>
+      <span class="mono" style="color:var(--md-on-surface-variant)">10.0.3.101</span>
+    </div>
+    <div class="table-row log-cols">
+      <span class="mono" style="color:var(--md-on-surface-variant)">14:32:01.109</span>
+      <span class="mono" style="color:var(--md-sev-info)">GET</span>
+      <span class="mono status-2xx">200</span>
+      <span class="mono">/api/v1/namespaces/monitoring/pods</span>
+      <span class="mono latency-val">142ms</span>
+      <span class="mono" style="color:var(--md-on-surface-variant)">22.3KB</span>
+      <span class="mono" style="color:var(--md-on-surface-variant)">10.0.1.14</span>
+    </div>
+    <div class="table-row log-cols">
+      <span class="mono" style="color:var(--md-on-surface-variant)">14:31:59.882</span>
+      <span class="mono" style="color:var(--md-sev-ok)">POST</span>
+      <span class="mono status-5xx">503</span>
+      <span class="mono">/api/v1/namespaces/prod/services/payment-svc/proxy</span>
+      <span class="mono latency-val">892ms</span>
+      <span class="mono" style="color:var(--md-on-surface-variant)">0.4KB</span>
+      <span class="mono" style="color:var(--md-on-surface-variant)">10.0.4.77</span>
+    </div>
+    <div class="table-row log-cols">
+      <span class="mono" style="color:var(--md-on-surface-variant)">14:31:58.334</span>
+      <span class="mono" style="color:var(--md-sev-ok)">PUT</span>
+      <span class="mono status-4xx">403</span>
+      <span class="mono">/api/v1/namespaces/kube-system/configmaps/aws-auth</span>
+      <span class="mono latency-ok">11ms</span>
+      <span class="mono" style="color:var(--md-on-surface-variant)">0.8KB</span>
+      <span class="mono" style="color:var(--md-on-surface-variant)">192.168.1.200</span>
+    </div>
+    <div class="table-row log-cols">
+      <span class="mono" style="color:var(--md-on-surface-variant)">14:31:57.001</span>
+      <span class="mono" style="color:var(--md-sev-info)">GET</span>
+      <span class="mono status-5xx">500</span>
+      <span class="mono">/api/v1/namespaces/prod/pods/order-svc-6b9f4c/log</span>
+      <span class="mono latency-val">447ms</span>
+      <span class="mono" style="color:var(--md-on-surface-variant)">1.2KB</span>
+      <span class="mono" style="color:var(--md-on-surface-variant)">10.0.1.14</span>
+    </div>
+  </div>
+
+  <!-- Status code distribution -->
+  <div class="card">
+    <div class="card-title">Status Code Distribution — Last 24h</div>
+    <div style="max-width:520px">
+      <div class="dist-bar-row">
+        <span class="dist-label mono status-2xx">2xx</span>
+        <div class="dist-track">
+          <div class="dist-fill" style="width:91.2%;background:var(--md-sev-ok)"></div>
+        </div>
+        <span class="dist-pct mono">91.2%</span>
+        <span style="font-size:11px;color:var(--md-on-surface-variant);margin-left:8px">2,188,800 req</span>
+      </div>
+      <div class="dist-bar-row">
+        <span class="dist-label mono status-4xx">4xx</span>
+        <div class="dist-track">
+          <div class="dist-fill" style="width:6.1%;background:var(--md-sev-warn)"></div>
+        </div>
+        <span class="dist-pct mono">6.1%</span>
+        <span style="font-size:11px;color:var(--md-on-surface-variant);margin-left:8px">146,400 req</span>
+      </div>
+      <div class="dist-bar-row">
+        <span class="dist-label mono status-5xx">5xx</span>
+        <div class="dist-track">
+          <div class="dist-fill" style="width:1.9%;background:var(--md-sev-crit)"></div>
+        </div>
+        <span class="dist-pct mono">1.9%</span>
+        <span style="font-size:11px;color:var(--md-on-surface-variant);margin-left:8px">45,600 req</span>
+      </div>
+      <div class="dist-bar-row">
+        <span class="dist-label mono status-3xx">3xx</span>
+        <div class="dist-track">
+          <div class="dist-fill" style="width:0.8%;background:var(--md-sev-info)"></div>
+        </div>
+        <span class="dist-pct mono">0.8%</span>
+        <span style="font-size:11px;color:var(--md-on-surface-variant);margin-left:8px">19,200 req</span>
+      </div>
+    </div>
+  </div>
+</main>
+
+</body>
+</html>

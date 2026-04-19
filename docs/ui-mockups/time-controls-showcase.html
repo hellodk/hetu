@@ -1,0 +1,1258 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Time Controls — Design Showcase</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&display=swap" rel="stylesheet"/>
+<style>
+/* ── Reset & Base ──────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { color-scheme: dark; }
+
+:root {
+  /* Surfaces */
+  --bg:        #090A0F;
+  --surface-0: #0E0F16;
+  --surface-1: #151720;
+  --surface-2: #1C1E2A;
+  --surface-3: #232636;
+  --border-0:  rgba(255,255,255,0.06);
+  --border-1:  rgba(255,255,255,0.10);
+  --border-2:  rgba(255,255,255,0.18);
+
+  /* Text */
+  --text-0:    #F0F1F5;
+  --text-1:    #A8ABBE;
+  --text-2:    #5C6080;
+  --text-3:    #3A3E55;
+
+  /* Accents */
+  --amber:     #F5A623;
+  --amber-dim: rgba(245,166,35,0.15);
+  --amber-glow:rgba(245,166,35,0.08);
+  --green:     #3DD68C;
+  --green-dim: rgba(61,214,140,0.15);
+  --red:       #FF5F57;
+  --red-dim:   rgba(255,95,87,0.15);
+  --blue:      #5B9CF6;
+  --blue-dim:  rgba(91,156,246,0.15);
+
+  /* Typography */
+  --font-ui:   'DM Sans', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Menlo', monospace;
+
+  /* Radius */
+  --r-xs: 3px;
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-xl: 999px;
+}
+
+body {
+  font-family: var(--font-ui);
+  background: var(--bg);
+  color: var(--text-0);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  background-image:
+    radial-gradient(ellipse 900px 600px at 10% -10%, rgba(91,156,246,0.04) 0%, transparent 60%),
+    radial-gradient(ellipse 700px 500px at 90% 100%, rgba(245,166,35,0.04) 0%, transparent 60%);
+}
+
+/* ── Layout ──────────────────────────────────────────────────────────── */
+.page { max-width: 960px; margin: 0 auto; padding: 64px 32px 96px; }
+
+.page-header { margin-bottom: 56px; }
+.label {
+  font-family: var(--font-mono);
+  font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--amber); margin-bottom: 16px;
+  display: flex; align-items: center; gap: 10px;
+}
+.label::before {
+  content: ''; display: block; width: 20px; height: 1px;
+  background: var(--amber);
+}
+h1 {
+  font-family: var(--font-ui);
+  font-size: 38px; font-weight: 300; letter-spacing: -0.025em;
+  color: var(--text-0); line-height: 1.15; margin-bottom: 14px;
+}
+h1 em { font-style: normal; font-weight: 600; color: var(--amber); }
+.subtitle {
+  font-size: 15px; color: var(--text-1); line-height: 1.6; max-width: 56ch;
+}
+
+/* Section */
+.section { margin-bottom: 56px; }
+.section-label {
+  font-family: var(--font-mono);
+  font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--text-2); margin-bottom: 16px;
+  display: flex; align-items: center; gap: 8px;
+}
+.section-label::after {
+  content: ''; flex: 1; height: 1px; background: var(--border-0);
+}
+.section-num {
+  width: 18px; height: 18px; background: var(--surface-2);
+  border: 1px solid var(--border-1); border-radius: 3px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 9px; color: var(--text-2); font-weight: 600;
+}
+.demo-box {
+  background: var(--surface-1);
+  border: 1px solid var(--border-0);
+  border-radius: var(--r-lg);
+  padding: 32px;
+  display: flex; flex-direction: column; gap: 28px;
+}
+.demo-row {
+  display: flex; align-items: flex-start; gap: 24px; flex-wrap: wrap;
+}
+.demo-desc {
+  font-size: 12px; color: var(--text-2); line-height: 1.5;
+  font-family: var(--font-mono);
+  max-width: 180px; flex-shrink: 0; padding-top: 2px;
+}
+
+/* ── Shared component styles ─────────────────────────────────────────── */
+button {
+  font-family: var(--font-ui);
+  cursor: pointer;
+  border: none;
+  transition: all 120ms ease;
+}
+button:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   VARIANT 1 — Compact preset strip
+   ═══════════════════════════════════════════════════════════════════════ */
+.preset-strip {
+  display: inline-flex;
+  align-items: center;
+  background: var(--surface-2);
+  border: 1px solid var(--border-1);
+  border-radius: var(--r-xl);
+  padding: 3px;
+  gap: 1px;
+}
+.preset-btn {
+  font-family: var(--font-mono);
+  font-size: 12px; font-weight: 500;
+  color: var(--text-1);
+  background: transparent;
+  padding: 5px 13px;
+  border-radius: var(--r-xl);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  transition: all 100ms ease;
+}
+.preset-btn:hover { color: var(--text-0); background: var(--surface-3); }
+.preset-btn.active {
+  background: var(--amber);
+  color: var(--bg);
+  font-weight: 600;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   VARIANT 2 — Segmented bar (larger, with icons)
+   ═══════════════════════════════════════════════════════════════════════ */
+.seg-bar {
+  display: inline-flex;
+  background: var(--surface-2);
+  border: 1px solid var(--border-1);
+  border-radius: var(--r-md);
+  padding: 4px;
+  gap: 2px;
+}
+.seg-btn {
+  font-family: var(--font-mono);
+  font-size: 12px; font-weight: 500;
+  color: var(--text-2);
+  background: transparent;
+  padding: 7px 16px;
+  border-radius: var(--r-sm);
+  letter-spacing: 0.03em;
+  position: relative;
+  white-space: nowrap;
+}
+.seg-btn:hover { color: var(--text-1); background: var(--surface-3); }
+.seg-btn.active {
+  background: var(--surface-0);
+  color: var(--amber);
+  border: 1px solid var(--border-2);
+}
+.seg-btn.active::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: var(--amber); border-radius: var(--r-sm) var(--r-sm) 0 0;
+}
+.seg-divider {
+  width: 1px; background: var(--border-0);
+  align-self: stretch; margin: 4px 2px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   VARIANT 3 — Dropdown time range picker
+   ═══════════════════════════════════════════════════════════════════════ */
+.tr-trigger {
+  display: inline-flex; align-items: center; gap: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-1);
+  border-radius: var(--r-md);
+  padding: 8px 14px;
+  font-size: 13px; color: var(--text-0);
+  position: relative;
+  user-select: none;
+}
+.tr-trigger:hover { border-color: var(--border-2); }
+.tr-trigger.open { border-color: var(--amber); }
+.tr-icon {
+  width: 16px; height: 16px;
+  flex-shrink: 0;
+  opacity: 0.5;
+}
+.tr-value {
+  font-family: var(--font-mono);
+  font-size: 13px; font-weight: 500;
+  color: var(--text-0);
+}
+.tr-chevron {
+  width: 14px; height: 14px; opacity: 0.4;
+  transition: transform 150ms ease;
+}
+.tr-trigger.open .tr-chevron { transform: rotate(180deg); opacity: 0.7; }
+.tr-badge {
+  font-family: var(--font-mono);
+  font-size: 9px; font-weight: 700; letter-spacing: 0.08em;
+  padding: 2px 6px; border-radius: 3px;
+  background: var(--green-dim); color: var(--green);
+  text-transform: uppercase;
+}
+
+/* Dropdown panel */
+.tr-panel {
+  position: absolute; top: calc(100% + 6px); left: 0; z-index: 50;
+  background: var(--surface-1);
+  border: 1px solid var(--border-1);
+  border-radius: var(--r-lg);
+  width: 440px;
+  box-shadow: 0 20px 60px -12px rgba(0,0,0,0.7), 0 4px 16px -4px rgba(0,0,0,0.5);
+  display: none;
+  overflow: hidden;
+}
+.tr-panel.open { display: block; }
+
+.tr-panel-inner { display: grid; grid-template-columns: 160px 1fr; }
+
+.tr-presets {
+  border-right: 1px solid var(--border-0);
+  padding: 12px 8px;
+}
+.tr-preset-group { margin-bottom: 4px; }
+.tr-preset-heading {
+  font-family: var(--font-mono);
+  font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--text-3); padding: 8px 10px 4px;
+}
+.tr-preset-item {
+  display: flex; align-items: center; justify-content: space-between;
+  width: 100%; padding: 7px 10px;
+  font-size: 13px; color: var(--text-1);
+  background: transparent; border-radius: var(--r-sm);
+  text-align: left;
+}
+.tr-preset-item:hover { background: var(--surface-2); color: var(--text-0); }
+.tr-preset-item.active {
+  background: var(--amber-glow);
+  color: var(--amber);
+}
+.tr-preset-item .tr-preset-mono {
+  font-family: var(--font-mono);
+  font-size: 11px; color: var(--text-3);
+}
+.tr-preset-item.active .tr-preset-mono { color: rgba(245,166,35,0.5); }
+
+/* Custom range */
+.tr-custom { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.tr-custom-label {
+  font-family: var(--font-mono);
+  font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--text-2);
+}
+.tr-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.tr-input-group { display: flex; flex-direction: column; gap: 4px; }
+.tr-input-label {
+  font-family: var(--font-mono);
+  font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--text-2);
+}
+.tr-input {
+  font-family: var(--font-mono);
+  font-size: 12px; font-weight: 500;
+  background: var(--surface-2);
+  border: 1px solid var(--border-1);
+  border-radius: var(--r-sm);
+  padding: 8px 10px;
+  color: var(--text-0);
+  width: 100%;
+  outline: none;
+}
+.tr-input:focus { border-color: var(--amber); box-shadow: 0 0 0 2px var(--amber-dim); }
+.tr-input::placeholder { color: var(--text-3); }
+
+/* Mini calendar */
+.tr-cal { background: var(--surface-2); border-radius: var(--r-sm); padding: 12px; }
+.tr-cal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 10px;
+}
+.tr-cal-month {
+  font-family: var(--font-mono);
+  font-size: 12px; font-weight: 600; color: var(--text-0);
+}
+.tr-cal-nav {
+  width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;
+  background: transparent; border-radius: 4px; color: var(--text-2);
+}
+.tr-cal-nav:hover { background: var(--surface-3); color: var(--text-1); }
+.tr-cal-nav svg { width: 12px; height: 12px; }
+.tr-cal-grid {
+  display: grid; grid-template-columns: repeat(7,1fr); gap: 2px;
+}
+.tr-cal-day-name {
+  font-family: var(--font-mono);
+  font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--text-3); text-align: center; padding: 4px 0;
+}
+.tr-cal-day {
+  font-family: var(--font-mono);
+  font-size: 11px; font-weight: 500;
+  width: 26px; height: 26px; display: flex; align-items: center; justify-content: center;
+  border-radius: 4px; color: var(--text-1);
+  cursor: pointer; transition: all 80ms;
+  margin: 0 auto;
+}
+.tr-cal-day:hover { background: var(--surface-3); color: var(--text-0); }
+.tr-cal-day.today { color: var(--amber); font-weight: 700; }
+.tr-cal-day.selected { background: var(--amber); color: var(--bg); font-weight: 700; }
+.tr-cal-day.in-range { background: var(--amber-dim); color: var(--amber); }
+.tr-cal-day.other-month { color: var(--text-3); }
+.tr-cal-day.disabled { opacity: 0.25; pointer-events: none; }
+
+.tr-panel-footer {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 16px;
+  border-top: 1px solid var(--border-0);
+  background: var(--surface-0);
+}
+.tr-panel-footer-info {
+  font-family: var(--font-mono);
+  font-size: 11px; color: var(--text-2);
+}
+.tr-apply {
+  font-family: var(--font-mono);
+  font-size: 11px; font-weight: 600; letter-spacing: 0.05em;
+  padding: 6px 14px; border-radius: var(--r-sm);
+  background: var(--amber); color: var(--bg);
+}
+.tr-apply:hover { background: #f7b84a; }
+.tr-cancel {
+  font-family: var(--font-mono);
+  font-size: 11px; color: var(--text-2);
+  background: transparent; margin-right: 8px;
+  padding: 6px 10px; border-radius: var(--r-sm);
+}
+.tr-cancel:hover { color: var(--text-1); background: var(--surface-2); }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   VARIANT 4 — Timezone toggle
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* A: Pill toggle */
+.tz-pill {
+  display: inline-flex;
+  background: var(--surface-2);
+  border: 1px solid var(--border-1);
+  border-radius: var(--r-xl);
+  padding: 3px;
+}
+.tz-pill-btn {
+  font-family: var(--font-mono);
+  font-size: 11px; font-weight: 600; letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 5px 14px;
+  border-radius: var(--r-xl);
+  color: var(--text-2);
+  background: transparent;
+  transition: all 100ms;
+}
+.tz-pill-btn:hover { color: var(--text-1); }
+.tz-pill-btn.active {
+  background: var(--surface-0);
+  color: var(--text-0);
+  border: 1px solid var(--border-2);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+}
+
+/* B: Chip with icon */
+.tz-chip {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-1);
+  border-radius: var(--r-md);
+  padding: 7px 12px;
+  cursor: pointer;
+  transition: border-color 100ms;
+}
+.tz-chip:hover { border-color: var(--border-2); }
+.tz-chip-icon { color: var(--text-2); }
+.tz-chip-icon svg { width: 14px; height: 14px; display: block; }
+.tz-chip-text {
+  font-family: var(--font-mono);
+  font-size: 12px; font-weight: 600; letter-spacing: 0.04em;
+  color: var(--text-0);
+}
+.tz-chip-sub {
+  font-family: var(--font-mono);
+  font-size: 10px; color: var(--text-2);
+}
+.tz-chip-sep {
+  width: 1px; height: 16px;
+  background: var(--border-1); flex-shrink: 0;
+}
+
+/* C: Segmented with offset display */
+.tz-seg {
+  display: inline-flex; align-items: center;
+  background: var(--surface-2);
+  border: 1px solid var(--border-1);
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+.tz-seg-item {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 8px 18px;
+  cursor: pointer; transition: background 100ms;
+  border-right: 1px solid var(--border-0);
+}
+.tz-seg-item:last-child { border-right: none; }
+.tz-seg-item:hover { background: var(--surface-3); }
+.tz-seg-item.active { background: var(--surface-0); }
+.tz-seg-label {
+  font-family: var(--font-mono);
+  font-size: 11px; font-weight: 700; letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+.tz-seg-item.active .tz-seg-label { color: var(--amber); }
+.tz-seg-sub {
+  font-family: var(--font-mono);
+  font-size: 10px; color: var(--text-3); margin-top: 2px;
+}
+.tz-seg-item.active .tz-seg-sub { color: rgba(245,166,35,0.5); }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   VARIANT 5 — Full time bar (combined, for real use)
+   ═══════════════════════════════════════════════════════════════════════ */
+.timebar {
+  display: flex; align-items: center; gap: 6px;
+  background: var(--surface-1);
+  border: 1px solid var(--border-0);
+  border-radius: var(--r-md);
+  padding: 5px 6px;
+  position: relative;
+}
+.timebar-presets {
+  display: flex; gap: 1px;
+}
+.timebar-preset {
+  font-family: var(--font-mono);
+  font-size: 11px; font-weight: 600; letter-spacing: 0.04em;
+  color: var(--text-2);
+  background: transparent;
+  padding: 5px 10px;
+  border-radius: var(--r-sm);
+  white-space: nowrap;
+}
+.timebar-preset:hover { background: var(--surface-2); color: var(--text-1); }
+.timebar-preset.active { background: var(--amber-dim); color: var(--amber); }
+.timebar-sep {
+  width: 1px; height: 20px; background: var(--border-0);
+  flex-shrink: 0; align-self: center;
+}
+.timebar-custom {
+  display: flex; align-items: center; gap: 4px;
+  font-family: var(--font-mono);
+  font-size: 11px; color: var(--text-2);
+  padding: 5px 10px;
+  background: transparent;
+  border-radius: var(--r-sm);
+}
+.timebar-custom:hover { background: var(--surface-2); color: var(--text-1); }
+.timebar-custom svg { width: 12px; height: 12px; opacity: 0.5; margin-right: 4px; }
+
+.timebar-tz {
+  margin-left: auto;
+  display: flex; gap: 1px;
+  background: var(--surface-0);
+  border: 1px solid var(--border-0);
+  border-radius: var(--r-sm);
+  padding: 2px;
+}
+.timebar-tz-btn {
+  font-family: var(--font-mono);
+  font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 4px 9px;
+  border-radius: 3px;
+  color: var(--text-2);
+  background: transparent;
+}
+.timebar-tz-btn:hover { color: var(--text-1); }
+.timebar-tz-btn.active {
+  background: var(--surface-2);
+  color: var(--text-0);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+}
+
+.timebar-live {
+  display: flex; align-items: center; gap: 5px;
+  font-family: var(--font-mono);
+  font-size: 10px; font-weight: 700; letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: var(--r-sm);
+  background: var(--green-dim);
+  color: var(--green);
+  cursor: pointer;
+  border: 1px solid rgba(61,214,140,0.2);
+}
+.timebar-live-dot {
+  width: 5px; height: 5px;
+  background: var(--green);
+  border-radius: 50%;
+  animation: blink 1.8s ease-in-out infinite;
+}
+.timebar-live:hover { background: rgba(61,214,140,0.2); }
+.timebar-live.paused {
+  background: var(--surface-2); color: var(--text-2);
+  border-color: var(--border-0);
+}
+.timebar-live.paused .timebar-live-dot {
+  background: var(--text-3); animation: none;
+}
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+.timebar-refresh {
+  display: flex; align-items: center;
+  font-family: var(--font-mono);
+  font-size: 11px; color: var(--text-2);
+  background: transparent;
+  padding: 5px 8px;
+  border-radius: var(--r-sm);
+}
+.timebar-refresh:hover { background: var(--surface-2); color: var(--text-1); }
+.timebar-refresh svg { width: 13px; height: 13px; }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   VARIANT 6 — Large modal time range picker
+   ═══════════════════════════════════════════════════════════════════════ */
+.modal-backdrop {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(3px);
+  z-index: 100; display: none; align-items: center; justify-content: center;
+}
+.modal-backdrop.open { display: flex; }
+.modal {
+  background: var(--surface-1);
+  border: 1px solid var(--border-1);
+  border-radius: 18px;
+  width: 600px;
+  box-shadow: 0 30px 90px -20px rgba(0,0,0,0.85), 0 0 0 1px var(--border-0);
+  overflow: hidden;
+  animation: modalIn 180ms cubic-bezier(.22,.61,.36,1);
+}
+@keyframes modalIn {
+  from { transform: scale(0.95) translateY(8px); opacity: 0; }
+}
+.modal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--border-0);
+}
+.modal-title {
+  font-size: 14px; font-weight: 500; color: var(--text-0);
+  display: flex; align-items: center; gap: 8px;
+}
+.modal-title svg { width: 16px; height: 16px; color: var(--amber); }
+.modal-close {
+  width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
+  background: var(--surface-2); border-radius: var(--r-sm);
+  color: var(--text-2);
+}
+.modal-close:hover { color: var(--text-0); background: var(--surface-3); }
+.modal-close svg { width: 14px; height: 14px; }
+
+.modal-body { display: grid; grid-template-columns: 180px 1fr; }
+.modal-presets {
+  padding: 12px 8px;
+  border-right: 1px solid var(--border-0);
+  background: var(--surface-0);
+}
+.modal-preset-group { margin-bottom: 20px; }
+.modal-preset-heading {
+  font-family: var(--font-mono);
+  font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--text-3); padding: 0 10px 6px;
+}
+.modal-preset-btn {
+  display: flex; align-items: center; justify-content: space-between;
+  width: 100%; padding: 8px 12px;
+  font-size: 13px; color: var(--text-1);
+  background: transparent; border-radius: var(--r-sm);
+  text-align: left; transition: all 100ms;
+}
+.modal-preset-btn:hover { background: var(--surface-1); color: var(--text-0); }
+.modal-preset-btn.active {
+  background: var(--amber-dim);
+  color: var(--amber);
+}
+.modal-preset-btn .mono { font-family: var(--font-mono); font-size: 11px; color: var(--text-3); }
+.modal-preset-btn.active .mono { color: rgba(245,166,35,0.5); }
+
+.modal-calendar { padding: 20px; }
+.modal-cal-nav {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 16px;
+}
+.modal-cal-month {
+  font-family: var(--font-mono);
+  font-size: 13px; font-weight: 600; color: var(--text-0);
+  letter-spacing: 0.02em;
+}
+.modal-cal-arrow {
+  width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
+  background: var(--surface-2); border-radius: var(--r-sm); color: var(--text-2);
+}
+.modal-cal-arrow:hover { background: var(--surface-3); color: var(--text-1); }
+.modal-cal-arrow svg { width: 13px; height: 13px; }
+.modal-cal-grid {
+  display: grid; grid-template-columns: repeat(7,1fr); gap: 3px;
+}
+.modal-day-name {
+  font-family: var(--font-mono);
+  font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--text-3); text-align: center; padding: 6px 0;
+}
+.modal-day {
+  font-family: var(--font-mono);
+  font-size: 12px; font-weight: 500;
+  width: 34px; height: 34px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: var(--r-sm); color: var(--text-1);
+  cursor: pointer; margin: 0 auto;
+  transition: all 80ms;
+  position: relative;
+}
+.modal-day:hover { background: var(--surface-2); color: var(--text-0); }
+.modal-day.today {
+  color: var(--amber);
+}
+.modal-day.today::after {
+  content: ''; position: absolute; bottom: 4px; left: 50%; transform: translateX(-50%);
+  width: 3px; height: 3px; background: var(--amber); border-radius: 50%;
+}
+.modal-day.range-start { background: var(--amber); color: var(--bg); font-weight: 700; border-radius: var(--r-sm) 0 0 var(--r-sm); }
+.modal-day.range-end   { background: var(--amber); color: var(--bg); font-weight: 700; border-radius: 0 var(--r-sm) var(--r-sm) 0; }
+.modal-day.in-range    { background: var(--amber-dim); color: var(--amber); border-radius: 0; }
+.modal-day.range-start.range-end { border-radius: var(--r-sm); }
+.modal-day.other-month { color: var(--text-3); }
+
+.modal-time-row {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+  margin-top: 16px;
+}
+.modal-time-group { display: flex; flex-direction: column; gap: 4px; }
+.modal-time-label {
+  font-family: var(--font-mono);
+  font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-2);
+}
+.modal-time-input {
+  font-family: var(--font-mono);
+  font-size: 13px; font-weight: 600;
+  background: var(--surface-2);
+  border: 1px solid var(--border-1);
+  border-radius: var(--r-sm);
+  padding: 8px 12px;
+  color: var(--text-0); outline: none; width: 100%;
+}
+.modal-time-input:focus { border-color: var(--amber); box-shadow: 0 0 0 2px var(--amber-dim); }
+
+.modal-footer {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 20px;
+  border-top: 1px solid var(--border-0);
+  background: var(--surface-0);
+}
+.modal-footer-tz {
+  display: flex; align-items: center; gap: 8px;
+}
+.modal-footer-tz-label {
+  font-family: var(--font-mono);
+  font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-2);
+}
+.modal-tz-toggle {
+  display: flex;
+  background: var(--surface-2);
+  border: 1px solid var(--border-1);
+  border-radius: var(--r-xl);
+  padding: 2px;
+}
+.modal-tz-btn {
+  font-family: var(--font-mono);
+  font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 4px 10px; border-radius: var(--r-xl);
+  color: var(--text-2); background: transparent;
+}
+.modal-tz-btn.active { background: var(--surface-0); color: var(--text-0); box-shadow: 0 1px 3px rgba(0,0,0,0.4); }
+.modal-actions { display: flex; gap: 8px; align-items: center; }
+.btn-cancel {
+  font-family: var(--font-mono);
+  font-size: 11px; font-weight: 600; letter-spacing: 0.05em;
+  padding: 7px 14px; border-radius: var(--r-sm);
+  background: transparent; color: var(--text-2);
+}
+.btn-cancel:hover { background: var(--surface-2); color: var(--text-1); }
+.btn-apply {
+  font-family: var(--font-mono);
+  font-size: 11px; font-weight: 700; letter-spacing: 0.06em;
+  padding: 7px 18px; border-radius: var(--r-sm);
+  background: var(--amber); color: var(--bg);
+}
+.btn-apply:hover { background: #f7b84a; }
+
+/* ── Footer ─────────────────────────────────────────────────── */
+.page-footer {
+  margin-top: 72px; padding-top: 20px;
+  border-top: 1px solid var(--border-0);
+  font-family: var(--font-mono);
+  font-size: 11px; color: var(--text-3);
+  display: flex; justify-content: space-between;
+}
+
+/* ── Scrollbar ──────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-1); border-radius: 6px; }
+
+/* ── Open button ──────────────────────────────────────────────── */
+.open-modal-btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 11px; font-weight: 700; letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 8px 16px; border-radius: var(--r-md);
+  background: var(--surface-2); color: var(--text-1);
+  border: 1px solid var(--border-1);
+}
+.open-modal-btn:hover { border-color: var(--amber); color: var(--amber); }
+.open-modal-btn svg { width: 14px; height: 14px; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header class="page-header">
+    <div class="label">UI Component showcase</div>
+    <h1>Time Range &<br><em>Timezone</em> Controls</h1>
+    <p class="subtitle">
+      Six variants from compact to full-featured. All interactive — click to explore.
+      Built for high-density SRE dashboards where every pixel counts.
+    </p>
+  </header>
+
+  <!-- ── Section 1: Preset strips ──────────────────────────────────── -->
+  <section class="section">
+    <div class="section-label"><span class="section-num">1</span>Compact preset strips</div>
+    <div class="demo-box">
+
+      <div class="demo-row">
+        <div class="demo-desc">Pill strip<br/>Rounded / compact</div>
+        <div>
+          <div class="preset-strip" id="strip1">
+            <button class="preset-btn" data-strip="strip1">5m</button>
+            <button class="preset-btn" data-strip="strip1">15m</button>
+            <button class="preset-btn active" data-strip="strip1">1h</button>
+            <button class="preset-btn" data-strip="strip1">6h</button>
+            <button class="preset-btn" data-strip="strip1">24h</button>
+            <button class="preset-btn" data-strip="strip1">7d</button>
+            <button class="preset-btn" data-strip="strip1">30d</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="demo-row">
+        <div class="demo-desc">Segmented bar<br/>Square / indicator line</div>
+        <div>
+          <div class="seg-bar" id="seg1">
+            <button class="seg-btn" data-seg="seg1">15m</button>
+            <button class="seg-btn active" data-seg="seg1">1h</button>
+            <button class="seg-btn" data-seg="seg1">6h</button>
+            <div class="seg-divider"></div>
+            <button class="seg-btn" data-seg="seg1">24h</button>
+            <button class="seg-btn" data-seg="seg1">3d</button>
+            <button class="seg-btn" data-seg="seg1">7d</button>
+            <div class="seg-divider"></div>
+            <button class="seg-btn" data-seg="seg1">30d</button>
+            <button class="seg-btn" data-seg="seg1">90d</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── Section 2: Timezone selectors ─────────────────────────────── -->
+  <section class="section">
+    <div class="section-label"><span class="section-num">2</span>Timezone selectors</div>
+    <div class="demo-box">
+
+      <div class="demo-row">
+        <div class="demo-desc">A — Pill toggle<br/>Ultra-compact</div>
+        <div>
+          <div class="tz-pill" id="tzA">
+            <button class="tz-pill-btn active" data-tz="tzA">UTC</button>
+            <button class="tz-pill-btn" data-tz="tzA">Local</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="demo-row">
+        <div class="demo-desc">B — Info chip<br/>Shows offset inline</div>
+        <div id="tzB-wrap">
+          <div class="tz-chip" id="tzB" onclick="tzBToggle()">
+            <span class="tz-chip-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+            </span>
+            <span class="tz-chip-sep"></span>
+            <span class="tz-chip-text" id="tzB-label">UTC</span>
+            <span class="tz-chip-sub" id="tzB-sub">+00:00</span>
+            <svg style="width:12px;height:12px;opacity:0.35;margin-left:4px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
+          </div>
+        </div>
+      </div>
+
+      <div class="demo-row">
+        <div class="demo-desc">C — Segmented with offset labels</div>
+        <div>
+          <div class="tz-seg" id="tzC">
+            <div class="tz-seg-item active" data-tzc="UTC" onclick="tzCSwitch(this,'UTC','+00:00')">
+              <span class="tz-seg-label">UTC</span>
+              <span class="tz-seg-sub" id="tzc-utc-sub">+00:00</span>
+            </div>
+            <div class="tz-seg-item" data-tzc="Browser" onclick="tzCSwitch(this,'Local',null)">
+              <span class="tz-seg-label">Local</span>
+              <span class="tz-seg-sub" id="tzc-local-sub">—</span>
+            </div>
+            <div class="tz-seg-item" data-tzc="Custom" onclick="tzCSwitch(this,'Custom',null)">
+              <span class="tz-seg-label">Custom</span>
+              <span class="tz-seg-sub">Pick…</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── Section 3: Dropdown time range picker ─────────────────────── -->
+  <section class="section">
+    <div class="section-label"><span class="section-num">3</span>Dropdown time range picker</div>
+    <div class="demo-box">
+      <div class="demo-row">
+        <div class="demo-desc">Click to open panel with presets + custom date range + mini calendar</div>
+        <div style="position:relative">
+          <div class="tr-trigger" id="dropdown-trigger" onclick="toggleDropdown()">
+            <svg class="tr-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            <span class="tr-value" id="dropdown-value">Last 1 hour</span>
+            <span class="tr-badge">LIVE</span>
+            <svg class="tr-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
+          </div>
+
+          <div class="tr-panel" id="dropdown-panel">
+            <div class="tr-panel-inner">
+              <!-- Presets -->
+              <div class="tr-presets">
+                <div class="tr-preset-group">
+                  <div class="tr-preset-heading">Quick ranges</div>
+                  <button class="tr-preset-item" onclick="setDropdownPreset(this,'Last 5 minutes')">
+                    Last 5 minutes <span class="tr-preset-mono">5m</span>
+                  </button>
+                  <button class="tr-preset-item" onclick="setDropdownPreset(this,'Last 15 minutes')">
+                    Last 15 minutes <span class="tr-preset-mono">15m</span>
+                  </button>
+                  <button class="tr-preset-item active" onclick="setDropdownPreset(this,'Last 1 hour')">
+                    Last 1 hour <span class="tr-preset-mono">1h</span>
+                  </button>
+                  <button class="tr-preset-item" onclick="setDropdownPreset(this,'Last 6 hours')">
+                    Last 6 hours <span class="tr-preset-mono">6h</span>
+                  </button>
+                  <button class="tr-preset-item" onclick="setDropdownPreset(this,'Last 24 hours')">
+                    Last 24 hours <span class="tr-preset-mono">24h</span>
+                  </button>
+                </div>
+                <div class="tr-preset-group">
+                  <div class="tr-preset-heading">Longer</div>
+                  <button class="tr-preset-item" onclick="setDropdownPreset(this,'Last 3 days')">
+                    Last 3 days <span class="tr-preset-mono">3d</span>
+                  </button>
+                  <button class="tr-preset-item" onclick="setDropdownPreset(this,'Last 7 days')">
+                    Last 7 days <span class="tr-preset-mono">7d</span>
+                  </button>
+                  <button class="tr-preset-item" onclick="setDropdownPreset(this,'Last 30 days')">
+                    Last 30 days <span class="tr-preset-mono">30d</span>
+                  </button>
+                  <button class="tr-preset-item" onclick="setDropdownPreset(this,'Last 90 days')">
+                    Last 90 days <span class="tr-preset-mono">90d</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Custom + calendar -->
+              <div class="tr-custom">
+                <div class="tr-custom-label">Custom range</div>
+                <div class="tr-inputs">
+                  <div class="tr-input-group">
+                    <span class="tr-input-label">From</span>
+                    <input class="tr-input" type="text" id="from-input" placeholder="2025-04-10 00:00"/>
+                  </div>
+                  <div class="tr-input-group">
+                    <span class="tr-input-label">To</span>
+                    <input class="tr-input" type="text" id="to-input" placeholder="now"/>
+                  </div>
+                </div>
+                <!-- Mini calendar -->
+                <div class="tr-cal" id="mini-cal"></div>
+              </div>
+            </div>
+
+            <div class="tr-panel-footer">
+              <span class="tr-panel-footer-info" id="dropdown-footer-info">→ 14:10 UTC · now</span>
+              <div>
+                <button class="tr-cancel" onclick="toggleDropdown()">Cancel</button>
+                <button class="tr-apply" onclick="toggleDropdown()">Apply</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Section 4: Full time bar ──────────────────────────────────── -->
+  <section class="section">
+    <div class="section-label"><span class="section-num">4</span>Full time bar — dashboard header component</div>
+    <div class="demo-box">
+      <div class="demo-desc" style="max-width:100%;margin-bottom:4px;font-size:11px;color:var(--text-2)">
+        Complete component — presets + custom + timezone + live/paused + refresh
+      </div>
+      <div class="timebar">
+        <!-- Presets -->
+        <div class="timebar-presets" id="timebar-presets">
+          <button class="timebar-preset" data-tb="tb" onclick="tbSet(this,'15m')">15m</button>
+          <button class="timebar-preset" data-tb="tb" onclick="tbSet(this,'1h')">1h</button>
+          <button class="timebar-preset active" data-tb="tb" onclick="tbSet(this,'6h')">6h</button>
+          <button class="timebar-preset" data-tb="tb" onclick="tbSet(this,'24h')">24h</button>
+          <button class="timebar-preset" data-tb="tb" onclick="tbSet(this,'7d')">7d</button>
+        </div>
+        <div class="timebar-sep"></div>
+        <button class="timebar-custom" onclick="openModal()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          Custom…
+        </button>
+        <div class="timebar-sep"></div>
+        <!-- Timezone -->
+        <div class="timebar-tz" id="tb-tz">
+          <button class="timebar-tz-btn active" onclick="tbTz(this,'UTC')">UTC</button>
+          <button class="timebar-tz-btn" onclick="tbTz(this,'Local')">Local</button>
+        </div>
+        <!-- Live -->
+        <button class="timebar-live" id="tb-live" onclick="tbToggleLive()">
+          <span class="timebar-live-dot"></span>
+          <span id="tb-live-label">Live</span>
+        </button>
+        <!-- Refresh -->
+        <button class="timebar-refresh" title="Refresh now">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Section 5: Full modal picker ──────────────────────────────── -->
+  <section class="section">
+    <div class="section-label"><span class="section-num">5</span>Full-featured modal time range picker</div>
+    <div class="demo-box">
+      <div class="demo-row">
+        <div class="demo-desc">Large modal with dual calendar, time inputs, preset list, and timezone toggle</div>
+        <button class="open-modal-btn" onclick="openModal()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          Open time range picker
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <div class="page-footer">
+    <span>Cluster Intel · time-controls-showcase.html</span>
+    <span>JetBrains Mono + DM Sans</span>
+  </div>
+
+</div><!-- .page -->
+
+<!-- ── Modal ──────────────────────────────────────────────────────── -->
+<div class="modal-backdrop" id="modal-backdrop" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        Time Range
+      </div>
+      <button class="modal-close" onclick="closeModal()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <!-- Presets -->
+      <div class="modal-presets">
+        <div class="modal-preset-group">
+          <div class="modal-preset-heading">Relative</div>
+          <button class="modal-preset-btn" onclick="setModalPreset(this,'Last 5 min','now-5m')">Last 5 min <span class="mono">5m</span></button>
+          <button class="modal-preset-btn" onclick="setModalPreset(this,'Last 15 min','now-15m')">Last 15 min <span class="mono">15m</span></button>
+          <button class="modal-preset-btn active" onclick="setModalPreset(this,'Last 1 hour','now-1h')">Last 1 hour <span class="mono">1h</span></button>
+          <button class="modal-preset-btn" onclick="setModalPreset(this,'Last 6 hours','now-6h')">Last 6 hours <span class="mono">6h</span></button>
+          <button class="modal-preset-btn" onclick="setModalPreset(this,'Last 24 hours','now-24h')">Last 24 hours <span class="mono">24h</span></button>
+          <button class="modal-preset-btn" onclick="setModalPreset(this,'Last 2 days','now-2d')">Last 2 days <span class="mono">2d</span></button>
+          <button class="modal-preset-btn" onclick="setModalPreset(this,'Last 7 days','now-7d')">Last 7 days <span class="mono">7d</span></button>
+          <button class="modal-preset-btn" onclick="setModalPreset(this,'Last 30 days','now-30d')">Last 30 days <span class="mono">30d</span></button>
+        </div>
+        <div class="modal-preset-group">
+          <div class="modal-preset-heading">Calendar</div>
+          <button class="modal-preset-btn" onclick="setModalPreset(this,'Today','today')">Today</button>
+          <button class="modal-preset-btn" onclick="setModalPreset(this,'Yesterday','yesterday')">Yesterday</button>
+          <button class="modal-preset-btn" onclick="setModalPreset(this,'This week','this-week')">This week</button>
+          <button class="modal-preset-btn" onclick="setModalPreset(this,'This month','this-month')">This month</button>
+        </div>
+      </div>
+      <!-- Calendar -->
+      <div class="modal-calendar">
+        <div class="modal-cal-nav">
+          <button class="modal-cal-arrow" onclick="modalCalNav(-1)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+          <div class="modal-cal-month" id="modal-cal-month"></div>
+          <button class="modal-cal-arrow" onclick="modalCalNav(1)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+        </div>
+        <div class="modal-cal-grid" id="modal-cal-grid"></div>
+        <div class="modal-time-row">
+          <div class="modal-time-group">
+            <span class="modal-time-label">From</span>
+            <input class="modal-time-input" id="modal-from" type="text" value="2026-04-10 00:00:00"/>
+          </div>
+          <div class="modal-time-group">
+            <span class="modal-time-label">To</span>
+            <input class="modal-time-input" id="modal-to" type="text" value="now"/>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <div class="modal-footer-tz">
+        <span class="modal-footer-tz-label">Timezone</span>
+        <div class="modal-tz-toggle" id="modal-tz">
+          <button class="modal-tz-btn active" onclick="modalTz(this,'UTC')">UTC</button>
+          <button class="modal-tz-btn" onclick="modalTz(this,'Browser')">Browser</button>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+        <button class="btn-apply" onclick="closeModal()">Apply range</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Preset strip ──────────────────────────────────────────────
+document.querySelectorAll('.preset-btn').forEach(btn => {
+  btn.addEventListener('click', function() {
+    const id = this.dataset.strip;
+    document.querySelectorAll(`.preset-btn[data-strip="${id}"]`).forEach(b => b.classList.remove('active'));
+    this.classList.add('active');
+  });
+});
+document.querySelectorAll('.seg-btn[data-seg]').forEach(btn => {
+  btn.addEventListener('click', function() {
+    const id = this.dataset.seg;
+    document.querySelectorAll(`.seg-btn[data-seg="${id}"]`).forEach(b => b.classList.remove('active'));
+    this.classList.add('active');
+  });
+});
+
+// ── Timezone pill ─────────────────────────────────────────────
+document.querySelectorAll('.tz-pill-btn').forEach(btn => {
+  btn.addEventListener('click', function() {
+    const id = this.dataset.tz;
+    document.querySelectorAll(`.tz-pill-btn[data-tz="${id}"]`).forEach(b => b.classList.remove('active'));
+    this.classList.add('active');
+  });
+});
+
+// ── Timezone chip B ───────────────────────────────────────────
+let tzBState = 'UTC';
+function tzBToggle() {
+  tzBState = tzBState === 'UTC' ? 'Browser' : 'UTC';
+  document.getElementById('tzB-label').textContent = tzBState === 'UTC' ? 'UTC' : 'Local';
+  const now = new Date();
+  const offset = -now.getTimezoneOffset();
+  const h = Math.floor(Math.abs(offset)/60).toString().padStart(2,'0');
+  const m = (Math.abs(offset)%60).toString().padStart(2,'0');
+  const sign = offset >= 0 ? '+' : '-';
+  document.getElementById('tzB-sub').textContent = tzBState === 'UTC' ? '+00:00' : `${sign}${h}:${m}`;
+}
+
+// ── Timezone seg C ─────────────────────────────────────────────
+(function() {
+  const now = new Date();
+  const offset = -now.getTimezoneOffset();
+  const h = Math.floor(Math.abs(offset)/60).toString().padStart(2,'0');
+  const m = (Math.abs(offset)%60).toString().padStart(2,'0');
+  const sign = offset >= 0 ? '+' : '-';
+  document.getElementById('tzc-local-sub').textContent = `${sign}${h}:${m}`;
+})();
+function tzCSwitch(el, label, sub) {
+  document.querySelectorAll('.tz-seg-item').forEach(i => i.classList.remove('active'));
+  el.classList.add('active');
+}
+
+// ── Dropdown ───────────────────────────────────────────────────
+function toggleDropdown() {
+  const t = document.getElementById('dropdown-trigger');
+  const p = document.getElementById('dropdown-panel');
+  t.classList.toggle('open');
+  p.classList.toggle('open');
+}
+function setDropdownPreset(btn, label) {
+  document.querySelectorAll('.tr-preset-item').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('dropdown-value').textContent = label;
+  toggleDropdown();
+}
+document.addEventListener('click', function(e) {
+  const t = document.getElementById('dropdown-trigger');
+  const p = document.getElementById('dropdown-panel');
+  if (t && p && !t.contains(e.target) && !p.contains(e.target)) {
+    t.classList.remove('open');
+    p.classList.remove('open');
+  }
+});
+
+// Mini calendar (dropdown)
+(function() {
+  const cal = document.getElementById('mini-cal');
+  if (!cal) return;
+  const now = new Date();
+  const year = now.getFullYear(), month = now.getMonth();
+  const days = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+  const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  let html = `<div class="tr-cal-header"><button class="tr-cal-nav" onclick="event.stopPropagation()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg></button><span class="tr-cal-month">${months[month]} ${year}</span><button class="tr-cal-nav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg></button></div><div class="tr-cal-grid">`;
+  days.forEach(d => { html += `<div class="tr-cal-day-name">${d}</div>`; });
+  const first = new Date(year, month, 1).getDay();
+  const last = new Date(year, month+1, 0).getDate();
+  for (let i = 0; i < first; i++) html += `<div></div>`;
+  for (let d = 1; d <= last; d++) {
+    const cls = d === now.getDate() ? 'tr-cal-day today' : 'tr-cal-day';
+    const sel = d >= 7 && d <= 17 ? (d === 7 ? 'selected' : d <= 17 ? 'in-range' : '') : '';
+    html += `<div class="${cls} ${sel}">${d}</div>`;
+  }
+  html += '</div>';
+  cal.innerHTML = html;
+})();
+
+// ── Timebar ────────────────────────────────────────────────────
+function tbSet(btn, val) {
+  document.querySelectorAll('.timebar-preset').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+function tbTz(btn, tz) {
+  document.querySelectorAll('#tb-tz .timebar-tz-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+let tbLive = true;
+function tbToggleLive() {
+  tbLive = !tbLive;
+  const el = document.getElementById('tb-live');
+  const label = document.getElementById('tb-live-label');
+  if (tbLive) { el.classList.remove('paused'); label.textContent = 'Live'; }
+  else         { el.classList.add('paused');    label.textContent = 'Paused'; }
+}
+
+// ── Modal calendar ─────────────────────────────────────────────
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const DAYS = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+let modalYear = new Date().getFullYear();
+let modalMonth = new Date().getMonth();
+let modalRangeStart = null, modalRangeEnd = null;
+
+function renderModalCal() {
+  document.getElementById('modal-cal-month').textContent = `${MONTHS[modalMonth]} ${modalYear}`;
+  const grid = document.getElementById('modal-cal-grid');
+  const today = new Date();
+  const first = new Date(modalYear, modalMonth, 1).getDay();
+  const last = new Date(modalYear, modalMonth+1, 0).getDate();
+  let html = '';
+  DAYS.forEach(d => { html += `<div class="modal-day-name">${d}</div>`; });
+  for (let i = 0; i < first; i++) html += `<div></div>`;
+  for (let d = 1; d <= last; d++) {
+    const dt = new Date(modalYear, modalMonth, d);
+    let cls = 'modal-day';
+    if (today.getFullYear()===modalYear && today.getMonth()===modalMonth && today.getDate()===d) cls += ' today';
+    // highlight a demo range: Apr 7–17
+    if (modalMonth === today.getMonth()) {
+      if (d === 7) cls += ' range-start';
+      else if (d === 17) cls += ' range-end';
+      else if (d > 7 && d < 17) cls += ' in-range';
+    }
+    html += `<div class="${cls}" onclick="modalDayClick(${d})">${d}</div>`;
+  }
+  grid.innerHTML = html;
+}
+function modalCalNav(dir) { modalMonth += dir; if (modalMonth<0){modalMonth=11;modalYear--;}else if(modalMonth>11){modalMonth=0;modalYear++;} renderModalCal(); }
+function modalDayClick(d) { /* demo: just re-render */ }
+function setModalPreset(btn, label, val) {
+  document.querySelectorAll('.modal-preset-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('modal-to').value = 'now';
+  document.getElementById('modal-from').value = val;
+}
+function modalTz(btn, tz) {
+  document.querySelectorAll('#modal-tz .modal-tz-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+function openModal() { document.getElementById('modal-backdrop').classList.add('open'); renderModalCal(); }
+function closeModal() { document.getElementById('modal-backdrop').classList.remove('open'); }
+</script>
+</body>
+</html>

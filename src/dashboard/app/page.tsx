@@ -397,11 +397,14 @@ export default function Dashboard() {
     return () => clearInterval(interval)
   }, [report, addToast])
 
-  // Trigger manual refresh
+  // Trigger manual refresh — clear error first so the loading skeleton
+  // shows immediately instead of leaving the error screen frozen.
   const handleRefresh = useCallback(() => {
+    setError(null)
     setLoading(true)
+    addToast('info', 'Reconnecting to cluster…')
     fetchReport(true)
-  }, [fetchReport])
+  }, [fetchReport, addToast])
 
   // Switch the analyzer profile (live | mock) via POST /api/v1/profile.
   // Only invoked from the Settings modal — the dashboard itself no longer
@@ -499,7 +502,7 @@ export default function Dashboard() {
           ; (buttons[newIndex] as HTMLElement)?.focus()
       }
     }
-  }, [])
+  }, [setActiveTab])
 
   // Show skeleton during initial load
   if (loading && !report) {
@@ -531,13 +534,16 @@ export default function Dashboard() {
   // Show loading state if no report yet
   if (!report) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <RefreshCw className="w-8 h-8 animate-spin text-blue-400 mx-auto mb-4" />
-          <p className="text-gray-400">Connecting to analyzer...</p>
-          <p className="text-gray-500 text-sm mt-2">Waiting for first health report from the cluster</p>
+      <>
+        <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="text-center">
+            <RefreshCw className="w-8 h-8 animate-spin text-blue-400 mx-auto mb-4" />
+            <p className="text-gray-400">Connecting to analyzer...</p>
+            <p className="text-gray-500 text-sm mt-2">Waiting for first health report from the cluster</p>
+          </div>
         </div>
-      </div>
+      </>
     )
   }
 
@@ -616,6 +622,7 @@ export default function Dashboard() {
                     a.href = url
                     a.download = `k8s-health-report-${displayReport.clusterId}-${new Date().toISOString()}.json`
                     a.click()
+                    URL.revokeObjectURL(url)
                     addToast('success', 'Exported health report to JSON')
                   }}
                   className="btn-icon tooltip-trigger"

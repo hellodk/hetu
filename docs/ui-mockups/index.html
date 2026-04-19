@@ -6,7 +6,7 @@
 <title>Cluster Intel — theme chooser</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,500;0,6..72,600;1,6..72,400&family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,500,100,0;0,9..144,600,100,0&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,500;0,6..72,600;1,6..72,400&family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,500,100,0;0,9..144,600,100,0&family=JetBrains+Mono:wght@400;500;600&family=Instrument+Serif:ital@0;1&family=Instrument+Sans:wght@400;700&display=swap" rel="stylesheet">
 <style>
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; }
@@ -146,8 +146,226 @@
     background: rgba(255,255,255,0.05); border: 1px solid rgba(148,163,184,0.15);
   }
 
-  @media (max-width: 1280px) { .theme-grid { grid-template-columns: repeat(2, 1fr); } }
-  @media (max-width: 700px)  { .theme-grid { grid-template-columns: 1fr; } .lede h1 { font-size: 40px; } .page { padding: 40px 24px 64px; } }
+  /* ── Material Design 3 section ─────────────────────────────────────── */
+  .section-divider {
+    margin-top: 72px;
+    display: flex; align-items: center; gap: 20px;
+  }
+  .section-divider::before,
+  .section-divider::after {
+    content: ''; flex: 1; height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(148,163,184,0.18), transparent);
+  }
+  .section-divider-label {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: #8c8f99;
+    white-space: nowrap;
+  }
+  .section-divider-label svg {
+    width: 14px; height: 14px; fill: none; stroke: #8c8f99;
+    stroke-width: 1.8; stroke-linecap: round; flex-shrink: 0;
+  }
+
+  .md-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 20px;
+    margin-top: 28px;
+  }
+
+  .theme-card.md-dark {
+    background: linear-gradient(135deg, rgba(208,188,255,0.20), rgba(78,56,155,0.30));
+  }
+  .theme-card.md-dark .inner {
+    background: #1C1B1F; border: 1px solid rgba(208,188,255,0.15);
+  }
+  .theme-card.md-dark:hover { box-shadow: 0 20px 60px -20px rgba(208,188,255,0.35); }
+  .theme-card.md-dark .eyebrow  { color: rgba(208,188,255,0.55); }
+  .theme-card.md-dark h2        { color: #E6E1E5; }
+  .theme-card.md-dark p.pitch   { color: #CAC4D0; }
+  .theme-card.md-dark .tag      { border-color: rgba(208,188,255,0.2); color: #CAC4D0; }
+  .theme-card.md-dark .thumb    {
+    background-image: url('md-dark/01-overview.png');
+    border-color: rgba(208,188,255,0.12);
+  }
+  .theme-card.md-dark .page-links a {
+    color: #E6E1E5; background: rgba(208,188,255,0.06);
+    border-color: rgba(208,188,255,0.15);
+  }
+  .theme-card.md-dark .page-links a:hover {
+    background: rgba(208,188,255,0.12); border-color: rgba(208,188,255,0.3);
+  }
+
+  .theme-card.md-light {
+    background: linear-gradient(135deg, #EDE7F6, #E8DEF8 60%, #D1C4E9);
+  }
+  .theme-card.md-light .inner {
+    background: #FFFBFE; border: 1px solid #CAC4D0;
+  }
+  .theme-card.md-light:hover { box-shadow: 0 20px 60px -20px rgba(103,80,164,0.3); }
+  .theme-card.md-light .eyebrow  { color: #79747E; }
+  .theme-card.md-light h2        { color: #1C1B1F; }
+  .theme-card.md-light p.pitch   { color: #49454F; }
+  .theme-card.md-light .tag      { border-color: #CAC4D0; color: #49454F; }
+  .theme-card.md-light .thumb    {
+    background-image: url('md-light/01-overview.png');
+    border-color: #CAC4D0;
+  }
+  .theme-card.md-light .page-links a {
+    color: #1C1B1F; background: #F7F2FA; border-color: #CAC4D0;
+  }
+  .theme-card.md-light .page-links a:hover {
+    background: #E8DEF8; border-color: #6750A4;
+  }
+
+  /* 8-link grid for MD pages */
+  .page-links-md {
+    margin-top: auto;
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;
+  }
+  .page-links-md a {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 12px; border-radius: 8px;
+    font-size: 13px; font-weight: 500;
+    text-decoration: none; transition: all 120ms ease;
+  }
+  .page-links-md .span-3 { grid-column: span 3; }
+  /* keep old 5-link alias for backwards compat */
+  .page-links-5 { margin-top: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .page-links-5 a { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border-radius: 8px; font-size: 13px; font-weight: 500; text-decoration: none; transition: all 120ms ease; }
+  .page-links-5 .span-2 { grid-column: span 2; }
+
+  /* Presentation deck card */
+  .presentation-banner {
+    margin-top: 28px;
+    display: flex; align-items: center; gap: 20px;
+    padding: 20px 28px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(148,163,184,0.14);
+    border-radius: 14px;
+  }
+  .presentation-icon {
+    width: 48px; height: 48px; border-radius: 12px;
+    background: rgba(92,242,225,0.1); border: 1px solid rgba(92,242,225,0.2);
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .presentation-icon svg { width: 22px; height: 22px; fill: none; stroke: #5CF2E1; stroke-width: 1.8; stroke-linecap: round; }
+  .presentation-title { font-size: 15px; font-weight: 600; color: #E7EAF2; margin-bottom: 3px; }
+  .presentation-sub   { font-size: 13px; color: #8C8F99; }
+  .presentation-link  {
+    margin-left: auto; display: inline-flex; align-items: center; gap: 8px;
+    padding: 10px 20px;
+    background: rgba(92,242,225,0.08); border: 1px solid rgba(92,242,225,0.22);
+    border-radius: 999px; font-size: 13px; font-weight: 600; color: #5CF2E1;
+    text-decoration: none; transition: all 150ms ease; white-space: nowrap;
+  }
+  .presentation-link:hover { background: rgba(92,242,225,0.15); }
+  .presentation-link svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+
+  .plan-banner {
+    margin-top: 28px;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 24px;
+    background: rgba(208,188,255,0.07);
+    border: 1px solid rgba(208,188,255,0.18);
+    border-radius: 14px;
+  }
+  .plan-banner-left { display: flex; align-items: center; gap: 14px; }
+  .plan-banner-icon {
+    width: 40px; height: 40px; border-radius: 10px;
+    background: rgba(208,188,255,0.12);
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .plan-banner-icon svg { width: 20px; height: 20px; fill: none; stroke: #D0BCFF; stroke-width: 1.8; stroke-linecap: round; }
+  .plan-banner-title { font-size: 15px; font-weight: 600; color: #E7EAF2; margin-bottom: 3px; }
+  .plan-banner-sub   { font-size: 13px; color: #8C8F99; }
+  .plan-banner-link  {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 10px 20px;
+    background: rgba(208,188,255,0.12);
+    border: 1px solid rgba(208,188,255,0.25);
+    border-radius: 999px;
+    font-size: 13px; font-weight: 600; color: #D0BCFF;
+    text-decoration: none; transition: all 150ms ease;
+  }
+  .plan-banner-link:hover { background: rgba(208,188,255,0.2); }
+  .plan-banner-link svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+
+  /* ── Issues concepts section ───────────────────────────────────────── */
+  .issues-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px;
+    margin-top: 28px;
+  }
+  @media (min-width: 1500px) { .issues-grid { grid-template-columns: repeat(5, 1fr); } }
+
+  .concept-card {
+    border-radius: 14px;
+    padding: 5px;
+    transition: transform 240ms cubic-bezier(.22,.61,.36,1), box-shadow 240ms ease;
+  }
+  .concept-card:hover { transform: translateY(-3px); }
+
+  .concept-card .inner {
+    border-radius: 11px;
+    padding: 24px 24px 20px;
+    height: 100%;
+    display: flex; flex-direction: column;
+    min-height: 340px;
+  }
+
+  .concept-card.triage {
+    background: linear-gradient(135deg, rgba(255,45,74,0.22), rgba(255,140,0,0.14));
+  }
+  .concept-card.triage .inner { background: #0c0e14; border: 1px solid rgba(255,45,74,0.18); }
+  .concept-card.triage:hover  { box-shadow: 0 20px 60px -20px rgba(255,45,74,0.35); }
+
+  .concept-card.command {
+    background: linear-gradient(135deg, rgba(0,255,65,0.2), rgba(0,200,48,0.1));
+  }
+  .concept-card.command .inner { background: #020a02; border: 1px solid rgba(0,255,65,0.18); }
+  .concept-card.command:hover  { box-shadow: 0 20px 60px -20px rgba(0,255,65,0.3); }
+
+  .concept-card.matrix {
+    background: linear-gradient(135deg, #e8e4da, #d6d0c4);
+  }
+  .concept-card.matrix .inner { background: #f4f2ed; border: 2px solid #000000; color: #000; }
+  .concept-card.matrix:hover  { box-shadow: 0 20px 60px -20px rgba(0,0,0,0.3); }
+
+  .concept-card .eyebrow { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: #8c8f99; margin-bottom: 8px; }
+  .concept-card.matrix .eyebrow { color: #555; }
+
+  .concept-card h3 { font-family: 'Space Grotesk', sans-serif; font-size: 22px; font-weight: 600; letter-spacing: -0.02em; margin: 0 0 10px; }
+  .concept-card.matrix h3 { color: #000; }
+
+  .concept-card p.pitch { font-size: 13px; line-height: 1.55; color: #a8b0bf; margin: 0 0 16px; }
+  .concept-card.triage  p.pitch { color: #8a9096; }
+  .concept-card.command p.pitch { color: #4a7a52; }
+  .concept-card.matrix  p.pitch { color: #444; }
+
+  .concept-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 20px; }
+  .concept-tag  {
+    font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase;
+    padding: 2px 7px; border-radius: 999px;
+    border: 1px solid rgba(148,163,184,0.2); color: #a8b0bf;
+  }
+  .concept-card.triage  .concept-tag { border-color: rgba(255,45,74,0.25);  color: rgba(255,120,134,0.8); }
+  .concept-card.command .concept-tag { border-color: rgba(0,255,65,0.2);   color: rgba(0,200,48,0.8); font-family: 'JetBrains Mono', monospace; font-size: 9px; }
+  .concept-card.matrix  .concept-tag { border-color: #999; color: #444; }
+
+  .concept-open-link {
+    margin-top: auto;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 14px; border-radius: 8px;
+    font-size: 13px; font-weight: 500;
+    text-decoration: none; transition: all 120ms ease;
+    color: #e7eaf2; background: rgba(255,255,255,0.05); border: 1px solid rgba(148,163,184,0.18);
+  }
+  .concept-card.triage .concept-open-link:hover  { background: rgba(255,45,74,0.12); border-color: rgba(255,45,74,0.4); }
+  .concept-card.command .concept-open-link { color: rgba(0,255,65,0.9); background: rgba(0,255,65,0.05); border-color: rgba(0,255,65,0.2); font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; }
+  .concept-card.command .concept-open-link:hover { background: rgba(0,255,65,0.12); border-color: rgba(0,255,65,0.5); }
+  .concept-card.matrix .concept-open-link { color: #000; background: #fff; border: 2px solid #000; border-radius: 0; font-family: 'Space Grotesk', sans-serif; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; }
+  .concept-card.matrix .concept-open-link:hover { background: #000; color: #fff; }
+
+  @media (max-width: 1280px) { .theme-grid { grid-template-columns: repeat(2, 1fr); } .md-grid { grid-template-columns: 1fr; } .issues-grid { grid-template-columns: 1fr; } }
+  @media (max-width: 700px)  { .theme-grid { grid-template-columns: 1fr; } .md-grid { grid-template-columns: 1fr; } .issues-grid { grid-template-columns: 1fr; } .lede h1 { font-size: 40px; } .page { padding: 40px 24px 64px; } }
 </style>
 </head>
 <body>
@@ -159,9 +377,8 @@
     <h1>Pick the mood. Then I'll build it.</h1>
     <p>
       Same pages, same data, same SRE-first information architecture.
-      Four different answers to "modern and magical." Click any card to see
-      the four representative pages rendered live, with real motion. The
-      shared plan and tokens live next to each theme's folder.
+      Six themes: four originals plus two Material Design 3 variants covering
+      all eight application pages. Click any card to explore the pages live.
     </p>
   </section>
 
@@ -274,9 +491,260 @@
 
   </section>
 
+  <!-- ── Material Design 3 section ──────────────────────────────────── -->
+  <div class="section-divider">
+    <div class="section-divider-label">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M8.56 2.75c4.37 6.03 6.02 9.42 8.03 17.72m2.54-15.38c-3.72 4.35-8.94 5.66-16.88 5.85m19.5 1.9c-3.5-.93-6.63-.82-8.94 0-2.58.92-5.01 2.86-7.44 6.32"/></svg>
+      Material Design 3 — Full revamp proposal
+    </div>
+  </div>
+
+  <p style="margin-top:20px;font-size:15px;line-height:1.6;color:#a8b0bf;max-width:72ch">
+    A complete rethink using Google's MD3 spec. Two new themes — one dark, one light — covering 5 pages including
+    a new <strong style="color:#E7EAF2">Executive Summary</strong> designed for VP / CTO audiences.
+    See the implementation plan for the phased rollout strategy.
+  </p>
+
+  <div class="md-grid">
+
+    <!-- MD Dark -->
+    <article class="theme-card md-dark">
+      <div class="inner">
+        <div class="thumb" aria-hidden="true"></div>
+        <div class="eyebrow">05 · MATERIAL DARK</div>
+        <h2>Material Dark</h2>
+        <p class="pitch">
+          MD3 dark colour scheme — <code style="font-size:12px;background:rgba(208,188,255,0.1);padding:1px 5px;border-radius:3px">#1C1B1F</code> surface,
+          <code style="font-size:12px;background:rgba(208,188,255,0.1);padding:1px 5px;border-radius:3px">#D0BCFF</code> primary.
+          Elevation via colour tinting (no shadow). Roboto. MD3 state layers on all interactive surfaces.
+          Covers all 8 app pages — including LB Logs, Optimization, Anomalies, and a new executive scorecard.
+        </p>
+        <div class="tags">
+          <span class="tag">dark</span>
+          <span class="tag">MD3 purple</span>
+          <span class="tag">Roboto</span>
+          <span class="tag">tint elevation</span>
+          <span class="tag">8 pages</span>
+        </div>
+        <nav class="page-links-md">
+          <a href="md-dark/01-overview.html"  style="color:#E6E1E5;background:rgba(208,188,255,0.06);border:1px solid rgba(208,188,255,0.15)">Overview <span class="arrow">↗</span></a>
+          <a href="md-dark/02-errors.html"    style="color:#E6E1E5;background:rgba(208,188,255,0.06);border:1px solid rgba(208,188,255,0.15)">Errors <span class="arrow">↗</span></a>
+          <a href="md-dark/06-lb-logs.html"   style="color:#E6E1E5;background:rgba(208,188,255,0.06);border:1px solid rgba(208,188,255,0.15)">LB Logs <span class="arrow">↗</span></a>
+          <a href="md-dark/03-incidents.html" style="color:#E6E1E5;background:rgba(208,188,255,0.06);border:1px solid rgba(208,188,255,0.15)">Incidents <span class="arrow">↗</span></a>
+          <a href="md-dark/07-optimization.html" style="color:#E6E1E5;background:rgba(208,188,255,0.06);border:1px solid rgba(208,188,255,0.15)">Optimization <span class="arrow">↗</span></a>
+          <a href="md-dark/08-anomalies.html" style="color:#E6E1E5;background:rgba(208,188,255,0.06);border:1px solid rgba(208,188,255,0.15)">Anomalies <span class="arrow">↗</span></a>
+          <a href="md-dark/04-security.html"  style="color:#E6E1E5;background:rgba(208,188,255,0.06);border:1px solid rgba(208,188,255,0.15)">Security <span class="arrow">↗</span></a>
+          <a href="md-dark/05-management-summary.html" class="span-3" style="color:#D0BCFF;background:rgba(208,188,255,0.10);border:1px solid rgba(208,188,255,0.25);font-weight:600">★ Executive Summary <span class="arrow">↗</span></a>
+        </nav>
+      </div>
+    </article>
+
+    <!-- MD Light -->
+    <article class="theme-card md-light">
+      <div class="inner">
+        <div class="thumb" aria-hidden="true"></div>
+        <div class="eyebrow">06 · MATERIAL LIGHT</div>
+        <h2>Material Light</h2>
+        <p class="pitch">
+          MD3 light colour scheme — <code style="font-size:12px;background:rgba(103,80,164,0.08);padding:1px 5px;border-radius:3px;color:#1C1B1F">#FFFBFE</code> surface,
+          <code style="font-size:12px;background:rgba(103,80,164,0.08);padding:1px 5px;border-radius:3px;color:#1C1B1F">#6750A4</code> primary.
+          Elevation via box-shadow. WCAG AA severity colours. All 8 app pages. Optimised for management presentations and bright-light environments.
+        </p>
+        <div class="tags">
+          <span class="tag">light</span>
+          <span class="tag">MD3 indigo</span>
+          <span class="tag">Roboto</span>
+          <span class="tag">shadow elevation</span>
+          <span class="tag">8 pages</span>
+        </div>
+        <nav class="page-links-md">
+          <a href="md-light/01-overview.html"  style="color:#1C1B1F;background:#F7F2FA;border:1px solid #CAC4D0">Overview <span class="arrow">↗</span></a>
+          <a href="md-light/02-errors.html"    style="color:#1C1B1F;background:#F7F2FA;border:1px solid #CAC4D0">Errors <span class="arrow">↗</span></a>
+          <a href="md-light/06-lb-logs.html"   style="color:#1C1B1F;background:#F7F2FA;border:1px solid #CAC4D0">LB Logs <span class="arrow">↗</span></a>
+          <a href="md-light/03-incidents.html" style="color:#1C1B1F;background:#F7F2FA;border:1px solid #CAC4D0">Incidents <span class="arrow">↗</span></a>
+          <a href="md-light/07-optimization.html" style="color:#1C1B1F;background:#F7F2FA;border:1px solid #CAC4D0">Optimization <span class="arrow">↗</span></a>
+          <a href="md-light/08-anomalies.html" style="color:#1C1B1F;background:#F7F2FA;border:1px solid #CAC4D0">Anomalies <span class="arrow">↗</span></a>
+          <a href="md-light/04-security.html"  style="color:#1C1B1F;background:#F7F2FA;border:1px solid #CAC4D0">Security <span class="arrow">↗</span></a>
+          <a href="md-light/05-management-summary.html" class="span-3" style="color:#6750A4;background:#EDE7F6;border:1px solid #6750A4;font-weight:600">★ Executive Summary <span class="arrow">↗</span></a>
+        </nav>
+      </div>
+    </article>
+
+  </div>
+
+  <!-- ── Issues Dashboard Concepts section ─────────────────────────── -->
+  <div class="section-divider" style="margin-top:72px">
+    <div class="section-divider-label">
+      <svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      Issues Dashboard — Layout concepts
+    </div>
+  </div>
+
+  <p style="margin-top:20px;font-size:15px;line-height:1.6;color:#a8b0bf;max-width:72ch">
+    Three divergent design directions for the Issues page — each with a distinct aesthetic and
+    information hierarchy. All are fully self-contained HTML with real cluster data.
+  </p>
+
+  <div class="issues-grid">
+
+    <!-- Priority Triage -->
+    <article class="concept-card triage">
+      <div class="inner">
+        <div class="eyebrow">01 · MEDICAL URGENCY</div>
+        <h3 style="color:#ff7a8a">Priority Triage</h3>
+        <p class="pitch">
+          Health-ring hero counts to 27% cluster health. A pinned "Needs Action Now"
+          rail surfaces only critical items. Category rows expand inline with drill-down
+          panels and AI fix suggestions. DM Serif Display + charcoal.
+        </p>
+        <div class="concept-tags">
+          <span class="concept-tag">health ring</span>
+          <span class="concept-tag">inline drill-down</span>
+          <span class="concept-tag">DM Serif</span>
+          <span class="concept-tag">dark</span>
+        </div>
+        <a class="concept-open-link" href="issues-concepts/01-priority-triage.html">
+          Open mockup <span>↗</span>
+        </a>
+      </div>
+    </article>
+
+    <!-- Command Center -->
+    <article class="concept-card command">
+      <div class="inner">
+        <div class="eyebrow">02 · TERMINAL / CRT</div>
+        <h3 style="color:#00ff41;text-shadow:0 0 10px #00ff41">Command Center</h3>
+        <p class="pitch">
+          Phosphor green on pure black. Scanlines overlay. Category nav on the left,
+          master issue table on the right with full expand-to-detail rows. Live ticker
+          at the bottom. Orbitron + Share Tech Mono.
+        </p>
+        <div class="concept-tags">
+          <span class="concept-tag">scanlines</span>
+          <span class="concept-tag">split panel</span>
+          <span class="concept-tag">Orbitron</span>
+          <span class="concept-tag">live feed</span>
+        </div>
+        <a class="concept-open-link" href="issues-concepts/02-command-center.html">
+          OPEN MOCKUP ↗
+        </a>
+      </div>
+    </article>
+
+    <!-- Swimlane Matrix -->
+    <article class="concept-card matrix">
+      <div class="inner">
+        <div class="eyebrow">03 · BRUTALIST SWISS</div>
+        <h3>Swimlane Matrix</h3>
+        <p class="pitch">
+          Pure white, pure black, no shadows, no radius. A newspaper masthead with
+          issue counts. Kanban columns by severity, swimlane rows by category.
+          Click any card for a modal detail. Barlow Condensed + Courier Prime.
+        </p>
+        <div class="concept-tags">
+          <span class="concept-tag">light</span>
+          <span class="concept-tag">kanban grid</span>
+          <span class="concept-tag">Barlow Condensed</span>
+          <span class="concept-tag">modal detail</span>
+        </div>
+        <a class="concept-open-link" href="issues-concepts/03-swimlane-matrix.html">
+          OPEN MOCKUP ↗
+        </a>
+      </div>
+    </article>
+
+    <!-- 04: Operator Briefing -->
+    <article class="concept-card briefing">
+      <div class="inner" style="background:#09090c;border:1px solid rgba(245,158,11,0.2);">
+        <div class="eyebrow" style="color:#92600a;">Improvement Concept 04</div>
+        <h3 style="color:#f59e0b;font-family:'JetBrains Mono',monospace;font-size:18px;letter-spacing:-0.01em;">Operator Briefing</h3>
+        <p class="pitch" style="color:#6b6050;">Bloomberg Terminal × Mission Control. Dense amber-on-black layout adding the key missing dimension: <strong style="color:#a87a30;">velocity & temporal context</strong>. Trend sparklines, 24h velocity chart, namespace blast radius heat grid, and a ranked fix queue with impact×effort scoring.</p>
+        <div class="concept-tags">
+          <span class="concept-tag" style="border-color:rgba(245,158,11,0.3);color:rgba(245,158,11,0.8);">trend sparklines</span>
+          <span class="concept-tag" style="border-color:rgba(245,158,11,0.3);color:rgba(245,158,11,0.8);">shift delta</span>
+          <span class="concept-tag" style="border-color:rgba(245,158,11,0.3);color:rgba(245,158,11,0.8);">namespace heatmap</span>
+          <span class="concept-tag" style="border-color:rgba(245,158,11,0.3);color:rgba(245,158,11,0.8);">fix queue</span>
+          <span class="concept-tag" style="border-color:rgba(245,158,11,0.3);color:rgba(245,158,11,0.8);">Syne + JetBrains Mono</span>
+        </div>
+        <a class="concept-open-link" href="issues-concepts/04-operator-briefing.html"
+           style="color:rgba(245,158,11,0.9);background:rgba(245,158,11,0.06);border-color:rgba(245,158,11,0.22);font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:1px;text-transform:uppercase;">
+          OPEN MOCKUP ↗
+        </a>
+      </div>
+    </article>
+
+    <!-- 05: Cluster Pulse -->
+    <article class="concept-card pulse">
+      <div class="inner" style="background:#faf8f3;border:1px solid #d6cfc0;color:#1c1917;">
+        <div class="eyebrow" style="color:#78716c;">Improvement Concept 05</div>
+        <h3 style="color:#9f1239;font-family:'Instrument Serif',Georgia,serif;font-size:22px;font-style:italic;font-weight:400;">Cluster Pulse</h3>
+        <p class="pitch" style="color:#44403c;">Editorial Scientific — warm cream paper, serif headings, precision mono data. Like a premium research dashboard. Adds <strong>vital sign sparklines</strong>, <strong>dot-matrix severity visualisation</strong>, <strong>issue age distribution</strong>, and projected health score after top-N fixes.</p>
+        <div class="concept-tags">
+          <span class="concept-tag" style="border-color:#c4b8a8;color:#6b5f52;">vital signs 24h</span>
+          <span class="concept-tag" style="border-color:#c4b8a8;color:#6b5f52;">dot matrix</span>
+          <span class="concept-tag" style="border-color:#c4b8a8;color:#6b5f52;">age distribution</span>
+          <span class="concept-tag" style="border-color:#c4b8a8;color:#6b5f52;">projected score</span>
+          <span class="concept-tag" style="border-color:#c4b8a8;color:#6b5f52;">Instrument Serif + Fira Code</span>
+        </div>
+        <a class="concept-open-link" href="issues-concepts/05-cluster-pulse.html"
+           style="color:#1c1917;background:#fff;border:2px solid #1c1917;border-radius:0;font-family:'Instrument Sans',sans-serif;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;">
+          Open Mockup ↗
+        </a>
+      </div>
+    </article>
+
+  </div>
+
+  <!-- Time controls showcase banner -->
+  <div class="presentation-banner" style="margin-top:40px;background:rgba(245,166,35,0.05);border-color:rgba(245,166,35,0.15)">
+    <div class="presentation-icon" style="background:rgba(245,166,35,0.1);border-color:rgba(245,166,35,0.2)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#F5A623" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+    </div>
+    <div>
+      <div class="presentation-title">Time Range &amp; Timezone Controls</div>
+      <div class="presentation-sub">5 variants — preset strips, segmented bar, dropdown, full modal, timebar</div>
+    </div>
+    <a class="presentation-link" href="time-controls-showcase.html" style="color:#F5A623;background:rgba(245,166,35,0.08);border-color:rgba(245,166,35,0.22)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      Open showcase
+    </a>
+  </div>
+
+  <!-- Presentation deck banner -->
+  <div class="presentation-banner">
+    <div class="presentation-icon">
+      <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+    </div>
+    <div>
+      <div class="presentation-title">Impress Deck — K8s Cluster Intelligence Engine</div>
+      <div class="presentation-sub">Executive slide deck · architecture overview · live demo walkthrough</div>
+    </div>
+    <a class="presentation-link" href="../presentation/index.html">
+      <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+      Open deck
+    </a>
+  </div>
+
+  <!-- Revamp plan banner -->
+  <div class="plan-banner">
+    <div class="plan-banner-left">
+      <div class="plan-banner-icon">
+        <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+      </div>
+      <div>
+        <div class="plan-banner-title">Material Design 3 — Phased Implementation Plan</div>
+        <div class="plan-banner-sub">5 phases · Token layer → FOUC script → Typography → Exec page → Component polish · Zero backend changes</div>
+      </div>
+    </div>
+    <a class="plan-banner-link" href="REVAMP-PLAN.md">
+      <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      View plan
+    </a>
+  </div>
+
   <div class="footer-note">
     <span>All mockups are fully self-contained HTML. Tweak <code>{theme}/tokens.css</code> to iterate a palette; the 4 pages re-skin instantly.</span>
-    <span>Cluster Intel · revamp v1 · <code>docs/ui-mockups/</code></span>
+    <span>Cluster Intel · revamp v3 · <code>docs/ui-mockups/</code></span>
   </div>
 
 </main>

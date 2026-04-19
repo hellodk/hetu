@@ -1,0 +1,1107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>04 — Operator Briefing · Issues</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+/* ── Design Concept ──────────────────────────────────────────────────────────
+   OPERATOR BRIEFING — Improvement concept for the Issues dashboard.
+
+   Aesthetic: Bloomberg Terminal meets Mission Control. Dense amber-on-black
+   information architecture. The key insight this design adds: VELOCITY &
+   TEMPORAL CONTEXT. Not just "how many issues" but "is the cluster improving
+   or deteriorating?" — a shift-handoff view with deltas, trends, and timing.
+
+   Improvement over current design:
+   ✦ Trend sparklines per category (getting better/worse?)
+   ✦ "Since last check" delta indicators (↑ 3 new, ↓ 2 resolved)
+   ✦ Issue velocity graph (24h rolling, new vs. resolved)
+   ✦ Recommended remediation queue with effort/impact scoring
+   ✦ Top affected namespaces (spatial awareness)
+   ✦ Time-boxed briefing (when was this generated, how stale?)
+   ────────────────────────────────────────────────────────────────────────── */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:         #09090c;
+  --surface:    #111116;
+  --surface2:   #17171e;
+  --border:     rgba(255,255,255,0.08);
+  --border2:    rgba(255,255,255,0.04);
+  --text:       #e8e6e0;
+  --muted:      #6e6a62;
+  --amber:      #f59e0b;
+  --amber-soft: rgba(245,158,11,0.12);
+  --amber-dim:  #92600a;
+  --rose:       #f43f5e;
+  --rose-soft:  rgba(244,63,94,0.12);
+  --emerald:    #10b981;
+  --emerald-soft: rgba(16,185,129,0.12);
+  --blue:       #3b82f6;
+  --blue-soft:  rgba(59,130,246,0.12);
+  --orange:     #fb923c;
+  --orange-soft: rgba(251,146,60,0.10);
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  --font-display: 'Syne', sans-serif;
+}
+
+html { font-size: 14px; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-mono);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ── Scanline texture ── */
+body::before {
+  content: '';
+  position: fixed; inset: 0; z-index: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0,0,0,0.03) 0px, rgba(0,0,0,0.03) 1px,
+    transparent 1px, transparent 3px
+  );
+  pointer-events: none;
+}
+
+/* ── Layout shell ── */
+.shell {
+  position: relative; z-index: 1;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 20px 40px;
+}
+
+/* ── Header bar ── */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 20px;
+}
+.topbar-logo {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  color: var(--amber);
+  text-transform: uppercase;
+}
+.topbar-sep { color: var(--border); user-select: none; }
+.topbar-title {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: 0.05em;
+}
+.topbar-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+.live-dot {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--emerald);
+  text-transform: uppercase;
+}
+.live-dot::before {
+  content: '';
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--emerald);
+  box-shadow: 0 0 6px var(--emerald);
+  animation: pulse-live 2s ease-in-out infinite;
+}
+@keyframes pulse-live {
+  0%,100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+.stamp {
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 0.06em;
+}
+
+/* ── Status strip ── */
+.status-strip {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 2px;
+  margin-bottom: 20px;
+}
+.stat-cell {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 14px 16px;
+  position: relative;
+  overflow: hidden;
+}
+.stat-cell::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: var(--cell-accent, var(--border));
+}
+.stat-cell.critical { --cell-accent: var(--rose); }
+.stat-cell.high     { --cell-accent: var(--orange); }
+.stat-cell.medium   { --cell-accent: var(--amber); }
+.stat-cell.ok       { --cell-accent: var(--emerald); }
+.stat-cell.health   { --cell-accent: linear-gradient(90deg, var(--rose), var(--orange)); }
+.stat-cell.velocity { --cell-accent: var(--blue); }
+
+.stat-label {
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+.stat-value {
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--cell-color, var(--text));
+}
+.stat-cell.critical .stat-value { --cell-color: var(--rose); }
+.stat-cell.high .stat-value     { --cell-color: var(--orange); }
+.stat-cell.medium .stat-value   { --cell-color: var(--amber); }
+.stat-cell.ok .stat-value       { --cell-color: var(--emerald); }
+
+.stat-delta {
+  margin-top: 6px;
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.stat-delta.up   { color: var(--rose); }
+.stat-delta.down { color: var(--emerald); }
+.stat-delta.same { color: var(--muted); }
+
+/* Health ring mini */
+.health-ring-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 2px;
+}
+.health-num { font-size: 28px; font-weight: 700; color: var(--rose); }
+
+/* Velocity sparkbar */
+.spark-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 32px;
+  margin-top: 4px;
+}
+.spark-bar {
+  width: 6px;
+  border-radius: 1px 1px 0 0;
+  opacity: 0.7;
+  animation: bar-grow 0.6s ease-out both;
+}
+.spark-bar.new { background: var(--rose); }
+.spark-bar.resolved { background: var(--emerald); }
+@keyframes bar-grow {
+  from { transform: scaleY(0); transform-origin: bottom; }
+}
+.spark-bar:nth-child(1)  { animation-delay: 0.05s; }
+.spark-bar:nth-child(2)  { animation-delay: 0.10s; }
+.spark-bar:nth-child(3)  { animation-delay: 0.15s; }
+.spark-bar:nth-child(4)  { animation-delay: 0.20s; }
+.spark-bar:nth-child(5)  { animation-delay: 0.25s; }
+.spark-bar:nth-child(6)  { animation-delay: 0.30s; }
+.spark-bar:nth-child(7)  { animation-delay: 0.35s; }
+.spark-bar:nth-child(8)  { animation-delay: 0.40s; }
+.spark-bar:nth-child(9)  { animation-delay: 0.45s; }
+.spark-bar:nth-child(10) { animation-delay: 0.50s; }
+.spark-bar:nth-child(11) { animation-delay: 0.55s; }
+.spark-bar:nth-child(12) { animation-delay: 0.60s; }
+.spark-label { font-size: 9px; color: var(--muted); margin-top: 2px; letter-spacing: 0.1em; }
+
+/* ── Main grid ── */
+.main-grid {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 2px;
+}
+
+/* ── Panel base ── */
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.panel-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface2);
+}
+.panel-title {
+  font-family: var(--font-display);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--amber);
+}
+.panel-count {
+  font-size: 10px;
+  color: var(--muted);
+  margin-left: auto;
+}
+
+/* ── Category trend table ── */
+.cat-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.cat-table thead th {
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 8px 16px;
+  text-align: left;
+  border-bottom: 1px solid var(--border2);
+}
+.cat-table thead th:not(:first-child) { text-align: center; }
+.cat-table tbody tr {
+  border-bottom: 1px solid var(--border2);
+  transition: background 0.15s;
+  cursor: pointer;
+}
+.cat-table tbody tr:hover { background: rgba(255,255,255,0.025); }
+.cat-table tbody td {
+  padding: 12px 16px;
+  vertical-align: middle;
+}
+.cat-table tbody td:not(:first-child) { text-align: center; }
+
+.cat-name {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.cat-icon {
+  width: 28px; height: 28px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+.cat-icon.sec  { background: var(--rose-soft);    color: var(--rose); }
+.cat-icon.err  { background: var(--orange-soft);  color: var(--orange); }
+.cat-icon.evt  { background: var(--amber-soft);   color: var(--amber); }
+.cat-icon.pod  { background: var(--emerald-soft); color: var(--emerald); }
+
+.cat-label { font-size: 12px; font-weight: 500; }
+.cat-sub   { font-size: 10px; color: var(--muted); margin-top: 1px; }
+
+.sev-badge {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 2px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.sev-badge.crit { background: var(--rose-soft);   color: var(--rose); }
+.sev-badge.high { background: var(--orange-soft); color: var(--orange); }
+.sev-badge.med  { background: var(--amber-soft);  color: var(--amber); }
+.sev-badge.ok   { background: var(--emerald-soft);color: var(--emerald); }
+
+/* Sparkline SVG */
+.sparkline {
+  display: block;
+  width: 80px;
+  height: 28px;
+}
+
+/* Delta pill */
+.delta-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 600;
+}
+.delta-pill.up   { background: var(--rose-soft);   color: var(--rose); }
+.delta-pill.down { background: var(--emerald-soft);color: var(--emerald); }
+.delta-pill.same { background: rgba(255,255,255,0.05); color: var(--muted); }
+
+/* Trend bar (mini progress-like) */
+.trend-bar {
+  width: 100%;
+  height: 3px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 2px;
+  margin-top: 16px;
+  overflow: hidden;
+}
+.trend-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  animation: fill-bar 1s var(--ease-out, cubic-bezier(.16,1,.3,1)) both;
+}
+@keyframes fill-bar {
+  from { width: 0 !important; }
+}
+
+/* ── Right panel: remediation queue ── */
+.remed-list { padding: 0; list-style: none; }
+.remed-item {
+  display: flex;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border2);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.remed-item:hover { background: rgba(255,255,255,0.025); }
+.remed-rank {
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--muted);
+  min-width: 24px;
+  font-family: var(--font-display);
+  opacity: 0.4;
+}
+.remed-body { flex: 1; min-width: 0; }
+.remed-title { font-size: 11px; font-weight: 500; color: var(--text); line-height: 1.3; }
+.remed-meta  { font-size: 10px; color: var(--muted); margin-top: 4px; }
+.remed-score {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  flex-shrink: 0;
+}
+.score-bar {
+  width: 40px; height: 3px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.score-bar-fill { height: 100%; border-radius: 2px; }
+.score-label { font-size: 9px; color: var(--muted); letter-spacing: 0.08em; }
+
+/* Impact × Effort matrix dot */
+.matrix-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  margin-top: 2px;
+}
+
+/* ── Namespace heatmap ── */
+.ns-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 2px;
+  padding: 12px 16px;
+}
+.ns-cell {
+  aspect-ratio: 1.5;
+  border-radius: 3px;
+  padding: 8px;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+  position: relative;
+  overflow: hidden;
+}
+.ns-cell:hover { opacity: 0.85; transform: scale(0.97); }
+.ns-name {
+  font-size: 9px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.9);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: 0.04em;
+}
+.ns-count {
+  font-size: 14px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.95);
+  margin-top: 2px;
+  line-height: 1;
+}
+.ns-sub { font-size: 8px; color: rgba(255,255,255,0.55); margin-top: 1px; }
+
+/* severity shade helpers */
+.heat-0 { background: rgba(255,255,255,0.04); }
+.heat-1 { background: rgba(16,185,129,0.20); }
+.heat-2 { background: rgba(245,158,11,0.28); }
+.heat-3 { background: rgba(251,146,60,0.32); }
+.heat-4 { background: rgba(244,63,94,0.35); }
+.heat-5 { background: rgba(244,63,94,0.55); }
+
+/* ── Recent timeline ── */
+.timeline {
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.tl-item {
+  display: flex;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border2);
+  align-items: flex-start;
+}
+.tl-time { font-size: 10px; color: var(--muted); min-width: 40px; flex-shrink: 0; }
+.tl-dot  { width: 6px; height: 6px; border-radius: 50%; margin-top: 4px; flex-shrink: 0; }
+.tl-text { font-size: 10px; color: var(--text); line-height: 1.5; }
+.tl-service { color: var(--amber); }
+
+/* ── Bottom: velocity chart ── */
+.velocity-chart {
+  margin-top: 2px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 16px 20px;
+}
+.velocity-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+.velocity-title {
+  font-family: var(--font-display);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--amber);
+}
+.velocity-legend {
+  display: flex;
+  gap: 16px;
+  margin-left: auto;
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 9px;
+  color: var(--muted);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.legend-dot { width: 8px; height: 8px; border-radius: 2px; }
+
+.chart-area {
+  position: relative;
+  height: 80px;
+}
+.chart-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 100%;
+}
+.chart-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  align-items: center;
+  height: 100%;
+  justify-content: flex-end;
+}
+.chart-bar-new {
+  width: 100%;
+  border-radius: 1px 1px 0 0;
+  background: var(--rose);
+  opacity: 0.7;
+  animation: bar-rise 0.7s cubic-bezier(.16,1,.3,1) both;
+}
+.chart-bar-res {
+  width: 100%;
+  border-radius: 1px 1px 0 0;
+  background: var(--emerald);
+  opacity: 0.7;
+  animation: bar-rise 0.7s cubic-bezier(.16,1,.3,1) both;
+}
+@keyframes bar-rise {
+  from { transform: scaleY(0); transform-origin: bottom; opacity: 0; }
+}
+.chart-bar-new:nth-child(1) { animation-delay: 0.02s; }
+.chart-xlabel {
+  font-size: 8px;
+  color: var(--muted);
+  margin-top: 4px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* ── Tooltip ── */
+.tooltip-hint {
+  font-size: 9px;
+  color: var(--muted);
+  text-align: right;
+  padding: 6px 16px 0;
+  letter-spacing: 0.08em;
+}
+
+/* ── Entry animation ── */
+.shell { animation: fade-in 0.4s ease both; }
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+}
+.status-strip > * { animation: slide-in 0.5s ease both; }
+.status-strip > *:nth-child(1) { animation-delay: 0.05s; }
+.status-strip > *:nth-child(2) { animation-delay: 0.10s; }
+.status-strip > *:nth-child(3) { animation-delay: 0.15s; }
+.status-strip > *:nth-child(4) { animation-delay: 0.20s; }
+.status-strip > *:nth-child(5) { animation-delay: 0.25s; }
+.status-strip > *:nth-child(6) { animation-delay: 0.30s; }
+@keyframes slide-in {
+  from { opacity: 0; transform: translateY(8px); }
+}
+
+/* SVG sparkline helpers */
+.sparkline path { fill: none; stroke-width: 1.5; }
+.sparkline.up path   { stroke: var(--rose); }
+.sparkline.down path { stroke: var(--emerald); }
+.sparkline.flat path { stroke: var(--muted); }
+.sparkline .area {
+  fill-opacity: 0.12;
+}
+.sparkline.up .area   { fill: var(--rose); }
+.sparkline.down .area { fill: var(--emerald); }
+.sparkline.flat .area { fill: var(--muted); }
+</style>
+</head>
+<body>
+
+<div class="shell">
+
+  <!-- ── Topbar ── -->
+  <div class="topbar">
+    <span class="topbar-logo">Cluster Intel</span>
+    <span class="topbar-sep">/</span>
+    <span class="topbar-title">Operator Briefing</span>
+    <div class="topbar-right">
+      <span class="live-dot">Live</span>
+      <span class="stamp">GEN 14:32:07 · SHIFT 06:00–14:00</span>
+    </div>
+  </div>
+
+  <!-- ── Status strip ── -->
+  <div class="status-strip">
+
+    <div class="stat-cell health">
+      <div class="stat-label">Cluster Health</div>
+      <div class="health-ring-wrap">
+        <svg width="40" height="40" viewBox="0 0 40 40">
+          <circle cx="20" cy="20" r="16" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="3"/>
+          <circle cx="20" cy="20" r="16" fill="none" stroke="#f43f5e" stroke-width="3"
+            stroke-dasharray="100.53" stroke-dashoffset="62"
+            stroke-linecap="round"
+            transform="rotate(-90 20 20)"
+            style="transition: stroke-dashoffset 1.2s cubic-bezier(.22,.61,.36,1)"/>
+        </svg>
+        <div>
+          <div class="stat-value" style="color:var(--rose);">38%</div>
+          <div style="font-size:9px;color:var(--muted);margin-top:2px;letter-spacing:0.08em;">CRITICAL RANGE</div>
+        </div>
+      </div>
+      <div class="trend-bar" style="margin-top:10px;">
+        <div class="trend-bar-fill" style="width:38%;background:var(--rose);"></div>
+      </div>
+    </div>
+
+    <div class="stat-cell critical">
+      <div class="stat-label">Critical</div>
+      <div class="stat-value">7</div>
+      <div class="stat-delta up">↑ 2 new since 09:00</div>
+      <div class="trend-bar">
+        <div class="trend-bar-fill" style="width:70%;background:var(--rose);"></div>
+      </div>
+    </div>
+
+    <div class="stat-cell high">
+      <div class="stat-label">High</div>
+      <div class="stat-value">65</div>
+      <div class="stat-delta down">↓ 3 resolved today</div>
+      <div class="trend-bar">
+        <div class="trend-bar-fill" style="width:65%;background:var(--orange);"></div>
+      </div>
+    </div>
+
+    <div class="stat-cell medium">
+      <div class="stat-label">Medium</div>
+      <div class="stat-value">9</div>
+      <div class="stat-delta same">→ no change</div>
+      <div class="trend-bar">
+        <div class="trend-bar-fill" style="width:9%;background:var(--amber);"></div>
+      </div>
+    </div>
+
+    <div class="stat-cell ok">
+      <div class="stat-label">Total Active</div>
+      <div class="stat-value">81</div>
+      <div class="stat-delta up">↑ 5 vs. shift start</div>
+      <div class="trend-bar">
+        <div class="trend-bar-fill" style="width:81%;background:var(--amber);animation-delay:0.3s;"></div>
+      </div>
+    </div>
+
+    <div class="stat-cell velocity">
+      <div class="stat-label">Issue Velocity · 1h</div>
+      <div class="spark-bars">
+        <div class="spark-bar new"     style="height:18px;"></div>
+        <div class="spark-bar resolved" style="height:22px;"></div>
+        <div class="spark-bar new"     style="height:12px;"></div>
+        <div class="spark-bar new"     style="height:28px;"></div>
+        <div class="spark-bar resolved" style="height:14px;"></div>
+        <div class="spark-bar new"     style="height:20px;"></div>
+        <div class="spark-bar resolved" style="height:26px;"></div>
+        <div class="spark-bar new"     style="height:10px;"></div>
+        <div class="spark-bar new"     style="height:32px;"></div>
+        <div class="spark-bar resolved" style="height:18px;"></div>
+        <div class="spark-bar new"     style="height:22px;"></div>
+        <div class="spark-bar new"     style="height:16px;"></div>
+      </div>
+      <div class="spark-label">▲ OPENED &nbsp; ▲ RESOLVED</div>
+    </div>
+
+  </div>
+
+  <!-- ── Main grid ── -->
+  <div class="main-grid">
+
+    <!-- Left: Category trend table + namespace heat -->
+    <div style="display:flex;flex-direction:column;gap:2px;">
+
+      <!-- Category trend table -->
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">Category Breakdown w/ Trends</span>
+          <span class="panel-count">4 CATEGORIES · LAST 24H</span>
+        </div>
+        <table class="cat-table">
+          <thead>
+            <tr>
+              <th>Category</th>
+              <th>Total</th>
+              <th>Critical</th>
+              <th>24h Trend</th>
+              <th>Δ vs Yesterday</th>
+              <th>Severity</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>
+                <div class="cat-name">
+                  <div class="cat-icon sec">🔒</div>
+                  <div>
+                    <div class="cat-label">Security CVEs</div>
+                    <div class="cat-sub">trivy · cis-benchmark · rbac</div>
+                  </div>
+                </div>
+              </td>
+              <td><strong style="font-size:16px;color:var(--rose);">68</strong></td>
+              <td><span class="sev-badge crit">7 CRIT</span></td>
+              <td>
+                <svg class="sparkline up" viewBox="0 0 80 28">
+                  <path class="area" d="M0,22 L10,20 L20,18 L30,15 L40,16 L50,12 L60,10 L70,8 L80,6 L80,28 L0,28 Z"/>
+                  <path d="M0,22 L10,20 L20,18 L30,15 L40,16 L50,12 L60,10 L70,8 L80,6"/>
+                </svg>
+              </td>
+              <td><span class="delta-pill up">↑ +4 new</span></td>
+              <td>
+                <div class="trend-bar" style="width:100%;margin-top:0;">
+                  <div class="trend-bar-fill" style="width:68%;background:var(--rose);"></div>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <div class="cat-name">
+                  <div class="cat-icon err">⚡</div>
+                  <div>
+                    <div class="cat-label">App Errors</div>
+                    <div class="cat-sub">error groups · crash loops</div>
+                  </div>
+                </div>
+              </td>
+              <td><strong style="font-size:16px;color:var(--orange);">4</strong></td>
+              <td><span class="sev-badge high">0 CRIT</span></td>
+              <td>
+                <svg class="sparkline down" viewBox="0 0 80 28">
+                  <path class="area" d="M0,8 L10,10 L20,9 L30,14 L40,16 L50,18 L60,20 L70,22 L80,24 L80,28 L0,28 Z"/>
+                  <path d="M0,8 L10,10 L20,9 L30,14 L40,16 L50,18 L60,20 L70,22 L80,24"/>
+                </svg>
+              </td>
+              <td><span class="delta-pill down">↓ −2 resolved</span></td>
+              <td>
+                <div class="trend-bar" style="width:100%;margin-top:0;">
+                  <div class="trend-bar-fill" style="width:4%;background:var(--orange);min-width:6px;"></div>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <div class="cat-name">
+                  <div class="cat-icon evt">⚠</div>
+                  <div>
+                    <div class="cat-label">Cluster Events</div>
+                    <div class="cat-sub">warnings · backoffs · oomkills</div>
+                  </div>
+                </div>
+              </td>
+              <td><strong style="font-size:16px;color:var(--amber);">9</strong></td>
+              <td><span class="sev-badge med">0 CRIT</span></td>
+              <td>
+                <svg class="sparkline flat" viewBox="0 0 80 28">
+                  <path class="area" d="M0,14 L10,16 L20,13 L30,15 L40,14 L50,16 L60,13 L70,15 L80,14 L80,28 L0,28 Z"/>
+                  <path d="M0,14 L10,16 L20,13 L30,15 L40,14 L50,16 L60,13 L70,15 L80,14"/>
+                </svg>
+              </td>
+              <td><span class="delta-pill same">→ no change</span></td>
+              <td>
+                <div class="trend-bar" style="width:100%;margin-top:0;">
+                  <div class="trend-bar-fill" style="width:9%;background:var(--amber);min-width:8px;"></div>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <div class="cat-name">
+                  <div class="cat-icon pod">🟢</div>
+                  <div>
+                    <div class="cat-label">Pod Health</div>
+                    <div class="cat-sub">pending · crashloopbackoff · evicted</div>
+                  </div>
+                </div>
+              </td>
+              <td><strong style="font-size:16px;color:var(--emerald);">0</strong></td>
+              <td><span class="sev-badge ok">CLEAR</span></td>
+              <td>
+                <svg class="sparkline down" viewBox="0 0 80 28">
+                  <path class="area" d="M0,10 L10,12 L20,16 L30,18 L40,20 L50,22 L60,24 L70,26 L80,28 L80,28 L0,28 Z"/>
+                  <path d="M0,10 L10,12 L20,16 L30,18 L40,20 L50,22 L60,24 L70,26 L80,28"/>
+                </svg>
+              </td>
+              <td><span class="delta-pill down">↓ −5 resolved</span></td>
+              <td>
+                <div class="trend-bar" style="width:100%;margin-top:0;">
+                  <div class="trend-bar-fill" style="width:0%;background:var(--emerald);"></div>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="tooltip-hint">Click row to drill into category →</div>
+      </div>
+
+      <!-- Namespace heatmap -->
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">Namespace Blast Radius</span>
+          <span class="panel-count" style="display:flex;gap:12px;">
+            <span style="display:flex;align-items:center;gap:4px;">
+              <span style="width:8px;height:8px;border-radius:2px;background:var(--rose);display:inline-block;opacity:0.7;"></span>
+              <span style="font-size:9px;color:var(--muted);">CRITICAL</span>
+            </span>
+            <span style="display:flex;align-items:center;gap:4px;">
+              <span style="width:8px;height:8px;border-radius:2px;background:var(--amber);display:inline-block;opacity:0.7;"></span>
+              <span style="font-size:9px;color:var(--muted);">MEDIUM</span>
+            </span>
+            <span style="display:flex;align-items:center;gap:4px;">
+              <span style="width:8px;height:8px;border-radius:2px;background:var(--emerald);display:inline-block;opacity:0.7;"></span>
+              <span style="font-size:9px;color:var(--muted);">CLEAR</span>
+            </span>
+          </span>
+        </div>
+        <div class="ns-grid">
+          <div class="ns-cell heat-5">
+            <div class="ns-name">kube-system</div>
+            <div class="ns-count">31</div>
+            <div class="ns-sub">7 critical</div>
+          </div>
+          <div class="ns-cell heat-4">
+            <div class="ns-name">caretta</div>
+            <div class="ns-count">12</div>
+            <div class="ns-sub">3 critical</div>
+          </div>
+          <div class="ns-cell heat-3">
+            <div class="ns-name">avika</div>
+            <div class="ns-count">18</div>
+            <div class="ns-sub">2 critical</div>
+          </div>
+          <div class="ns-cell heat-3">
+            <div class="ns-name">monitoring</div>
+            <div class="ns-count">8</div>
+            <div class="ns-sub">1 critical</div>
+          </div>
+          <div class="ns-cell heat-2">
+            <div class="ns-name">elk</div>
+            <div class="ns-count">5</div>
+            <div class="ns-sub">0 critical</div>
+          </div>
+          <div class="ns-cell heat-2">
+            <div class="ns-name">cluster-intel</div>
+            <div class="ns-count">4</div>
+            <div class="ns-sub">0 critical</div>
+          </div>
+          <div class="ns-cell heat-1">
+            <div class="ns-name">cert-manager</div>
+            <div class="ns-count">2</div>
+            <div class="ns-sub">clear</div>
+          </div>
+          <div class="ns-cell heat-1">
+            <div class="ns-name">ingress-nginx</div>
+            <div class="ns-count">1</div>
+            <div class="ns-sub">clear</div>
+          </div>
+          <div class="ns-cell heat-0">
+            <div class="ns-name">default</div>
+            <div class="ns-count">0</div>
+            <div class="ns-sub">all clear</div>
+          </div>
+          <div class="ns-cell heat-0">
+            <div class="ns-name">kube-public</div>
+            <div class="ns-count">0</div>
+            <div class="ns-sub">all clear</div>
+          </div>
+          <div class="ns-cell heat-0">
+            <div class="ns-name">flux-system</div>
+            <div class="ns-count">0</div>
+            <div class="ns-sub">all clear</div>
+          </div>
+          <div class="ns-cell heat-0">
+            <div class="ns-name">trivy-system</div>
+            <div class="ns-count">0</div>
+            <div class="ns-sub">all clear</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Right column: Remediation queue + recent timeline -->
+    <div style="display:flex;flex-direction:column;gap:2px;">
+
+      <!-- Remediation queue -->
+      <div class="panel" style="flex:1;">
+        <div class="panel-header">
+          <span class="panel-title">Fix Queue</span>
+          <span class="panel-count">IMPACT × EFFORT</span>
+        </div>
+        <ul class="remed-list">
+          <li class="remed-item">
+            <div class="remed-rank">01</div>
+            <div class="remed-body">
+              <div class="remed-title">Patch privileged containers in kube-system (CIS 5.2.1)</div>
+              <div class="remed-meta">7 pods · Est. 30 min · High impact</div>
+              <div style="margin-top:6px;display:flex;gap:6px;">
+                <span class="sev-badge crit">CRITICAL</span>
+                <span style="font-size:9px;color:var(--muted);padding-top:2px;">security</span>
+              </div>
+            </div>
+            <div class="remed-score">
+              <div class="score-label">IMPACT</div>
+              <div class="score-bar"><div class="score-bar-fill" style="width:90%;background:var(--rose);"></div></div>
+              <div class="score-label">EFFORT</div>
+              <div class="score-bar"><div class="score-bar-fill" style="width:30%;background:var(--blue);"></div></div>
+              <div class="matrix-dot" style="background:var(--rose);box-shadow:0 0 6px var(--rose);"></div>
+            </div>
+          </li>
+          <li class="remed-item">
+            <div class="remed-rank">02</div>
+            <div class="remed-body">
+              <div class="remed-title">Fix DNS resolution errors in caretta namespace</div>
+              <div class="remed-meta">3 groups · Est. 15 min · Quick win</div>
+              <div style="margin-top:6px;display:flex;gap:6px;">
+                <span class="sev-badge high">HIGH</span>
+                <span style="font-size:9px;color:var(--muted);padding-top:2px;">app-errors</span>
+              </div>
+            </div>
+            <div class="remed-score">
+              <div class="score-label">IMPACT</div>
+              <div class="score-bar"><div class="score-bar-fill" style="width:75%;background:var(--orange);"></div></div>
+              <div class="score-label">EFFORT</div>
+              <div class="score-bar"><div class="score-bar-fill" style="width:15%;background:var(--blue);"></div></div>
+              <div class="matrix-dot" style="background:var(--orange);"></div>
+            </div>
+          </li>
+          <li class="remed-item">
+            <div class="remed-rank">03</div>
+            <div class="remed-body">
+              <div class="remed-title">Enable network policies for avika pods</div>
+              <div class="remed-meta">18 pods exposed · Est. 45 min</div>
+              <div style="margin-top:6px;display:flex;gap:6px;">
+                <span class="sev-badge crit">CRITICAL</span>
+                <span style="font-size:9px;color:var(--muted);padding-top:2px;">security</span>
+              </div>
+            </div>
+            <div class="remed-score">
+              <div class="score-label">IMPACT</div>
+              <div class="score-bar"><div class="score-bar-fill" style="width:80%;background:var(--rose);"></div></div>
+              <div class="score-label">EFFORT</div>
+              <div class="score-bar"><div class="score-bar-fill" style="width:55%;background:var(--blue);"></div></div>
+              <div class="matrix-dot" style="background:var(--amber);"></div>
+            </div>
+          </li>
+          <li class="remed-item">
+            <div class="remed-rank">04</div>
+            <div class="remed-body">
+              <div class="remed-title">Address OOMKilled events in elk/logstash</div>
+              <div class="remed-meta">3 events · Increase memory limit</div>
+              <div style="margin-top:6px;display:flex;gap:6px;">
+                <span class="sev-badge med">MEDIUM</span>
+                <span style="font-size:9px;color:var(--muted);padding-top:2px;">events</span>
+              </div>
+            </div>
+            <div class="remed-score">
+              <div class="score-label">IMPACT</div>
+              <div class="score-bar"><div class="score-bar-fill" style="width:50%;background:var(--amber);"></div></div>
+              <div class="score-label">EFFORT</div>
+              <div class="score-bar"><div class="score-bar-fill" style="width:20%;background:var(--blue);"></div></div>
+              <div class="matrix-dot" style="background:var(--emerald);"></div>
+            </div>
+          </li>
+          <li class="remed-item">
+            <div class="remed-rank">05</div>
+            <div class="remed-body">
+              <div class="remed-title">Install Trivy Operator for CVE scanning</div>
+              <div class="remed-meta">Not installed · One-time setup</div>
+              <div style="margin-top:6px;display:flex;gap:6px;">
+                <span class="sev-badge high">HIGH</span>
+                <span style="font-size:9px;color:var(--muted);padding-top:2px;">security</span>
+              </div>
+            </div>
+            <div class="remed-score">
+              <div class="score-label">IMPACT</div>
+              <div class="score-bar"><div class="score-bar-fill" style="width:70%;background:var(--orange);"></div></div>
+              <div class="score-label">EFFORT</div>
+              <div class="score-bar"><div class="score-bar-fill" style="width:10%;background:var(--blue);"></div></div>
+              <div class="matrix-dot" style="background:var(--emerald);box-shadow:0 0 4px var(--emerald);"></div>
+            </div>
+          </li>
+        </ul>
+      </div>
+
+      <!-- Recent events timeline -->
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">Recent Activity</span>
+          <span class="panel-count">LAST 15 MIN</span>
+        </div>
+        <div class="timeline">
+          <div class="tl-item">
+            <div class="tl-time">14:31</div>
+            <div class="tl-dot" style="background:var(--rose);"></div>
+            <div class="tl-text">New CVE finding in <span class="tl-service">kube-system/kube-proxy</span> — CIS 5.2.2 privileged escalation</div>
+          </div>
+          <div class="tl-item">
+            <div class="tl-time">14:28</div>
+            <div class="tl-dot" style="background:var(--emerald);"></div>
+            <div class="tl-text">Resolved: OOMKill in <span class="tl-service">caretta/vm-0</span> — pod restarted successfully</div>
+          </div>
+          <div class="tl-item">
+            <div class="tl-time">14:22</div>
+            <div class="tl-dot" style="background:var(--orange);"></div>
+            <div class="tl-text">Error spike: <span class="tl-service">elk/ai-deep-analysis</span> — 3 new DNSConfigForming groups</div>
+          </div>
+          <div class="tl-item">
+            <div class="tl-time">14:18</div>
+            <div class="tl-dot" style="background:var(--amber);"></div>
+            <div class="tl-text">Warning: <span class="tl-service">monitoring/prometheus</span> — BackOff restart (×4)</div>
+          </div>
+          <div class="tl-item">
+            <div class="tl-time">14:11</div>
+            <div class="tl-dot" style="background:var(--emerald);"></div>
+            <div class="tl-text">Cleared: All pod health checks passing in <span class="tl-service">avika</span> namespace</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── 24h Velocity chart ── -->
+  <div class="velocity-chart">
+    <div class="velocity-header">
+      <span class="velocity-title">24h Issue Velocity — New vs. Resolved</span>
+      <div class="velocity-legend">
+        <div class="legend-item">
+          <span class="legend-dot" style="background:var(--rose);"></span>
+          New issues opened
+        </div>
+        <div class="legend-item">
+          <span class="legend-dot" style="background:var(--emerald);"></span>
+          Issues resolved
+        </div>
+      </div>
+    </div>
+    <div class="chart-area">
+      <div class="chart-bars" id="velocityChart"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// Generate velocity chart
+const hours = [];
+const newCounts  = [2,1,3,5,2,1,4,6,3,2,4,7,5,3,2,8,6,4,3,2,5,7,4,3];
+const resCounts  = [1,2,2,3,4,3,2,4,5,3,3,5,6,4,3,4,7,5,4,3,4,5,3,2];
+
+for (let i = 0; i < 24; i++) {
+  const h = (new Date().getHours() - 23 + i + 24) % 24;
+  hours.push(h.toString().padStart(2,'0') + ':00');
+}
+
+const maxVal = Math.max(...newCounts, ...resCounts);
+const chart = document.getElementById('velocityChart');
+
+newCounts.forEach((n, i) => {
+  const col = document.createElement('div');
+  col.className = 'chart-col';
+  col.innerHTML = `
+    <div class="chart-bar-res" style="height:${(resCounts[i]/maxVal)*70}px;animation-delay:${i*0.02}s;"></div>
+    <div class="chart-bar-new" style="height:${(n/maxVal)*70}px;animation-delay:${i*0.02+0.01}s;"></div>
+    <div class="chart-xlabel">${i % 4 === 0 ? hours[i] : ''}</div>
+  `;
+  chart.appendChild(col);
+});
+
+// Animate health ring on load
+const ring = document.querySelector('circle:last-child');
+if (ring) {
+  ring.style.strokeDashoffset = 100.53;
+  setTimeout(() => { ring.style.strokeDashoffset = 62; }, 300);
+}
+</script>
+</body>
+</html>

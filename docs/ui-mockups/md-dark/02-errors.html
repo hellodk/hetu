@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="en" data-theme="md-dark">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Cluster Intel — Errors (Material Dark)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --md-primary: #D0BCFF; --md-on-primary: #381E72;
+  --md-primary-container: #4F378B; --md-on-primary-container: #EADDFF;
+  --md-secondary: #CCC2DC; --md-secondary-container: #4A4458; --md-on-secondary-container: #E8DEF8;
+  --md-tertiary: #EFB8C8; --md-tertiary-container: #633B48;
+  --md-surface: #1C1B1F; --md-surface-1: #28262D; --md-surface-2: #2E2C34; --md-surface-3: #34323C;
+  --md-surface-variant: #49454F; --md-on-surface: #E6E1E5; --md-on-surface-variant: #CAC4D0;
+  --md-outline: #938F99; --md-outline-variant: #49454F;
+  --md-sev-crit: #FFB4AB; --md-sev-crit-container: #93000A;
+  --md-sev-high: #FFB77C; --md-sev-high-container: #6A2E00;
+  --md-sev-warn: #F9DE7B; --md-sev-warn-container: #4B3900;
+  --md-sev-ok: #6DD58C; --md-sev-ok-container: #005320;
+  --md-sev-info: #82CAFF; --md-sev-info-container: #00344B;
+  --nav-width:240px; --topbar-h:64px;
+  --r-sm:4px; --r-md:12px; --r-lg:16px; --r-xl:28px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Roboto',system-ui,sans-serif;font-size:14px;background:var(--md-surface);color:var(--md-on-surface);-webkit-font-smoothing:antialiased;display:grid;grid-template-columns:var(--nav-width) 1fr;grid-template-rows:var(--topbar-h) 1fr;grid-template-areas:"nav topbar" "nav main";height:100vh;overflow:hidden}
+/* NAV */
+.nav{grid-area:nav;background:var(--md-surface-1);border-right:1px solid var(--md-outline-variant);display:flex;flex-direction:column;overflow:hidden}
+.nav-logo{height:var(--topbar-h);display:flex;align-items:center;gap:12px;padding:0 20px;border-bottom:1px solid var(--md-outline-variant);font-size:16px;font-weight:500;color:var(--md-on-surface)}
+.nav-logo svg{width:24px;height:24px;fill:none;stroke:var(--md-primary);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.nav-label{font-size:11px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--md-on-surface-variant);padding:20px 20px 8px}
+.nav-item{display:flex;align-items:center;gap:12px;padding:0 12px;height:48px;border-radius:var(--r-xl);margin:2px 12px;font-size:14px;font-weight:500;color:var(--md-on-surface-variant);cursor:pointer;text-decoration:none;transition:background 150ms}
+.nav-item:hover{background:rgba(208,188,255,.08);color:var(--md-on-surface)}
+.nav-item.active{background:var(--md-secondary-container);color:var(--md-on-secondary-container)}
+.nav-item svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+.nav-item .badge{margin-left:auto;background:var(--md-sev-crit);color:#fff;font-size:10px;font-weight:700;padding:2px 6px;border-radius:999px}
+.nav-divider{height:1px;background:var(--md-outline-variant);margin:8px 20px}
+.nav-toggle{display:flex;align-items:center;gap:12px;padding:0 12px;height:40px;margin:0 12px;border-radius:var(--r-sm);font-size:13px;font-weight:500;color:var(--md-on-surface-variant);cursor:pointer}
+.nav-toggle svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;flex-shrink:0}
+.nav-toggle .chev{margin-left:auto;width:16px;height:16px}
+.nav-sub-item{display:block;padding:6px 12px 6px 32px;font-size:13px;color:var(--md-on-surface-variant);cursor:pointer;text-decoration:none;border-radius:var(--r-sm)}
+.nav-sub-item:hover{background:rgba(208,188,255,.06)}
+.nav-scroll{flex:1;overflow-y:auto}
+.nav-scroll::-webkit-scrollbar{width:4px}
+.nav-scroll::-webkit-scrollbar-thumb{background:var(--md-outline-variant);border-radius:4px}
+.nav-footer{padding:12px 16px;border-top:1px solid var(--md-outline-variant);display:flex;align-items:center;gap:10px;font-size:13px;color:var(--md-on-surface-variant)}
+.nav-footer svg{width:18px;height:18px;fill:none;stroke:var(--md-primary);stroke-width:1.8;stroke-linecap:round;flex-shrink:0}
+.nav-footer select{flex:1;background:transparent;border:none;color:var(--md-on-surface-variant);font-size:13px;font-family:inherit;cursor:pointer;outline:none}
+/* TOPBAR */
+.topbar{grid-area:topbar;background:var(--md-surface-1);border-bottom:1px solid var(--md-outline-variant);display:flex;align-items:center;padding:0 24px;gap:16px}
+.topbar-cluster{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:500}
+.topbar-cluster svg{width:20px;height:20px;fill:none;stroke:var(--md-primary);stroke-width:1.8;stroke-linecap:round}
+.profile-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 12px 4px 6px;background:var(--md-surface-3);border-radius:999px;font-size:12px;color:var(--md-on-surface-variant);border:1px solid var(--md-outline-variant)}
+.profile-chip svg{width:14px;height:14px;fill:none;stroke:var(--md-on-surface-variant);stroke-width:1.8}
+.live-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;background:rgba(109,213,140,.15);border:1px solid rgba(109,213,140,.3);border-radius:999px;font-size:11px;font-weight:700;letter-spacing:.06em;color:var(--md-sev-ok)}
+.live-dot{width:6px;height:6px;background:var(--md-sev-ok);border-radius:50%;animation:pulse 2s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.topbar-spacer{flex:1}
+.topbar-meta{font-size:12px;color:var(--md-on-surface-variant)}
+.icon-btn{width:40px;height:40px;display:flex;align-items:center;justify-content:center;background:transparent;border:none;border-radius:999px;color:var(--md-on-surface-variant);cursor:pointer;transition:background 150ms;position:relative}
+.icon-btn:hover{background:rgba(208,188,255,.08)}
+.icon-btn svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round}
+.notif-dot{position:absolute;top:7px;right:7px;width:8px;height:8px;background:var(--md-sev-crit);border-radius:50%;border:2px solid var(--md-surface-1)}
+.avatar{width:36px;height:36px;background:var(--md-primary-container);color:var(--md-on-primary-container);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;cursor:pointer}
+/* MAIN */
+.main{grid-area:main;overflow-y:auto;padding:24px;background:var(--md-surface)}
+.main::-webkit-scrollbar{width:6px}
+.main::-webkit-scrollbar-thumb{background:var(--md-outline-variant);border-radius:6px}
+.page-header{margin-bottom:20px;display:flex;align-items:flex-start;justify-content:space-between}
+.page-title{font-size:22px;font-weight:400;color:var(--md-on-surface);line-height:1.27}
+.page-subtitle{font-size:13px;color:var(--md-on-surface-variant);margin-top:4px}
+/* SUMMARY TILES */
+.summary-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}
+.sum-tile{background:var(--md-surface-2);border-radius:var(--r-lg);padding:16px;position:relative;overflow:hidden}
+.sum-tile::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;border-radius:var(--r-lg) var(--r-lg) 0 0}
+.sum-crit::before{background:var(--md-sev-crit)}
+.sum-high::before{background:var(--md-sev-high)}
+.sum-med::before{background:var(--md-sev-warn)}
+.sum-info::before{background:var(--md-sev-info)}
+.sum-tile-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.sum-icon{width:32px;height:32px;border-radius:var(--r-md);display:flex;align-items:center;justify-content:center}
+.sum-crit .sum-icon{background:var(--md-sev-crit-container)}
+.sum-high .sum-icon{background:var(--md-sev-high-container)}
+.sum-med .sum-icon{background:var(--md-sev-warn-container)}
+.sum-info .sum-icon{background:var(--md-sev-info-container)}
+.sum-icon svg{width:16px;height:16px;fill:none;stroke-width:2;stroke-linecap:round}
+.sum-crit .sum-icon svg{stroke:var(--md-sev-crit)}
+.sum-high .sum-icon svg{stroke:var(--md-sev-high)}
+.sum-med .sum-icon svg{stroke:var(--md-sev-warn)}
+.sum-info .sum-icon svg{stroke:var(--md-sev-info)}
+.delta-chip{font-size:10px;font-weight:700;padding:2px 7px;border-radius:999px;letter-spacing:.04em}
+.delta-up{background:rgba(255,180,171,.2);color:var(--md-sev-crit)}
+.delta-dn{background:rgba(109,213,140,.2);color:var(--md-sev-ok)}
+.sum-num{font-size:28px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1}
+.sum-crit .sum-num{color:var(--md-sev-crit)}
+.sum-high .sum-num{color:var(--md-sev-high)}
+.sum-med .sum-num{color:var(--md-sev-warn)}
+.sum-info .sum-num{color:var(--md-sev-info)}
+.sum-label{font-size:12px;color:var(--md-on-surface-variant);margin-top:4px}
+/* FILTER BAR */
+.filter-bar{display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+.filter-chip{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:var(--r-xl);font-size:13px;font-weight:500;cursor:pointer;border:1px solid var(--md-outline-variant);background:transparent;color:var(--md-on-surface-variant);transition:all 150ms;font-family:inherit}
+.filter-chip:hover{background:rgba(208,188,255,.08);color:var(--md-on-surface)}
+.filter-chip.active{background:var(--md-secondary-container);color:var(--md-on-secondary-container);border-color:transparent}
+.filter-chip .dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.search-box{display:flex;align-items:center;gap:8px;background:var(--md-surface-2);border:1px solid var(--md-outline-variant);border-radius:var(--r-xl);padding:6px 14px;flex:1;max-width:320px;transition:border-color 150ms}
+.search-box svg{width:16px;height:16px;fill:none;stroke:var(--md-on-surface-variant);stroke-width:1.8;stroke-linecap:round;flex-shrink:0}
+.search-box input{background:transparent;border:none;outline:none;font-family:inherit;font-size:13px;color:var(--md-on-surface);flex:1}
+.search-box input::placeholder{color:var(--md-on-surface-variant)}
+/* TABLE */
+.table-card{background:var(--md-surface-1);border-radius:var(--r-lg);overflow:hidden}
+.table-head{display:grid;grid-template-columns:2fr 1fr 1fr 80px 80px 80px 80px 100px;padding:10px 16px;background:var(--md-surface-2);border-bottom:1px solid var(--md-outline-variant);font-size:11px;font-weight:500;letter-spacing:.05em;text-transform:uppercase;color:var(--md-on-surface-variant)}
+.table-row{display:grid;grid-template-columns:2fr 1fr 1fr 80px 80px 80px 80px 100px;padding:12px 16px;border-bottom:1px solid var(--md-outline-variant);align-items:center;cursor:pointer;transition:background 150ms}
+.table-row:last-child{border-bottom:none}
+.table-row:hover{background:rgba(208,188,255,.05)}
+.table-row.selected{background:rgba(208,188,255,.08)}
+.err-title{font-size:13px;font-weight:500;color:var(--md-on-surface);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.err-sub{font-size:11px;color:var(--md-on-surface-variant);margin-top:2px;font-family:'Roboto Mono',monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ns-chip{display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--md-on-surface-variant);background:var(--md-surface-3);border-radius:var(--r-sm);padding:2px 8px;font-family:'Roboto Mono',monospace}
+.sev-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.mono{font-family:'Roboto Mono',monospace;font-size:12px;color:var(--md-on-surface);font-variant-numeric:tabular-nums}
+.sev-chip{font-size:10px;font-weight:700;letter-spacing:.07em;padding:3px 8px;border-radius:999px}
+.sc-crit{background:var(--md-sev-crit-container);color:var(--md-sev-crit)}
+.sc-high{background:var(--md-sev-high-container);color:var(--md-sev-high)}
+.sc-med{background:var(--md-sev-warn-container);color:var(--md-sev-warn)}
+.sc-info{background:var(--md-sev-info-container);color:var(--md-sev-info)}
+/* SPARKLINE */
+.spark{display:flex;align-items:flex-end;gap:2px;height:24px}
+.spark-bar{width:4px;border-radius:2px;background:var(--md-outline-variant);flex-shrink:0}
+/* DETAIL DRAWER */
+.layout{display:grid;grid-template-columns:1fr 380px;gap:16px;align-items:start}
+.drawer{background:var(--md-surface-2);border-radius:var(--r-lg);padding:20px;position:sticky;top:0}
+.drawer-title{font-size:15px;font-weight:500;color:var(--md-on-surface);margin-bottom:4px}
+.drawer-sub{font-size:12px;color:var(--md-on-surface-variant);margin-bottom:16px}
+.drawer-section{margin-bottom:16px}
+.drawer-label{font-size:11px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:var(--md-on-surface-variant);margin-bottom:8px}
+.code-block{background:var(--md-surface-3);border-radius:var(--r-md);padding:12px;font-family:'Roboto Mono',monospace;font-size:11px;color:var(--md-on-surface-variant);line-height:1.6;overflow-x:auto;white-space:pre}
+.ai-box{background:rgba(208,188,255,.08);border:1px solid rgba(208,188,255,.2);border-radius:var(--r-md);padding:12px}
+.ai-box-head{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;letter-spacing:.05em;color:var(--md-primary);text-transform:uppercase;margin-bottom:8px}
+.ai-box-head svg{width:14px;height:14px;fill:none;stroke:var(--md-primary);stroke-width:2;stroke-linecap:round}
+.ai-text{font-size:13px;color:var(--md-on-surface-variant);line-height:1.5}
+.rate-row{display:flex;gap:16px;margin-bottom:12px}
+.rate-item{flex:1;background:var(--md-surface-3);border-radius:var(--r-md);padding:10px;text-align:center}
+.rate-val{font-size:18px;font-weight:700;font-variant-numeric:tabular-nums}
+.rate-item:nth-child(1) .rate-val{color:var(--md-sev-crit)}
+.rate-item:nth-child(2) .rate-val{color:var(--md-sev-high)}
+.rate-item:nth-child(3) .rate-val{color:var(--md-on-surface)}
+.rate-unit{font-size:10px;color:var(--md-on-surface-variant);margin-top:2px}
+.occ-item{display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--md-outline-variant)}
+.occ-item:last-child{border-bottom:none}
+.occ-ts{font-size:11px;color:var(--md-outline);font-variant-numeric:tabular-nums;white-space:nowrap;font-family:'Roboto Mono',monospace}
+.occ-pod{font-size:11px;color:var(--md-secondary);font-family:'Roboto Mono',monospace}
+.occ-msg{font-size:12px;color:var(--md-on-surface-variant);line-height:1.4}
+</style>
+</head>
+<body>
+<nav class="nav">
+  <div class="nav-logo">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M8.56 2.75c4.37 6.03 6.02 9.42 8.03 17.72m2.54-15.38c-3.72 4.35-8.94 5.66-16.88 5.85m19.5 1.9c-3.5-.93-6.63-.82-8.94 0-2.58.92-5.01 2.86-7.44 6.32"/></svg>
+    Cluster Intel
+  </div>
+  <div class="nav-scroll">
+    <div class="nav-label">Main</div>
+    <a class="nav-item" href="#"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Overview</a>
+    <a class="nav-item active" href="#"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>Errors<span class="badge">24</span></a>
+    <a class="nav-item" href="#"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M8.56 2.75c4.37 6.03 6.02 9.42 8.03 17.72m2.54-15.38c-3.72 4.35-8.94 5.66-16.88 5.85"/></svg>LB Logs</a>
+    <a class="nav-item" href="#"><svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>Incidents &amp; RCA</a>
+    <a class="nav-item" href="#"><svg viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/></svg>Optimization</a>
+    <a class="nav-item" href="#"><svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Anomalies</a>
+    <a class="nav-item" href="#"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>Security</a>
+    <a class="nav-item" href="#"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>Settings</a>
+    <div class="nav-divider"></div>
+    <div class="nav-label">Resources</div>
+    <div class="nav-toggle"><svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>Workloads<svg class="chev" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
+    <div class="nav-toggle"><svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>Service &amp; Networking<svg class="chev" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></div>
+  </div>
+  <div class="nav-footer">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+    <select><option>Graphite</option><option>Calm signal</option><option>Aurora</option><option>Prism</option><option selected>Material Dark</option><option>Material Light</option></select>
+  </div>
+</nav>
+
+<header class="topbar">
+  <div class="topbar-cluster"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M8.56 2.75c4.37 6.03 6.02 9.42 8.03 17.72m2.54-15.38c-3.72 4.35-8.94 5.66-16.88 5.85m19.5 1.9c-3.5-.93-6.63-.82-8.94 0-2.58.92-5.01 2.86-7.44 6.32"/></svg>prod-cluster-eu-west-1</div>
+  <div class="profile-chip"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>default</div>
+  <div class="live-badge"><span class="live-dot"></span>LIVE</div>
+  <div class="topbar-spacer"></div>
+  <span class="topbar-meta">Updated 14:32:07</span>
+  <button class="icon-btn"><svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button>
+  <button class="icon-btn"><svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg><span class="notif-dot"></span></button>
+  <div class="avatar">DK</div>
+</header>
+
+<main class="main">
+  <div class="page-header">
+    <div>
+      <div class="page-title">Error Aggregation</div>
+      <div class="page-subtitle">Grouped by fingerprint · 24 active groups · 1,247 occurrences in last 24h</div>
+    </div>
+    <button style="display:flex;align-items:center;gap:6px;padding:8px 16px;background:var(--md-primary-container);color:var(--md-on-primary-container);border:none;border-radius:var(--r-xl);font-size:13px;font-weight:500;cursor:pointer;font-family:inherit">
+      <svg style="width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+      Refresh
+    </button>
+  </div>
+
+  <!-- Summary tiles -->
+  <div class="summary-row">
+    <div class="sum-tile sum-crit">
+      <div class="sum-tile-top"><div class="sum-icon"><svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg></div><span class="delta-chip delta-up">+3 vs 1h ago</span></div>
+      <div class="sum-num">8</div><div class="sum-label">Critical groups</div>
+    </div>
+    <div class="sum-tile sum-high">
+      <div class="sum-tile-top"><div class="sum-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div><span class="delta-chip delta-dn">−2 vs 1h ago</span></div>
+      <div class="sum-num">11</div><div class="sum-label">High severity</div>
+    </div>
+    <div class="sum-tile sum-med">
+      <div class="sum-tile-top"><div class="sum-icon"><svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg></div><span class="delta-chip" style="background:rgba(249,222,123,.15);color:var(--md-sev-warn)">Stable</span></div>
+      <div class="sum-num">5</div><div class="sum-label">Medium / Warning</div>
+    </div>
+    <div class="sum-tile sum-info">
+      <div class="sum-tile-top"><div class="sum-icon"><svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div><span class="delta-chip" style="background:rgba(130,202,255,.15);color:var(--md-sev-info)">24h total</span></div>
+      <div class="sum-num" style="font-size:22px">1,247</div><div class="sum-label">Total occurrences</div>
+    </div>
+  </div>
+
+  <div class="layout">
+    <div>
+      <!-- Filter bar -->
+      <div class="filter-bar">
+        <div class="search-box">
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input placeholder="Search errors, services, namespaces…" value=""/>
+        </div>
+        <button class="filter-chip active"><span class="dot" style="background:var(--md-on-surface-variant)"></span>All (24)</button>
+        <button class="filter-chip"><span class="dot" style="background:var(--md-sev-crit)"></span>Critical (8)</button>
+        <button class="filter-chip"><span class="dot" style="background:var(--md-sev-high)"></span>High (11)</button>
+        <button class="filter-chip"><span class="dot" style="background:var(--md-sev-warn)"></span>Med (5)</button>
+        <button class="filter-chip" style="margin-left:auto">
+          <svg style="width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round" viewBox="0 0 24 24"><line x1="21" y1="10" x2="3" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="21" y1="18" x2="3" y2="18"/></svg>
+          Sort: Last seen
+        </button>
+      </div>
+
+      <!-- Table -->
+      <div class="table-card">
+        <div class="table-head">
+          <span>Error / Service</span>
+          <span>Namespace</span>
+          <span>Type</span>
+          <span>1m</span>
+          <span>1h</span>
+          <span>24h</span>
+          <span>Trend</span>
+          <span>Severity</span>
+        </div>
+
+        <div class="table-row selected">
+          <div><div class="err-title">OOMKill — payment-service container exceeded memory limit</div><div class="err-sub">java.lang.OutOfMemoryError: Java heap space</div></div>
+          <div><span class="ns-chip">payments</span></div>
+          <div style="font-size:12px;color:var(--md-on-surface-variant)">OOMKill</div>
+          <div class="mono" style="color:var(--md-sev-crit)">3</div>
+          <div class="mono">47</div>
+          <div class="mono">312</div>
+          <div class="spark"><div class="spark-bar" style="height:4px"></div><div class="spark-bar" style="height:8px"></div><div class="spark-bar" style="height:6px"></div><div class="spark-bar" style="height:12px"></div><div class="spark-bar" style="height:16px;background:var(--md-sev-crit)"></div><div class="spark-bar" style="height:20px;background:var(--md-sev-crit)"></div><div class="spark-bar" style="height:24px;background:var(--md-sev-crit)"></div></div>
+          <div><span class="sev-chip sc-crit">CRIT</span></div>
+        </div>
+
+        <div class="table-row">
+          <div><div class="err-title">TLS certificate expired — ingress-nginx</div><div class="err-sub">x509: certificate has expired or is not yet valid</div></div>
+          <div><span class="ns-chip">ingress-system</span></div>
+          <div style="font-size:12px;color:var(--md-on-surface-variant)">TLSError</div>
+          <div class="mono" style="color:var(--md-sev-crit)">1</div>
+          <div class="mono">18</div>
+          <div class="mono">198</div>
+          <div class="spark"><div class="spark-bar" style="height:18px;background:var(--md-sev-crit)"></div><div class="spark-bar" style="height:20px;background:var(--md-sev-crit)"></div><div class="spark-bar" style="height:18px;background:var(--md-sev-crit)"></div><div class="spark-bar" style="height:22px;background:var(--md-sev-crit)"></div><div class="spark-bar" style="height:20px;background:var(--md-sev-crit)"></div><div class="spark-bar" style="height:18px;background:var(--md-sev-crit)"></div><div class="spark-bar" style="height:20px;background:var(--md-sev-crit)"></div></div>
+          <div><span class="sev-chip sc-crit">CRIT</span></div>
+        </div>
+
+        <div class="table-row">
+          <div><div class="err-title">Connection refused — postgres:5432</div><div class="err-sub">dial tcp 10.0.1.42:5432: connect: connection refused</div></div>
+          <div><span class="ns-chip">data-pipeline</span></div>
+          <div style="font-size:12px;color:var(--md-on-surface-variant)">ConnError</div>
+          <div class="mono" style="color:var(--md-sev-high)">2</div>
+          <div class="mono">31</div>
+          <div class="mono">247</div>
+          <div class="spark"><div class="spark-bar" style="height:4px"></div><div class="spark-bar" style="height:4px"></div><div class="spark-bar" style="height:8px;background:var(--md-sev-high)"></div><div class="spark-bar" style="height:12px;background:var(--md-sev-high)"></div><div class="spark-bar" style="height:16px;background:var(--md-sev-high)"></div><div class="spark-bar" style="height:14px;background:var(--md-sev-high)"></div><div class="spark-bar" style="height:18px;background:var(--md-sev-high)"></div></div>
+          <div><span class="sev-chip sc-high">HIGH</span></div>
+        </div>
+
+        <div class="table-row">
+          <div><div class="err-title">ImagePullBackOff — quay.io/org/sidecar:v2.1</div><div class="err-sub">failed to pull image: unauthorized: access to requested resource is denied</div></div>
+          <div><span class="ns-chip">staging</span></div>
+          <div style="font-size:12px;color:var(--md-on-surface-variant)">ImagePull</div>
+          <div class="mono" style="color:var(--md-sev-high)">0</div>
+          <div class="mono">8</div>
+          <div class="mono">91</div>
+          <div class="spark"><div class="spark-bar" style="height:10px;background:var(--md-sev-high)"></div><div class="spark-bar" style="height:12px;background:var(--md-sev-high)"></div><div class="spark-bar" style="height:10px;background:var(--md-sev-high)"></div><div class="spark-bar" style="height:14px;background:var(--md-sev-high)"></div><div class="spark-bar" style="height:10px;background:var(--md-sev-high)"></div><div class="spark-bar" style="height:10px;background:var(--md-sev-high)"></div><div class="spark-bar" style="height:8px;background:var(--md-sev-high)"></div></div>
+          <div><span class="sev-chip sc-high">HIGH</span></div>
+        </div>
+
+        <div class="table-row">
+          <div><div class="err-title">HTTP 503 — api-gateway upstream unavailable</div><div class="err-sub">upstream connect error or disconnect/reset before headers</div></div>
+          <div><span class="ns-chip">prod</span></div>
+          <div style="font-size:12px;color:var(--md-on-surface-variant)">HTTPError</div>
+          <div class="mono" style="color:var(--md-sev-warn)">0</div>
+          <div class="mono">4</div>
+          <div class="mono">52</div>
+          <div class="spark"><div class="spark-bar" style="height:4px"></div><div class="spark-bar" style="height:8px;background:var(--md-sev-warn)"></div><div class="spark-bar" style="height:4px"></div><div class="spark-bar" style="height:10px;background:var(--md-sev-warn)"></div><div class="spark-bar" style="height:4px"></div><div class="spark-bar" style="height:8px;background:var(--md-sev-warn)"></div><div class="spark-bar" style="height:4px"></div></div>
+          <div><span class="sev-chip sc-med">MED</span></div>
+        </div>
+
+        <div class="table-row">
+          <div><div class="err-title">CrashLoopBackOff — config-sync init container</div><div class="err-sub">Error: failed to read config file: no such file or directory</div></div>
+          <div><span class="ns-chip">monitoring</span></div>
+          <div style="font-size:12px;color:var(--md-on-surface-variant)">CrashLoop</div>
+          <div class="mono" style="color:var(--md-sev-warn)">0</div>
+          <div class="mono">2</div>
+          <div class="mono">27</div>
+          <div class="spark"><div class="spark-bar" style="height:6px;background:var(--md-sev-warn)"></div><div class="spark-bar" style="height:4px"></div><div class="spark-bar" style="height:6px;background:var(--md-sev-warn)"></div><div class="spark-bar" style="height:4px"></div><div class="spark-bar" style="height:6px;background:var(--md-sev-warn)"></div><div class="spark-bar" style="height:4px"></div><div class="spark-bar" style="height:4px"></div></div>
+          <div><span class="sev-chip sc-med">MED</span></div>
+        </div>
+
+        <div style="padding:10px 16px;font-size:12px;color:var(--md-on-surface-variant);text-align:center;border-top:1px solid var(--md-outline-variant)">Showing 6 of 24 error groups · <span style="color:var(--md-primary);cursor:pointer">View all</span></div>
+      </div>
+    </div>
+
+    <!-- Detail Drawer -->
+    <div class="drawer">
+      <div class="drawer-title">OOMKill — payment-service</div>
+      <div class="drawer-sub">java.lang.OutOfMemoryError · 312 occurrences · First seen 6h ago</div>
+
+      <div class="rate-row">
+        <div class="rate-item"><div class="rate-val">3</div><div class="rate-unit">per 1 min</div></div>
+        <div class="rate-item"><div class="rate-val">47</div><div class="rate-unit">per 1 hour</div></div>
+        <div class="rate-item"><div class="rate-val">312</div><div class="rate-unit">per 24 hours</div></div>
+      </div>
+
+      <div class="ai-box" style="margin-bottom:16px">
+        <div class="ai-box-head"><svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>AI Analysis</div>
+        <div class="ai-text">Payment service is hitting JVM heap limits under peak load. Memory limit of 256Mi is insufficient — observed usage reaches 248Mi. Recommend increasing <code style="background:var(--md-surface-3);padding:1px 4px;border-radius:3px;font-family:'Roboto Mono',monospace">resources.limits.memory</code> to 512Mi and enabling JVM GC tuning flags.</div>
+      </div>
+
+      <div class="drawer-section">
+        <div class="drawer-label">Sample stack trace</div>
+        <div class="code-block">java.lang.OutOfMemoryError: Java heap space
+  at java.util.Arrays.copyOf(Arrays.java:3210)
+  at java.util.ArrayList.grow(ArrayList.java:265)
+  at com.payments.service.PaymentProcessor
+       .processBatch(PaymentProcessor.java:142)
+  at com.payments.service.BatchScheduler
+       .run(BatchScheduler.java:89)</div>
+      </div>
+
+      <div class="drawer-section">
+        <div class="drawer-label">Recent occurrences</div>
+        <div class="occ-item"><div><div class="occ-ts">14:31:52</div><div class="occ-pod">payment-svc-7d8f9-xkp2q</div></div><div class="occ-msg">Container exceeded memory limit — OOMKilled</div></div>
+        <div class="occ-item"><div><div class="occ-ts">14:30:11</div><div class="occ-pod">payment-svc-7d8f9-mnr4t</div></div><div class="occ-msg">Container exceeded memory limit — OOMKilled</div></div>
+        <div class="occ-item"><div><div class="occ-ts">14:28:44</div><div class="occ-pod">payment-svc-7d8f9-xkp2q</div></div><div class="occ-msg">Container exceeded memory limit — OOMKilled</div></div>
+      </div>
+
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <button style="flex:1;padding:8px;background:var(--md-primary-container);color:var(--md-on-primary-container);border:none;border-radius:var(--r-xl);font-size:13px;font-weight:500;cursor:pointer;font-family:inherit">View full history</button>
+        <button style="padding:8px 14px;background:var(--md-surface-3);color:var(--md-on-surface-variant);border:1px solid var(--md-outline-variant);border-radius:var(--r-xl);font-size:13px;cursor:pointer;font-family:inherit">Dismiss</button>
+      </div>
+    </div>
+  </div>
+</main>
+</body>
+</html>

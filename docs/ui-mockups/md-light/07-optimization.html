@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Cluster Intel — Optimization (Material Light)</title>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --md-primary: #6750A4; --md-on-primary: #FFFFFF;
+  --md-primary-container: #EADDFF; --md-on-primary-container: #21005D;
+  --md-secondary: #625B71; --md-secondary-container: #E8DEF8; --md-on-secondary-container: #1D192B;
+  --md-surface: #FFFBFE; --md-surface-1: #F7F2FA; --md-surface-2: #F3EDF7; --md-surface-3: #EFE9F4;
+  --md-surface-variant: #E7E0EC; --md-on-surface: #1C1B1F; --md-on-surface-variant: #49454F;
+  --md-outline: #79747E; --md-outline-variant: #CAC4D0;
+  --md-sev-crit: #B3261E; --md-sev-crit-container: #F9DEDC;
+  --md-sev-high: #C2532A; --md-sev-high-container: #FFDBB5;
+  --md-sev-warn: #765D0F; --md-sev-warn-container: #FDEEBF;
+  --md-sev-ok: #146C2E; --md-sev-ok-container: #C4EED0;
+  --md-sev-info: #0061A4; --md-sev-info-container: #D1E4FF;
+  --nav-width:240px; --topbar-h:64px;
+  --r-sm:4px; --r-md:12px; --r-lg:16px; --r-xl:28px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Roboto',system-ui,sans-serif;font-size:14px;background:var(--md-surface);color:var(--md-on-surface);-webkit-font-smoothing:antialiased;display:grid;grid-template-columns:var(--nav-width) 1fr;grid-template-rows:var(--topbar-h) 1fr;grid-template-areas:"nav topbar" "nav main";height:100vh;overflow:hidden}
+.nav{grid-area:nav;background:var(--md-surface-1);border-right:1px solid var(--md-outline-variant);display:flex;flex-direction:column;overflow:hidden}
+.nav-logo{height:var(--topbar-h);display:flex;align-items:center;gap:12px;padding:0 20px;border-bottom:1px solid var(--md-outline-variant);font-size:16px;font-weight:500;color:var(--md-on-surface)}
+.nav-logo svg{width:24px;height:24px;fill:none;stroke:var(--md-primary);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.nav-label{font-size:11px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--md-on-surface-variant);padding:20px 20px 8px}
+.nav-item{display:flex;align-items:center;gap:12px;padding:0 12px;height:48px;border-radius:var(--r-xl);margin:2px 12px;font-size:14px;font-weight:500;color:var(--md-on-surface-variant);cursor:pointer;text-decoration:none;transition:background 150ms}
+.nav-item:hover{background:rgba(103,80,164,.08);color:var(--md-on-surface)}
+.nav-item.active{background:var(--md-secondary-container);color:var(--md-on-secondary-container)}
+.nav-item svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+.nav-item .badge{margin-left:auto;background:var(--md-sev-crit);color:#fff;font-size:10px;font-weight:700;padding:2px 6px;border-radius:999px}
+.nav-scroll{flex:1;overflow-y:auto}
+.nav-footer{padding:12px 16px;border-top:1px solid var(--md-outline-variant);display:flex;align-items:center;gap:10px;font-size:13px;color:var(--md-on-surface-variant)}
+.nav-footer svg{width:18px;height:18px;fill:none;stroke:var(--md-primary);stroke-width:1.8;stroke-linecap:round;flex-shrink:0}
+.nav-footer select{flex:1;background:transparent;border:none;color:var(--md-on-surface-variant);font-size:13px;font-family:inherit;cursor:pointer;outline:none}
+.topbar{grid-area:topbar;background:var(--md-surface-1);border-bottom:1px solid var(--md-outline-variant);display:flex;align-items:center;padding:0 24px;gap:16px}
+.topbar-cluster{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:500}
+.topbar-cluster svg{width:20px;height:20px;fill:none;stroke:var(--md-primary);stroke-width:1.8;stroke-linecap:round}
+.profile-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 12px 4px 6px;background:var(--md-surface-3);border-radius:999px;font-size:12px;color:var(--md-on-surface-variant);border:1px solid var(--md-outline-variant)}
+.profile-chip svg{width:14px;height:14px;fill:none;stroke:var(--md-on-surface-variant);stroke-width:1.8}
+.live-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;background:rgba(20,108,46,.15);border:1px solid rgba(20,108,46,.3);border-radius:999px;font-size:11px;font-weight:700;letter-spacing:.06em;color:var(--md-sev-ok)}
+.live-dot{width:6px;height:6px;background:var(--md-sev-ok);border-radius:50%;animation:pulse 2s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.topbar-spacer{flex:1}
+.topbar-meta{font-size:12px;color:var(--md-on-surface-variant)}
+.icon-btn{width:40px;height:40px;display:flex;align-items:center;justify-content:center;background:transparent;border:none;border-radius:999px;color:var(--md-on-surface-variant);cursor:pointer;transition:background 150ms;position:relative}
+.icon-btn:hover{background:rgba(103,80,164,.08)}
+.icon-btn svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round}
+.notif-dot{position:absolute;top:7px;right:7px;width:8px;height:8px;background:var(--md-sev-crit);border-radius:50%;border:2px solid #F7F2FA}
+.avatar{width:36px;height:36px;background:var(--md-primary-container);color:var(--md-on-primary-container);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;cursor:pointer}
+.main{grid-area:main;overflow-y:auto;padding:24px;background:var(--md-surface)}
+.main::-webkit-scrollbar{width:6px}
+.main::-webkit-scrollbar-thumb{background:var(--md-outline-variant);border-radius:6px}
+.page-header{margin-bottom:20px;display:flex;align-items:flex-start;justify-content:space-between}
+.page-title{font-size:22px;font-weight:400;color:var(--md-on-surface);line-height:1.27}
+.page-subtitle{font-size:13px;color:var(--md-on-surface-variant);margin-top:4px}
+.summary-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}
+.sum-tile{background:var(--md-surface-2);border-radius:var(--r-lg);padding:16px;position:relative;overflow:hidden}
+.sum-tile::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;border-radius:var(--r-lg) var(--r-lg) 0 0}
+.sum-ok::before{background:var(--md-sev-ok)}
+.sum-crit::before{background:var(--md-sev-crit)}
+.sum-warn::before{background:var(--md-sev-warn)}
+.sum-info::before{background:var(--md-sev-info)}
+.sum-num{font-size:28px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1}
+.sum-ok .sum-num{color:var(--md-sev-ok)}
+.sum-crit .sum-num{color:var(--md-sev-crit)}
+.sum-warn .sum-num{color:var(--md-sev-warn)}
+.sum-info .sum-num{color:var(--md-sev-info)}
+.sum-label{font-size:12px;color:var(--md-on-surface-variant);margin-top:4px}
+.card{background:var(--md-surface-1);border-radius:var(--r-lg);padding:20px}
+.card-title{font-size:13px;font-weight:500;letter-spacing:.05em;text-transform:uppercase;color:var(--md-on-surface-variant);margin-bottom:16px}
+.sev-chip{font-size:10px;font-weight:700;letter-spacing:.07em;padding:3px 8px;border-radius:999px}
+.sc-crit{background:var(--md-sev-crit-container);color:var(--md-sev-crit)}
+.sc-high{background:var(--md-sev-high-container);color:var(--md-sev-high)}
+.sc-warn{background:var(--md-sev-warn-container);color:var(--md-sev-warn)}
+.sc-ok{background:var(--md-sev-ok-container);color:var(--md-sev-ok)}
+.sc-info{background:var(--md-sev-info-container);color:var(--md-sev-info)}
+.mono{font-family:'Roboto Mono',monospace;font-size:12px;font-variant-numeric:tabular-nums}
+.filter-chip{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:var(--r-xl);font-size:13px;font-weight:500;cursor:pointer;border:1px solid var(--md-outline-variant);background:transparent;color:var(--md-on-surface-variant);font-family:inherit}
+.filter-chip.active{background:var(--md-secondary-container);color:var(--md-on-secondary-container);border-color:transparent}
+
+/* Page-specific */
+.two-col{display:grid;grid-template-columns:1fr 380px;gap:16px;align-items:start}
+.rec-item{background:var(--md-surface-2);border-radius:var(--r-lg);padding:16px;margin-bottom:12px;border:1px solid var(--md-outline-variant)}
+.rec-item:last-child{margin-bottom:0}
+.rec-header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:8px}
+.rec-title{font-size:14px;font-weight:500;color:var(--md-on-surface);line-height:1.4}
+.rec-savings{font-size:18px;font-weight:700;color:var(--md-sev-ok);white-space:nowrap;font-variant-numeric:tabular-nums}
+.rec-savings-label{font-size:10px;color:var(--md-on-surface-variant);font-weight:400}
+.rec-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.cat-chip{font-size:10px;font-weight:600;padding:2px 8px;border-radius:var(--r-sm);background:var(--md-surface-3);color:var(--md-on-surface-variant);letter-spacing:.04em}
+.rec-desc{font-size:12px;color:var(--md-on-surface-variant);line-height:1.6}
+.rec-actions{display:flex;gap:8px;margin-top:12px}
+.btn-primary{padding:6px 16px;background:var(--md-primary);color:var(--md-on-primary);border:none;border-radius:var(--r-xl);font-size:13px;font-weight:500;font-family:inherit;cursor:pointer}
+.btn-ghost{padding:6px 16px;background:transparent;color:var(--md-primary);border:1px solid var(--md-outline-variant);border-radius:var(--r-xl);font-size:13px;font-weight:500;font-family:inherit;cursor:pointer}
+.bar-chart-wrap{padding:0 4px}
+.bar-chart-title{font-size:12px;color:var(--md-on-surface-variant);margin-bottom:12px}
+.bar-chart{display:flex;align-items:flex-end;gap:8px;height:120px;border-bottom:1px solid var(--md-outline-variant);padding-bottom:0}
+.bar-group{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px}
+.bar{border-radius:var(--r-sm) var(--r-sm) 0 0;width:100%;background:var(--md-primary-container);transition:background 150ms}
+.bar:hover{background:var(--md-primary)}
+.bar-label{font-size:10px;color:var(--md-on-surface-variant);text-align:center}
+.bar-val{font-size:10px;color:var(--md-on-surface-variant);font-variant-numeric:tabular-nums}
+.chart-x{display:flex;gap:8px;margin-top:6px;padding:0 4px}
+.chart-x-label{flex:1;font-size:10px;color:var(--md-on-surface-variant);text-align:center}
+.savings-total{margin-top:16px;padding:12px 16px;background:var(--md-sev-ok-container);border-radius:var(--r-md);display:flex;justify-content:space-between;align-items:center}
+.savings-total-label{font-size:12px;color:var(--md-sev-ok)}
+.savings-total-val{font-size:20px;font-weight:700;color:var(--md-sev-ok);font-variant-numeric:tabular-nums}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-logo">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M8.56 2.75c4.37 6.03 6.02 9.42 8.03 17.72m2.54-15.38c-3.72 4.35-8.94 5.66-16.88 5.85m19.5 1.9c-3.5-.93-6.63-.82-8.94 0-2.58.92-5.01 2.86-7.44 6.32"/></svg>
+    Cluster Intel
+  </div>
+  <div class="nav-scroll">
+    <div class="nav-label">Main</div>
+    <a class="nav-item" href="#">
+      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      Overview
+    </a>
+    <a class="nav-item" href="#">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      Errors<span class="badge">24</span>
+    </a>
+    <a class="nav-item" href="#">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M8.56 2.75c4.37 6.03 6.02 9.42 8.03 17.72m2.54-15.38c-3.72 4.35-8.94 5.66-16.88 5.85"/></svg>
+      LB Logs
+    </a>
+    <a class="nav-item" href="#">
+      <svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+      Incidents &amp; RCA
+    </a>
+    <a class="nav-item active" href="#">
+      <svg viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+      Optimization
+    </a>
+    <a class="nav-item" href="#">
+      <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      Anomalies
+    </a>
+    <a class="nav-item" href="#">
+      <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      Security
+    </a>
+    <a class="nav-item" href="#">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+      Settings
+    </a>
+  </div>
+  <div class="nav-footer">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+    <select>
+      <option>Graphite</option><option>Calm signal</option><option>Aurora</option><option>Prism</option><option>Material Dark</option><option selected>Material Light</option>
+    </select>
+  </div>
+</nav>
+
+<header class="topbar">
+  <div class="topbar-cluster">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M8.56 2.75c4.37 6.03 6.02 9.42 8.03 17.72m2.54-15.38c-3.72 4.35-8.94 5.66-16.88 5.85m19.5 1.9c-3.5-.93-6.63-.82-8.94 0-2.58.92-5.01 2.86-7.44 6.32"/></svg>
+    prod-cluster-eu-west-1
+  </div>
+  <div class="profile-chip">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+    default
+  </div>
+  <div class="live-badge"><span class="live-dot"></span>LIVE</div>
+  <div class="topbar-spacer"></div>
+  <span class="topbar-meta">Updated 14:32:07</span>
+  <button class="icon-btn">
+    <svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+  </button>
+  <button class="icon-btn">
+    <svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+    <span class="notif-dot"></span>
+  </button>
+  <div class="avatar">DK</div>
+</header>
+
+<main class="main">
+  <div class="page-header">
+    <div>
+      <div class="page-title">Cost Optimization</div>
+      <div class="page-subtitle">Resource efficiency recommendations — powered by usage analysis &amp; Ollama LLM</div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="filter-chip">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Export report
+      </button>
+    </div>
+  </div>
+
+  <!-- Summary tiles -->
+  <div class="summary-row">
+    <div class="sum-tile sum-ok">
+      <div class="sum-num">$2,340</div>
+      <div class="sum-label">Potential savings / mo</div>
+    </div>
+    <div class="sum-tile sum-info">
+      <div class="sum-num">12</div>
+      <div class="sum-label">Total recommendations</div>
+    </div>
+    <div class="sum-tile sum-warn">
+      <div class="sum-num">4</div>
+      <div class="sum-label">High-impact items</div>
+    </div>
+    <div class="sum-tile sum-ok">
+      <div class="sum-num">3</div>
+      <div class="sum-label">Applied this week</div>
+    </div>
+  </div>
+
+  <!-- Two-column layout -->
+  <div class="two-col">
+    <!-- Left: recommendations -->
+    <div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <span style="font-size:13px;font-weight:500;text-transform:uppercase;letter-spacing:.05em;color:var(--md-on-surface-variant)">Recommendations</span>
+        <div style="display:flex;gap:6px">
+          <button class="filter-chip active" style="padding:4px 12px;font-size:12px">All (12)</button>
+          <button class="filter-chip" style="padding:4px 12px;font-size:12px">High</button>
+          <button class="filter-chip" style="padding:4px 12px;font-size:12px">Medium</button>
+          <button class="filter-chip" style="padding:4px 12px;font-size:12px">Low</button>
+        </div>
+      </div>
+
+      <!-- Rec 1 -->
+      <div class="rec-item">
+        <div class="rec-header">
+          <div class="rec-title">Rightsize over-provisioned Deployments</div>
+          <div style="text-align:right">
+            <div class="rec-savings">$890<span class="rec-savings-label">/mo</span></div>
+          </div>
+        </div>
+        <div class="rec-meta">
+          <span class="cat-chip">Memory</span>
+          <span class="sev-chip sc-high">HIGH</span>
+          <span style="font-size:11px;color:var(--md-on-surface-variant)">payment-service, auth-service</span>
+        </div>
+        <div class="rec-desc">Both services have memory requests 40% above actual peak usage over a 30-day window. Reducing requests from 2Gi → 1.2Gi per replica recovers 3 nodes worth of capacity.</div>
+        <div class="rec-actions">
+          <button class="btn-primary">Apply</button>
+          <button class="btn-ghost">Review diff</button>
+        </div>
+      </div>
+
+      <!-- Rec 2 -->
+      <div class="rec-item">
+        <div class="rec-header">
+          <div class="rec-title">Scale down idle ReplicaSets</div>
+          <div style="text-align:right">
+            <div class="rec-savings">$450<span class="rec-savings-label">/mo</span></div>
+          </div>
+        </div>
+        <div class="rec-meta">
+          <span class="cat-chip">Compute</span>
+          <span class="sev-chip sc-high">HIGH</span>
+          <span style="font-size:11px;color:var(--md-on-surface-variant)">8 ReplicaSets · avg 2% CPU</span>
+        </div>
+        <div class="rec-desc">8 ReplicaSets in staging and qa namespaces are running with 3+ replicas but averaging under 2% CPU utilization. Safe to scale to 1 during off-hours.</div>
+        <div class="rec-actions">
+          <button class="btn-primary">Apply</button>
+          <button class="btn-ghost">Review diff</button>
+        </div>
+      </div>
+
+      <!-- Rec 3 -->
+      <div class="rec-item">
+        <div class="rec-header">
+          <div class="rec-title">Remove orphaned PersistentVolumeClaims</div>
+          <div style="text-align:right">
+            <div class="rec-savings">$180<span class="rec-savings-label">/mo</span></div>
+          </div>
+        </div>
+        <div class="rec-meta">
+          <span class="cat-chip">Storage</span>
+          <span class="sev-chip sc-warn">MEDIUM</span>
+          <span style="font-size:11px;color:var(--md-on-surface-variant)">14 PVCs · unbound</span>
+        </div>
+        <div class="rec-desc">14 PVCs are not attached to any running pod and have been idle for 14+ days. Deleting them reclaims 280Gi of EBS gp3 storage provisioned in eu-west-1.</div>
+        <div class="rec-actions">
+          <button class="btn-primary">Apply</button>
+          <button class="btn-ghost">Review list</button>
+        </div>
+      </div>
+
+      <!-- Rec 4 -->
+      <div class="rec-item">
+        <div class="rec-header">
+          <div class="rec-title">Consolidate single-pod Deployments to CronJobs</div>
+          <div style="text-align:right">
+            <div class="rec-savings">$340<span class="rec-savings-label">/mo</span></div>
+          </div>
+        </div>
+        <div class="rec-meta">
+          <span class="cat-chip">Architecture</span>
+          <span class="sev-chip sc-warn">MEDIUM</span>
+          <span style="font-size:11px;color:var(--md-on-surface-variant)">6 Deployments · batch workloads</span>
+        </div>
+        <div class="rec-desc">6 single-replica Deployments running report-generator, data-export, and cleanup tasks run less than 20 minutes per hour. Converting to CronJobs eliminates idle compute between runs.</div>
+        <div class="rec-actions">
+          <button class="btn-primary">Apply</button>
+          <button class="btn-ghost">Review diff</button>
+        </div>
+      </div>
+
+      <!-- Rec 5 -->
+      <div class="rec-item">
+        <div class="rec-header">
+          <div class="rec-title">Enable HPA on stateless services</div>
+          <div style="text-align:right">
+            <div class="rec-savings">$480<span class="rec-savings-label">/mo est.</span></div>
+          </div>
+        </div>
+        <div class="rec-meta">
+          <span class="cat-chip">Compute</span>
+          <span class="sev-chip sc-ok">LOW</span>
+          <span style="font-size:11px;color:var(--md-on-surface-variant)">api-gateway, frontend-svc, search-svc</span>
+        </div>
+        <div class="rec-desc">3 stateless services are statically provisioned at peak capacity. Adding HPA with CPU target 60% would allow automatic scale-in during overnight troughs, estimated $480/mo savings at current traffic patterns.</div>
+        <div class="rec-actions">
+          <button class="btn-primary">Apply</button>
+          <button class="btn-ghost">Review diff</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: chart column -->
+    <div>
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-title">Monthly Cost Trend</div>
+        <div class="bar-chart-title">Infrastructure spend (USD) — Jan to Jun 2026</div>
+        <div class="bar-chart">
+          <div class="bar-group">
+            <span class="bar-val">$8.4k</span>
+            <div class="bar" style="height:100%"></div>
+          </div>
+          <div class="bar-group">
+            <span class="bar-val">$8.1k</span>
+            <div class="bar" style="height:96%"></div>
+          </div>
+          <div class="bar-group">
+            <span class="bar-val">$7.8k</span>
+            <div class="bar" style="height:93%"></div>
+          </div>
+          <div class="bar-group">
+            <span class="bar-val">$7.4k</span>
+            <div class="bar" style="height:88%"></div>
+          </div>
+          <div class="bar-group">
+            <span class="bar-val">$6.9k</span>
+            <div class="bar" style="height:82%"></div>
+          </div>
+          <div class="bar-group">
+            <span class="bar-val" style="color:var(--md-sev-ok)">$6.1k</span>
+            <div class="bar" style="height:73%;background:var(--md-sev-ok-container)"></div>
+          </div>
+        </div>
+        <div class="chart-x">
+          <span class="chart-x-label">Jan</span>
+          <span class="chart-x-label">Feb</span>
+          <span class="chart-x-label">Mar</span>
+          <span class="chart-x-label">Apr</span>
+          <span class="chart-x-label">May</span>
+          <span class="chart-x-label" style="color:var(--md-sev-ok)">Jun</span>
+        </div>
+        <div class="savings-total" style="margin-top:20px">
+          <span class="savings-total-label">Total savings YTD vs Jan baseline</span>
+          <span class="savings-total-val">-$2,300</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Savings by Category</div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px">
+            <div style="display:flex;align-items:center;gap:8px">
+              <div style="width:10px;height:10px;border-radius:50%;background:var(--md-primary)"></div>
+              <span>Compute (rightsizing + HPA)</span>
+            </div>
+            <span class="mono" style="color:var(--md-sev-ok)">$1,370/mo</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px">
+            <div style="display:flex;align-items:center;gap:8px">
+              <div style="width:10px;height:10px;border-radius:50%;background:var(--md-sev-info)"></div>
+              <span>Architecture (CronJob migration)</span>
+            </div>
+            <span class="mono" style="color:var(--md-sev-ok)">$340/mo</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px">
+            <div style="display:flex;align-items:center;gap:8px">
+              <div style="width:10px;height:10px;border-radius:50%;background:var(--md-sev-warn)"></div>
+              <span>Storage (orphaned PVCs)</span>
+            </div>
+            <span class="mono" style="color:var(--md-sev-ok)">$180/mo</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;padding-top:8px;border-top:1px solid var(--md-outline-variant)">
+            <span style="font-weight:500">Total potential</span>
+            <span class="mono" style="color:var(--md-sev-ok);font-weight:700;font-size:15px">$2,340/mo</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+</body>
+</html>

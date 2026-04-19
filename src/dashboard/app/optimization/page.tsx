@@ -152,7 +152,9 @@ export default function OptimizationPage() {
                       rec.severity === 'medium' ? 'bg-yellow-900/30 text-yellow-300' :
                       'bg-gray-700 text-gray-400'
                     }`}>{rec.severity}</span>
-                    <span className="text-xs text-gray-500">conf: {(rec.confidence * 100).toFixed(0)}%</span>
+                    {Number.isFinite(rec.confidence) && (
+                      <span className="text-xs text-gray-500">conf: {(rec.confidence * 100).toFixed(0)}%</span>
+                    )}
                   </div>
                   <div className="text-xs text-gray-400">
                     {rec.target.namespace}/{rec.target.name}

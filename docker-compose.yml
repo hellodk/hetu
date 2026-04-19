@@ -1,0 +1,85 @@
+services:
+
+  # ── Vector store ──────────────────────────────────────────────────────────
+  qdrant:
+    image: qdrant/qdrant:v1.9.0
+    container_name: cluster-intel-qdrant
+    ports:
+      - "${QDRANT_PORT:-6333}:6333"   # REST API
+      - "${QDRANT_GRPC_PORT:-6334}:6334" # gRPC
+    volumes:
+      - qdrant_storage:/qdrant/storage
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:6333/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+  # ── Collector ─────────────────────────────────────────────────────────────
+  collector:
+    build:
+      context: .
+      dockerfile: src/collector/Dockerfile
+    container_name: cluster-intel-collector
+    ports:
+      - "${COLLECTOR_PORT:-18080}:8080"
+      - "${COLLECTOR_METRICS_PORT:-19090}:9090"
+    environment:
+      - KUBECONFIG_PATH=/kubeconfig
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    volumes:
+      - ${KUBECONFIG:-~/.kube/config}:/kubeconfig:ro
+    restart: unless-stopped
+
+  # ── Analyzer ──────────────────────────────────────────────────────────────
+  analyzer:
+    build:
+      context: .
+      dockerfile: src/analyzer/Dockerfile
+    container_name: cluster-intel-analyzer
+    ports:
+      - "${ANALYZER_PORT:-18081}:8081"
+      - "${ANALYZER_METRICS_PORT:-19091}:9091"
+    environment:
+      - COLLECTOR_URL=http://collector:8080
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - PROFILE=${PROFILE:-live}
+      # LLM — points to Ollama on the host by default
+      - LLM_PROVIDER=${LLM_PROVIDER:-ollama}
+      - LLM_ENDPOINT=${LLM_ENDPOINT:-http://host.docker.internal:11434}
+      - LLM_MODEL=${LLM_MODEL:-llama3}
+      - LLM_API_KEY=${LLM_API_KEY:-}
+      - DAILY_TOKEN_BUDGET=${DAILY_TOKEN_BUDGET:-0}
+      # Qdrant vector store — embedding uses same Ollama server
+      - QDRANT_URL=http://qdrant:6333
+      - QDRANT_EMBED_MODEL=${QDRANT_EMBED_MODEL:-nomic-embed-text}
+      # Prometheus (optional — enables metric enrichment in RCA prompts)
+      - PROMETHEUS_URL=${PROMETHEUS_URL:-}
+    depends_on:
+      qdrant:
+        condition: service_healthy
+      collector:
+        condition: service_started
+    restart: unless-stopped
+
+  # ── Dashboard ─────────────────────────────────────────────────────────────
+  dashboard:
+    build:
+      context: src/dashboard
+      dockerfile: Dockerfile
+    container_name: cluster-intel-dashboard
+    ports:
+      - "${DASHBOARD_PORT:-3003}:3000"
+    environment:
+      # Empty → relative-URL proxy via Next.js → no CORS issues
+      - ANALYZER_URL=http://analyzer:8081
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-}
+    depends_on:
+      - analyzer
+    restart: unless-stopped
+
+volumes:
+  qdrant_storage:
+    name: cluster-intel-qdrant-storage

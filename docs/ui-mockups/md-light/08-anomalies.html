@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Cluster Intel — Anomalies (Material Light)</title>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --md-primary: #6750A4; --md-on-primary: #FFFFFF;
+  --md-primary-container: #EADDFF; --md-on-primary-container: #21005D;
+  --md-secondary: #625B71; --md-secondary-container: #E8DEF8; --md-on-secondary-container: #1D192B;
+  --md-surface: #FFFBFE; --md-surface-1: #F7F2FA; --md-surface-2: #F3EDF7; --md-surface-3: #EFE9F4;
+  --md-surface-variant: #E7E0EC; --md-on-surface: #1C1B1F; --md-on-surface-variant: #49454F;
+  --md-outline: #79747E; --md-outline-variant: #CAC4D0;
+  --md-sev-crit: #B3261E; --md-sev-crit-container: #F9DEDC;
+  --md-sev-high: #C2532A; --md-sev-high-container: #FFDBB5;
+  --md-sev-warn: #765D0F; --md-sev-warn-container: #FDEEBF;
+  --md-sev-ok: #146C2E; --md-sev-ok-container: #C4EED0;
+  --md-sev-info: #0061A4; --md-sev-info-container: #D1E4FF;
+  --nav-width:240px; --topbar-h:64px;
+  --r-sm:4px; --r-md:12px; --r-lg:16px; --r-xl:28px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Roboto',system-ui,sans-serif;font-size:14px;background:var(--md-surface);color:var(--md-on-surface);-webkit-font-smoothing:antialiased;display:grid;grid-template-columns:var(--nav-width) 1fr;grid-template-rows:var(--topbar-h) 1fr;grid-template-areas:"nav topbar" "nav main";height:100vh;overflow:hidden}
+.nav{grid-area:nav;background:var(--md-surface-1);border-right:1px solid var(--md-outline-variant);display:flex;flex-direction:column;overflow:hidden}
+.nav-logo{height:var(--topbar-h);display:flex;align-items:center;gap:12px;padding:0 20px;border-bottom:1px solid var(--md-outline-variant);font-size:16px;font-weight:500;color:var(--md-on-surface)}
+.nav-logo svg{width:24px;height:24px;fill:none;stroke:var(--md-primary);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.nav-label{font-size:11px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--md-on-surface-variant);padding:20px 20px 8px}
+.nav-item{display:flex;align-items:center;gap:12px;padding:0 12px;height:48px;border-radius:var(--r-xl);margin:2px 12px;font-size:14px;font-weight:500;color:var(--md-on-surface-variant);cursor:pointer;text-decoration:none;transition:background 150ms}
+.nav-item:hover{background:rgba(103,80,164,.08);color:var(--md-on-surface)}
+.nav-item.active{background:var(--md-secondary-container);color:var(--md-on-secondary-container)}
+.nav-item svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+.nav-item .badge{margin-left:auto;background:var(--md-sev-crit);color:#fff;font-size:10px;font-weight:700;padding:2px 6px;border-radius:999px}
+.nav-scroll{flex:1;overflow-y:auto}
+.nav-footer{padding:12px 16px;border-top:1px solid var(--md-outline-variant);display:flex;align-items:center;gap:10px;font-size:13px;color:var(--md-on-surface-variant)}
+.nav-footer svg{width:18px;height:18px;fill:none;stroke:var(--md-primary);stroke-width:1.8;stroke-linecap:round;flex-shrink:0}
+.nav-footer select{flex:1;background:transparent;border:none;color:var(--md-on-surface-variant);font-size:13px;font-family:inherit;cursor:pointer;outline:none}
+.topbar{grid-area:topbar;background:var(--md-surface-1);border-bottom:1px solid var(--md-outline-variant);display:flex;align-items:center;padding:0 24px;gap:16px}
+.topbar-cluster{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:500}
+.topbar-cluster svg{width:20px;height:20px;fill:none;stroke:var(--md-primary);stroke-width:1.8;stroke-linecap:round}
+.profile-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 12px 4px 6px;background:var(--md-surface-3);border-radius:999px;font-size:12px;color:var(--md-on-surface-variant);border:1px solid var(--md-outline-variant)}
+.profile-chip svg{width:14px;height:14px;fill:none;stroke:var(--md-on-surface-variant);stroke-width:1.8}
+.live-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;background:rgba(20,108,46,.15);border:1px solid rgba(20,108,46,.3);border-radius:999px;font-size:11px;font-weight:700;letter-spacing:.06em;color:var(--md-sev-ok)}
+.live-dot{width:6px;height:6px;background:var(--md-sev-ok);border-radius:50%;animation:pulse 2s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.topbar-spacer{flex:1}
+.topbar-meta{font-size:12px;color:var(--md-on-surface-variant)}
+.icon-btn{width:40px;height:40px;display:flex;align-items:center;justify-content:center;background:transparent;border:none;border-radius:999px;color:var(--md-on-surface-variant);cursor:pointer;transition:background 150ms;position:relative}
+.icon-btn:hover{background:rgba(103,80,164,.08)}
+.icon-btn svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round}
+.notif-dot{position:absolute;top:7px;right:7px;width:8px;height:8px;background:var(--md-sev-crit);border-radius:50%;border:2px solid #F7F2FA}
+.avatar{width:36px;height:36px;background:var(--md-primary-container);color:var(--md-on-primary-container);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;cursor:pointer}
+.main{grid-area:main;overflow-y:auto;padding:24px;background:var(--md-surface)}
+.main::-webkit-scrollbar{width:6px}
+.main::-webkit-scrollbar-thumb{background:var(--md-outline-variant);border-radius:6px}
+.page-header{margin-bottom:20px;display:flex;align-items:flex-start;justify-content:space-between}
+.page-title{font-size:22px;font-weight:400;color:var(--md-on-surface);line-height:1.27}
+.page-subtitle{font-size:13px;color:var(--md-on-surface-variant);margin-top:4px}
+.summary-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}
+.sum-tile{background:var(--md-surface-2);border-radius:var(--r-lg);padding:16px;position:relative;overflow:hidden}
+.sum-tile::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;border-radius:var(--r-lg) var(--r-lg) 0 0}
+.sum-ok::before{background:var(--md-sev-ok)}
+.sum-crit::before{background:var(--md-sev-crit)}
+.sum-warn::before{background:var(--md-sev-warn)}
+.sum-info::before{background:var(--md-sev-info)}
+.sum-num{font-size:28px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1}
+.sum-ok .sum-num{color:var(--md-sev-ok)}
+.sum-crit .sum-num{color:var(--md-sev-crit)}
+.sum-warn .sum-num{color:var(--md-sev-warn)}
+.sum-info .sum-num{color:var(--md-sev-info)}
+.sum-label{font-size:12px;color:var(--md-on-surface-variant);margin-top:4px}
+.card{background:var(--md-surface-1);border-radius:var(--r-lg);padding:20px}
+.card-title{font-size:13px;font-weight:500;letter-spacing:.05em;text-transform:uppercase;color:var(--md-on-surface-variant);margin-bottom:16px}
+.sev-chip{font-size:10px;font-weight:700;letter-spacing:.07em;padding:3px 8px;border-radius:999px}
+.sc-crit{background:var(--md-sev-crit-container);color:var(--md-sev-crit)}
+.sc-high{background:var(--md-sev-high-container);color:var(--md-sev-high)}
+.sc-warn{background:var(--md-sev-warn-container);color:var(--md-sev-warn)}
+.sc-ok{background:var(--md-sev-ok-container);color:var(--md-sev-ok)}
+.sc-info{background:var(--md-sev-info-container);color:var(--md-sev-info)}
+.mono{font-family:'Roboto Mono',monospace;font-size:12px;font-variant-numeric:tabular-nums}
+.filter-bar{display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+.filter-chip{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:var(--r-xl);font-size:13px;font-weight:500;cursor:pointer;border:1px solid var(--md-outline-variant);background:transparent;color:var(--md-on-surface-variant);font-family:inherit}
+.filter-chip.active{background:var(--md-secondary-container);color:var(--md-on-secondary-container);border-color:transparent}
+
+/* Page-specific */
+.ano-layout{display:grid;grid-template-columns:1fr 340px;gap:16px;align-items:start}
+.ano-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.ano-card{background:var(--md-surface-1);border-radius:var(--r-lg);padding:16px;border:1px solid var(--md-outline-variant);cursor:pointer;transition:border-color 150ms}
+.ano-card:hover{border-color:var(--md-primary)}
+.ano-card.selected{border-color:var(--md-primary);background:var(--md-surface-2)}
+.ano-card-header{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:8px}
+.ano-title{font-size:13px;font-weight:500;color:var(--md-on-surface);line-height:1.4}
+.ano-resource{font-size:11px;color:var(--md-on-surface-variant);margin-bottom:8px;font-family:'Roboto Mono',monospace}
+.ano-meta{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+.confidence-badge{font-size:10px;font-weight:600;padding:2px 7px;border-radius:var(--r-sm);background:var(--md-primary-container);color:var(--md-on-primary-container)}
+.sparkline{display:flex;align-items:flex-end;gap:2px;height:28px}
+.spark-bar{border-radius:1px 1px 0 0;min-width:8px;flex:1}
+.ano-desc{font-size:11px;color:var(--md-on-surface-variant);line-height:1.6}
+/* Detail panel */
+.detail-panel{background:var(--md-surface-1);border-radius:var(--r-lg);padding:20px;border:1px solid var(--md-primary);position:sticky;top:0}
+.detail-title{font-size:14px;font-weight:500;color:var(--md-on-surface);margin-bottom:4px}
+.detail-resource{font-size:11px;color:var(--md-on-surface-variant);font-family:'Roboto Mono',monospace;margin-bottom:12px}
+.timeline-chart{width:100%;height:80px;margin-bottom:12px}
+.ai-box{background:var(--md-surface-2);border-radius:var(--r-md);padding:12px;margin-bottom:12px;border-left:3px solid var(--md-primary)}
+.ai-box-title{font-size:10px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--md-primary);margin-bottom:6px;display:flex;align-items:center;gap:6px}
+.ai-box-body{font-size:12px;color:var(--md-on-surface-variant);line-height:1.6}
+.related-event{display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--md-outline-variant);font-size:12px}
+.related-event:last-child{border-bottom:none}
+.event-time{color:var(--md-on-surface-variant);font-family:'Roboto Mono',monospace;white-space:nowrap}
+.event-desc{color:var(--md-on-surface);line-height:1.4}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-logo">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M8.56 2.75c4.37 6.03 6.02 9.42 8.03 17.72m2.54-15.38c-3.72 4.35-8.94 5.66-16.88 5.85m19.5 1.9c-3.5-.93-6.63-.82-8.94 0-2.58.92-5.01 2.86-7.44 6.32"/></svg>
+    Cluster Intel
+  </div>
+  <div class="nav-scroll">
+    <div class="nav-label">Main</div>
+    <a class="nav-item" href="#">
+      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      Overview
+    </a>
+    <a class="nav-item" href="#">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      Errors<span class="badge">24</span>
+    </a>
+    <a class="nav-item" href="#">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M8.56 2.75c4.37 6.03 6.02 9.42 8.03 17.72m2.54-15.38c-3.72 4.35-8.94 5.66-16.88 5.85"/></svg>
+      LB Logs
+    </a>
+    <a class="nav-item" href="#">
+      <svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+      Incidents &amp; RCA
+    </a>
+    <a class="nav-item" href="#">
+      <svg viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+      Optimization
+    </a>
+    <a class="nav-item active" href="#">
+      <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      Anomalies
+    </a>
+    <a class="nav-item" href="#">
+      <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      Security
+    </a>
+    <a class="nav-item" href="#">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+      Settings
+    </a>
+  </div>
+  <div class="nav-footer">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+    <select>
+      <option>Graphite</option><option>Calm signal</option><option>Aurora</option><option>Prism</option><option>Material Dark</option><option selected>Material Light</option>
+    </select>
+  </div>
+</nav>
+
+<header class="topbar">
+  <div class="topbar-cluster">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M8.56 2.75c4.37 6.03 6.02 9.42 8.03 17.72m2.54-15.38c-3.72 4.35-8.94 5.66-16.88 5.85m19.5 1.9c-3.5-.93-6.63-.82-8.94 0-2.58.92-5.01 2.86-7.44 6.32"/></svg>
+    prod-cluster-eu-west-1
+  </div>
+  <div class="profile-chip">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+    default
+  </div>
+  <div class="live-badge"><span class="live-dot"></span>LIVE</div>
+  <div class="topbar-spacer"></div>
+  <span class="topbar-meta">Updated 14:32:07</span>
+  <button class="icon-btn">
+    <svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+  </button>
+  <button class="icon-btn">
+    <svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+    <span class="notif-dot"></span>
+  </button>
+  <div class="avatar">DK</div>
+</header>
+
+<main class="main">
+  <div class="page-header">
+    <div>
+      <div class="page-title">Anomaly Detection</div>
+      <div class="page-subtitle">ML-powered anomaly detection — statistical baselines updated every 5 min</div>
+    </div>
+  </div>
+
+  <!-- Summary tiles -->
+  <div class="summary-row">
+    <div class="sum-tile sum-crit">
+      <div class="sum-num">7</div>
+      <div class="sum-label">Active anomalies</div>
+    </div>
+    <div class="sum-tile sum-warn">
+      <div class="sum-num">3</div>
+      <div class="sum-label">New last 1h</div>
+    </div>
+    <div class="sum-tile sum-ok">
+      <div class="sum-num">12</div>
+      <div class="sum-label">Resolved today</div>
+    </div>
+    <div class="sum-tile sum-info">
+      <div class="sum-num">94%</div>
+      <div class="sum-label">Detection accuracy</div>
+    </div>
+  </div>
+
+  <!-- Filter chips -->
+  <div class="filter-bar" style="margin-bottom:20px">
+    <button class="filter-chip active">All (7)</button>
+    <button class="filter-chip">Memory (3)</button>
+    <button class="filter-chip">CPU (2)</button>
+    <button class="filter-chip">Network (1)</button>
+    <button class="filter-chip">Pod Restarts (1)</button>
+  </div>
+
+  <!-- Main layout: card grid + detail panel -->
+  <div class="ano-layout">
+    <div class="ano-grid">
+
+      <!-- Anomaly 1 — selected -->
+      <div class="ano-card selected">
+        <div class="ano-card-header">
+          <div class="ano-title">Memory leak detected</div>
+          <span class="sev-chip sc-crit">CRIT</span>
+        </div>
+        <div class="ano-resource">prod/payment-api-7d4f5c8b9-xk2pq</div>
+        <div class="ano-meta">
+          <span class="confidence-badge">98% confidence</span>
+          <span style="font-size:10px;color:var(--md-on-surface-variant)">Detected 08:14</span>
+        </div>
+        <div class="sparkline">
+          <div class="spark-bar" style="height:20%;background:var(--md-sev-ok)"></div>
+          <div class="spark-bar" style="height:28%;background:var(--md-sev-ok)"></div>
+          <div class="spark-bar" style="height:35%;background:var(--md-sev-ok)"></div>
+          <div class="spark-bar" style="height:42%;background:var(--md-sev-warn)"></div>
+          <div class="spark-bar" style="height:54%;background:var(--md-sev-warn)"></div>
+          <div class="spark-bar" style="height:67%;background:var(--md-sev-warn)"></div>
+          <div class="spark-bar" style="height:80%;background:var(--md-sev-crit)"></div>
+          <div class="spark-bar" style="height:100%;background:var(--md-sev-crit)"></div>
+        </div>
+        <div class="ano-desc" style="margin-top:8px">Memory usage growing 12MB/hr steadily over 6h. No GC pause correlation observed.</div>
+      </div>
+
+      <!-- Anomaly 2 -->
+      <div class="ano-card">
+        <div class="ano-card-header">
+          <div class="ano-title">CPU spike correlation</div>
+          <span class="sev-chip sc-crit">CRIT</span>
+        </div>
+        <div class="ano-resource">order-svc/order-processor-*</div>
+        <div class="ano-meta">
+          <span class="confidence-badge">96% confidence</span>
+          <span style="font-size:10px;color:var(--md-on-surface-variant)">Detected 11:47</span>
+        </div>
+        <div class="sparkline">
+          <div class="spark-bar" style="height:15%;background:var(--md-sev-ok)"></div>
+          <div class="spark-bar" style="height:85%;background:var(--md-sev-crit)"></div>
+          <div class="spark-bar" style="height:18%;background:var(--md-sev-ok)"></div>
+          <div class="spark-bar" style="height:80%;background:var(--md-sev-crit)"></div>
+          <div class="spark-bar" style="height:20%;background:var(--md-sev-ok)"></div>
+          <div class="spark-bar" style="height:88%;background:var(--md-sev-crit)"></div>
+          <div class="spark-bar" style="height:16%;background:var(--md-sev-ok)"></div>
+          <div class="spark-bar" style="height:90%;background:var(--md-sev-crit)"></div>
+        </div>
+        <div class="ano-desc" style="margin-top:8px">CPU spikes every 47min ±2min, matching cron pattern. Likely untuned batch job.</div>
+      </div>
+
+      <!-- Anomaly 3 -->
+      <div class="ano-card">
+        <div class="ano-card-header">
+          <div class="ano-title">Unusual traffic volume</div>
+          <span class="sev-chip sc-high">HIGH</span>
+        </div>
+        <div class="ano-resource">ingress-nginx/nginx-ingress-controller-*</div>
+        <div class="ano-meta">
+          <span class="confidence-badge">91% confidence</span>
+          <span style="font-size:10px;color:var(--md-on-surface-variant)">Detected 13:02</span>
+        </div>
+        <div class="sparkline">
+          <div class="spark-bar" style="height:30%;background:var(--md-sev-ok)"></div>
+          <div class="spark-bar" style="height:32%;background:var(--md-sev-ok)"></div>
+          <div class="spark-bar" style="height:28%;background:var(--md-sev-ok)"></div>
+          <div class="spark-bar" style="height:35%;background:var(--md-sev-ok)"></div>
+          <div class="spark-bar" style="height:60%;background:var(--md-sev-warn)"></div>
+          <div class="spark-bar" style="height:80%;background:var(--md-sev-high)"></div>
+          <div class="spark-bar" style="height:95%;background:var(--md-sev-high)"></div>
+          <div class="spark-bar" style="height:100%;background:var(--md-sev-high)"></div>
+        </div>
+        <div class="ano-desc" style="margin-top:8px">3× baseline inbound traffic since 13:00. No deployment changes in preceding 2h window.</div>
+      </div>
+
+      <!-- Anomaly 4 -->
+      <div class="ano-card">
+        <div class="ano-card-header">
+          <div class="ano-title">Pod restart loop</div>
+          <span class="sev-chip sc-high">HIGH</span>
+        </div>
+        <div class="ano-resource">monitoring/grafana-7f9d4b8c6-rp4xt</div>
+        <div class="ano-meta">
+          <span class="confidence-badge">88% confidence</span>
+          <span style="font-size:10px;color:var(--md-on-surface-variant)">Detected 12:33</span>
+        </div>
+        <div class="sparkline">
+          <div class="spark-bar" style="height:10%;background:var(--md-sev-ok)"></div>
+          <div class="spark-bar" style="height:10%;background:var(--md-sev-ok)"></div>
+          <div class="spark-bar" style="height:100%;background:var(--md-sev-crit)"></div>
+          <div class="spark-bar" style="height:10%;background:var(--md-sev-ok)"></div>
+          <div class="spark-bar" style="height:100%;background:var(--md-sev-crit)"></div>
+          <div class="spark-bar" style="height:10%;background:var(--md-sev-ok)"></div>
+          <div class="spark-bar" style="height:100%;background:var(--md-sev-crit)"></div>
+          <div class="spark-bar" style="height:10%;background:var(--md-sev-ok)"></div>
+        </div>
+        <div class="ano-desc" style="margin-top:8px">8 restarts in 2h, all OOMKilled. Memory limit 512Mi may need increase post dashboard plugin update.</div>
+      </div>
+
+      <!-- Anomaly 5 -->
+      <div class="ano-card">
+        <div class="ano-card-header">
+          <div class="ano-title">Disk I/O saturation</div>
+          <span class="sev-chip sc-warn">WARN</span>
+        </div>
+        <div class="ano-resource">data/postgres-primary-0</div>
+        <div class="ano-meta">
+          <span class="confidence-badge">82% confidence</span>
+          <span style="font-size:10px;color:var(--md-on-surface-variant)">Detected 14:01</span>
+        </div>
+        <div class="sparkline">
+          <div class="spark-bar" style="height:50%;background:var(--md-sev-ok)"></div>
+          <div class="spark-bar" style="height:55%;background:var(--md-sev-ok)"></div>
+          <div class="spark-bar" style="height:60%;background:var(--md-sev-warn)"></div>
+          <div class="spark-bar" style="height:68%;background:var(--md-sev-warn)"></div>
+          <div class="spark-bar" style="height:75%;background:var(--md-sev-warn)"></div>
+          <div class="spark-bar" style="height:83%;background:var(--md-sev-warn)"></div>
+          <div class="spark-bar" style="height:90%;background:var(--md-sev-high)"></div>
+          <div class="spark-bar" style="height:94%;background:var(--md-sev-high)"></div>
+        </div>
+        <div class="ano-desc" style="margin-top:8px">Write IOPS at 94% of provisioned capacity. Possible table bloat from missing VACUUM on orders_archive.</div>
+      </div>
+
+    </div>
+
+    <!-- Detail panel: anomaly #1 expanded -->
+    <div class="detail-panel">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <span class="sev-chip sc-crit">CRIT</span>
+        <span style="font-size:11px;color:var(--md-on-surface-variant)">Active · 6h 18m</span>
+      </div>
+      <div class="detail-title">Memory leak detected</div>
+      <div class="detail-resource">prod / payment-api-7d4f5c8b9-xk2pq</div>
+
+      <!-- Inline SVG timeline chart -->
+      <svg class="timeline-chart" viewBox="0 0 300 80" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="memGradL" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#B3261E" stop-opacity=".2"/>
+            <stop offset="100%" stop-color="#B3261E" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        <!-- baseline band -->
+        <rect x="0" y="55" width="300" height="10" fill="#C4EED0" opacity=".6" rx="2"/>
+        <!-- area fill -->
+        <path d="M0,72 L12,70 L25,68 L37,66 L50,63 L62,60 L75,57 L87,54 L100,51 L112,48 L125,44 L137,40 L150,37 L162,33 L175,29 L187,25 L200,22 L212,18 L225,15 L237,12 L250,9 L262,7 L275,5 L287,4 L300,3 L300,80 L0,80 Z" fill="url(#memGradL)"/>
+        <!-- line -->
+        <path d="M0,72 L12,70 L25,68 L37,66 L50,63 L62,60 L75,57 L87,54 L100,51 L112,48 L125,44 L137,40 L150,37 L162,33 L175,29 L187,25 L200,22 L212,18 L225,15 L237,12 L250,9 L262,7 L275,5 L287,4 L300,3" fill="none" stroke="#B3261E" stroke-width="1.5"/>
+        <!-- threshold line -->
+        <line x1="0" y1="10" x2="300" y2="10" stroke="#B3261E" stroke-width="1" stroke-dasharray="4,3" opacity=".4"/>
+        <text x="2" y="8" fill="#B3261E" font-size="7" opacity=".7">limit 1.5Gi</text>
+        <!-- x axis labels -->
+        <text x="0" y="79" fill="#79747E" font-size="7">08:00</text>
+        <text x="96" y="79" fill="#79747E" font-size="7">10:00</text>
+        <text x="196" y="79" fill="#79747E" font-size="7">12:00</text>
+        <text x="270" y="79" fill="#79747E" font-size="7">14:00</text>
+      </svg>
+
+      <div class="ai-box">
+        <div class="ai-box-title">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          AI Root Cause Hypothesis
+        </div>
+        <div class="ai-box-body">Linear memory growth with no GC correlation suggests a Java heap reference leak. The payment-service was last deployed at 07:58 (v2.14.1). Cross-referencing with the diff shows a new in-memory cache in <code style="font-family:monospace;background:var(--md-surface-3);padding:1px 4px;border-radius:3px">PaymentSessionCache</code> class missing an eviction policy. Recommend rolling back to v2.13.2 or patching the TTL config.</div>
+      </div>
+
+      <div style="font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--md-on-surface-variant);margin-bottom:8px">Related Events</div>
+      <div class="related-event">
+        <span class="event-time">08:14</span>
+        <span class="event-desc">Anomaly first triggered — memory 847Mi, +18% above 7d baseline</span>
+      </div>
+      <div class="related-event">
+        <span class="event-time">07:58</span>
+        <span class="event-desc">Deployment payment-api v2.14.1 rolled out (3 replicas)</span>
+      </div>
+      <div class="related-event">
+        <span class="event-time">09:42</span>
+        <span class="event-desc">OOMKill warning — container at 89% of 1Gi limit</span>
+      </div>
+      <div class="related-event">
+        <span class="event-time">11:30</span>
+        <span class="event-desc">Alert fired: payment-api memory &gt; 90% for 15m (PagerDuty)</span>
+      </div>
+      <div class="related-event">
+        <span class="event-time">14:18</span>
+        <span class="event-desc">Current: 1.38Gi — projected OOMKill in ~47min at current rate</span>
+      </div>
+
+      <div style="display:flex;gap:8px;margin-top:16px">
+        <button style="flex:1;padding:8px;background:var(--md-sev-crit-container);color:var(--md-sev-crit);border:none;border-radius:var(--r-xl);font-size:13px;font-weight:500;font-family:inherit;cursor:pointer">Rollback deploy</button>
+        <button style="flex:1;padding:8px;background:transparent;color:var(--md-primary);border:1px solid var(--md-outline-variant);border-radius:var(--r-xl);font-size:13px;font-weight:500;font-family:inherit;cursor:pointer">Dismiss</button>
+      </div>
+    </div>
+  </div>
+</main>
+
+</body>
+</html>

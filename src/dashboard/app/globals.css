@@ -2,43 +2,340 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================================================
+   FOUR-THEME SYSTEM
+   ----------------------------------------------------------------------------
+   Default: graphite (editorial light).
+   Themes applied by setting `data-theme` on <html>. The .dark class is also
+   toggled in parallel for themes that need Tailwind's dark: variant:
+       graphite   → light-mode (no .dark)
+       calm-signal, aurora, prism → dark-mode (adds .dark)
+   See app/layout.tsx for the FOUC-safe init script.
+   ============================================================================ */
+
 :root {
-  /* Light theme (default) */
-  --foreground-rgb: 15, 23, 42;
-  --background-start-rgb: 248, 250, 252;
-  --background-end-rgb: 241, 245, 249;
+  /* Defaults mirror the graphite theme (also applied explicitly below so the
+     [data-theme="graphite"] selector wins over plain :root when both exist). */
+  --font-body:    var(--font-inter),          system-ui, -apple-system, sans-serif;
+  --font-display: var(--font-fraunces),       'Georgia', serif;
+  --font-mono:    var(--font-jetbrains-mono), 'Menlo', monospace;
 
-  /* App semantic tokens (used by tailwind.config.js via rgb(var(--...)) */
-  --cluster-bg: 248 250 252;
-  --cluster-card: 255 255 255;
-  --cluster-border: 226 232 240;
-  --cluster-text: 15 23 42;
-  --cluster-muted: 71 85 105;
-  --cluster-ring-offset: 248 250 252;
+  /* Motion tokens (shared) */
+  --ease:        cubic-bezier(.22, .61, .36, 1);
+  --ease-out:    cubic-bezier(.16, 1, .3, 1);
+  --ease-spring: cubic-bezier(.5, -0.2, .2, 1.4);
+  --d-fast: 120ms;
+  --d-med:  240ms;
+  --d-slow: 600ms;
 }
 
-.dark {
-  /* Dark theme */
-  --foreground-rgb: 226, 232, 240;
-  --background-start-rgb: 15, 23, 42;
-  --background-end-rgb: 30, 41, 59;
+/* ============================================================================
+   GRAPHITE — editorial light, warm paper, Swiss hairlines, serif display.
+   ============================================================================ */
+:root,
+[data-theme="graphite"] {
+  --foreground-rgb:       20, 21, 22;
+  --background-start-rgb: 245, 243, 238;
+  --background-end-rgb:   245, 243, 238;
 
-  --cluster-bg: 15 23 42;
-  --cluster-card: 30 41 59;
-  --cluster-border: 51 65 85;
-  --cluster-text: 226 232 240;
-  --cluster-muted: 148 163 184;
-  --cluster-ring-offset: 15 23 42;
+  --cluster-bg:     245 243 238;
+  --cluster-card:   251 250 246;
+  --cluster-border: 225 221 210;
+  --cluster-text:    20  21  22;
+  --cluster-muted:   74  77  87;
+  --cluster-ring-offset: 245 243 238;
+
+  /* Accent + severity — muted, print-safe */
+  --accent:       39 50 168;
+  --accent-soft:  74 86 196;
+  --accent-glow:  rgba(39,50,168,0.12);
+  --sev-ok:      42 127  90;
+  --sev-info:    42  95 166;
+  --sev-warn:   169 115   6;
+  --sev-high:   192  70  18;
+  --sev-crit:   155  28  46;
+
+  --font-body:    var(--font-inter),     system-ui, sans-serif;
+  --font-display: var(--font-fraunces),  var(--font-newsreader), Georgia, serif;
+  --font-mono:    var(--font-jetbrains-mono), 'Menlo', monospace;
 }
 
+/* ============================================================================
+   CALM-SIGNAL — restrained dark, violet accent, severity ladder.
+   ============================================================================ */
+[data-theme="calm-signal"] {
+  --foreground-rgb:       231, 234, 242;
+  --background-start-rgb:   7,   8,  11;
+  --background-end-rgb:    15,  17,  23;
+
+  --cluster-bg:       7   8  11;
+  --cluster-card:    15  17  23;
+  --cluster-border:  148 163 184;
+  --cluster-text:    231 234 242;
+  --cluster-muted:   168 176 191;
+  --cluster-ring-offset: 7 8 11;
+
+  --accent:      124 108 255;
+  --accent-soft: 169 155 255;
+  --accent-glow: rgba(124,108,255,0.35);
+  --sev-ok:      62 207 142;
+  --sev-info:    90 168 255;
+  --sev-warn:   244 183  64;
+  --sev-high:   255 122  69;
+  --sev-crit:   255  77 106;
+
+  --font-body:    var(--font-inter),     system-ui, sans-serif;
+  --font-display: var(--font-inter),     system-ui, sans-serif;
+  --font-mono:    var(--font-jetbrains-mono), 'Menlo', monospace;
+}
+
+/* ============================================================================
+   AURORA — dark with drifting mesh gradients, Space Grotesk display.
+   ============================================================================ */
+[data-theme="aurora"] {
+  --foreground-rgb:       236, 235, 250;
+  --background-start-rgb:   6,   6,  14;
+  --background-end-rgb:    12,  13,  26;
+
+  --cluster-bg:       6   6  14;
+  --cluster-card:    12  13  26;
+  --cluster-border:  180 195 245;
+  --cluster-text:    236 235 250;
+  --cluster-muted:   168 169 208;
+  --cluster-ring-offset: 6 6 14;
+
+  --accent:       92 242 225;
+  --accent-soft: 156 249 237;
+  --accent-glow: rgba(92,242,225,0.32);
+  --sev-ok:       74 229 163;
+  --sev-info:     96 184 255;
+  --sev-warn:    255 203  92;
+  --sev-high:    255 138 101;
+  --sev-crit:    255  92 122;
+
+  --font-body:    var(--font-inter),         system-ui, sans-serif;
+  --font-display: var(--font-space-grotesk), var(--font-inter), system-ui, sans-serif;
+  --font-mono:    var(--font-jetbrains-mono),'Menlo', monospace;
+}
+
+/* ============================================================================
+   PRISM — white "wow". Full-spectrum accents, Fraunces serif, floating orbs.
+   ============================================================================ */
+[data-theme="prism"] {
+  --foreground-rgb:       10,  12, 26;
+  --background-start-rgb: 255, 255, 255;
+  --background-end-rgb:   255, 255, 255;
+
+  --cluster-bg:     255 255 255;
+  --cluster-card:   255 255 255;
+  --cluster-border: 230 232 239;
+  --cluster-text:    10  12  26;
+  --cluster-muted:   75  81 102;
+  --cluster-ring-offset: 255 255 255;
+
+  --accent:      139  92 246;
+  --accent-soft: 196 181 253;
+  --accent-glow: rgba(139,92,246,0.22);
+  --sev-ok:       16 185 129;
+  --sev-info:      6 182 212;
+  --sev-warn:    251 191  36;
+  --sev-high:    249 115  22;
+  --sev-crit:    239  68  68;
+
+  --font-body:    var(--font-inter),         system-ui, sans-serif;
+  --font-display: var(--font-fraunces),      Georgia, serif;
+  --font-mono:    var(--font-jetbrains-mono),'Menlo', monospace;
+}
+
+/* ============================================================================
+   MATERIAL DARK — MD3 dark colour scheme.  Elevation via tinting, no shadow.
+   ============================================================================ */
+[data-theme="md-dark"] {
+  --foreground-rgb:        230, 225, 229;
+  --background-start-rgb:   28,  27,  31;
+  --background-end-rgb:     28,  27,  31;
+
+  --cluster-bg:      28  27  31;
+  --cluster-card:    40  38  45;
+  --cluster-border:  73  69  79;
+  --cluster-text:   230 225 229;
+  --cluster-muted:  202 196 208;
+  --cluster-ring-offset: 28 27 31;
+
+  --accent:       208 188 255;  /* MD3 primary #D0BCFF */
+  --accent-soft:  234 221 255;
+  --accent-glow:  rgba(208,188,255,0.20);
+  --sev-ok:       109 213 140;
+  --sev-info:     130 202 255;
+  --sev-warn:     249 222 123;
+  --sev-high:     255 183 124;
+  --sev-crit:     255 180 171;
+
+  --font-body:    var(--font-roboto), 'Roboto', system-ui, sans-serif;
+  --font-display: var(--font-roboto), 'Roboto', system-ui, sans-serif;
+  --font-mono:    var(--font-jetbrains-mono), 'Roboto Mono', 'Menlo', monospace;
+}
+
+/* ============================================================================
+   MATERIAL LIGHT — MD3 light colour scheme.  Elevation via box-shadow.
+   WCAG AA severity colours on white.
+   ============================================================================ */
+[data-theme="md-light"] {
+  --foreground-rgb:        28,  27,  31;
+  --background-start-rgb: 255, 251, 254;
+  --background-end-rgb:   247, 242, 250;
+
+  --cluster-bg:     255 251 254;
+  --cluster-card:   247 242 250;
+  --cluster-border: 202 196 208;
+  --cluster-text:    28  27  31;
+  --cluster-muted:   73  69  79;
+  --cluster-ring-offset: 255 251 254;
+
+  --accent:      103  80 164;  /* MD3 primary #6750A4 */
+  --accent-soft: 125 103 188;
+  --accent-glow: rgba(103,80,164,0.15);
+  --sev-ok:       20 108  46;
+  --sev-info:      0  97 164;
+  --sev-warn:    118  93  15;
+  --sev-high:    194  83  42;
+  --sev-crit:    179  38  30;
+
+  --font-body:    var(--font-roboto), 'Roboto', system-ui, sans-serif;
+  --font-display: var(--font-roboto), 'Roboto', system-ui, sans-serif;
+  --font-mono:    var(--font-jetbrains-mono), 'Roboto Mono', 'Menlo', monospace;
+}
+
+/* Tailwind's dark: variant gets additional CSS applied by the .dark class
+   toggled via the initial-theme script. globals/Tailwind usage of .dark stays
+   functional across calm-signal/aurora/prism/md-dark. */
+
+/* ============================================================================
+   BODY + FONT FAMILY
+   ============================================================================ */
 body {
   color: rgb(var(--foreground-rgb));
+  font-family: var(--font-body);
   background: linear-gradient(
     to bottom,
     rgb(var(--background-start-rgb)),
     rgb(var(--background-end-rgb))
   );
 }
+
+/* ============================================================================
+   SIGNATURE BACKDROPS — per-theme body::before / ::after effects.
+   Gated by prefers-reduced-motion.
+   ============================================================================ */
+
+/* Aurora mesh drift -------------------------------------------------------- */
+[data-theme="aurora"] body::before {
+  content: "";
+  position: fixed; inset: -30%;
+  z-index: -2;
+  background:
+    radial-gradient(closest-side at 18% 12%, rgba(160,132,255,0.26), transparent 70%),
+    radial-gradient(closest-side at 82%  6%, rgba(92,242,225,0.18),  transparent 72%),
+    radial-gradient(closest-side at 92% 88%, rgba(255,94,165,0.18),  transparent 70%),
+    radial-gradient(closest-side at  8% 82%, rgba(92,242,225,0.12),  transparent 70%);
+  filter: blur(40px);
+  animation: aurora-drift 24s var(--ease) infinite alternate;
+  pointer-events: none;
+}
+[data-theme="aurora"] body::after {
+  content: "";
+  position: fixed; inset: 0; z-index: -1;
+  background-image: radial-gradient(circle at 1px 1px, rgba(180,195,245,0.04) 1px, transparent 0);
+  background-size: 22px 22px;
+  pointer-events: none;
+}
+@keyframes aurora-drift {
+  0%,100% { transform: translate3d(0, 0, 0)    rotate(0deg); }
+  50%     { transform: translate3d(-4%, 3%, 0) rotate(3deg); }
+}
+
+/* Prism floating orbs ------------------------------------------------------ */
+[data-theme="prism"] body::before {
+  content: "";
+  position: fixed; inset: -10%;
+  z-index: -2;
+  background:
+    radial-gradient(closest-side at 85%  8%, rgba(139, 92,246,0.22), transparent 60%),
+    radial-gradient(closest-side at  8% 88%, rgba(  6,182,212,0.20), transparent 60%),
+    radial-gradient(closest-side at 55% 50%, rgba(255,107,107,0.16), transparent 55%),
+    radial-gradient(closest-side at 95% 92%, rgba(251,191, 36,0.18), transparent 60%);
+  filter: blur(30px) saturate(130%);
+  animation: orb-drift 30s var(--ease) infinite alternate;
+  pointer-events: none;
+}
+[data-theme="prism"] body::after {
+  content: "";
+  position: fixed; inset: 0; z-index: -1;
+  background-image: radial-gradient(circle at 1px 1px, rgba(10,12,26,0.035) 1px, transparent 0);
+  background-size: 22px 22px;
+  pointer-events: none;
+}
+@keyframes orb-drift {
+  0%   { transform: translate3d(0,  0, 0)   rotate(  0deg) scale(1);    }
+  50%  { transform: translate3d(-3%, 4%, 0) rotate(  6deg) scale(1.05); }
+  100% { transform: translate3d(4%, -3%, 0) rotate( -4deg) scale(0.97); }
+}
+
+/* Graphite paper texture --------------------------------------------------- */
+[data-theme="graphite"] body {
+  background-image: radial-gradient(circle at 50% 0%, rgba(20,21,22,0.02), transparent 70%);
+}
+
+/* Calm-signal keeps the flat near-black page — no backdrop. ---------------- */
+
+/* Reduced motion ----------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  [data-theme="aurora"] body::before,
+  [data-theme="prism"]  body::before { display: none; }
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+/* ============================================================================
+   PER-THEME ACCENT OVERRIDES — signature moments layered onto existing
+   components without requiring a full component-level refactor. Extend as
+   the component-level revamp rolls out.
+   ============================================================================ */
+
+/* Display-class helpers available to any component ------------------------- */
+.display-xxl, .display-xl, .display-l, .display-m { font-family: var(--font-display); }
+.display-xxl { font-size: 72px; line-height: 1.0;  letter-spacing: -0.035em; font-weight: 500; }
+.display-xl  { font-size: 56px; line-height: 1.05; letter-spacing: -0.03em;  font-weight: 500; }
+.display-l   { font-size: 44px; line-height: 1.1;  letter-spacing: -0.025em; font-weight: 500; }
+.display-m   { font-size: 32px; line-height: 1.15; letter-spacing: -0.02em;  font-weight: 500; }
+
+.num, .mono {
+  font-family: var(--font-mono);
+  font-feature-settings: 'tnum', 'zero';
+}
+
+/* Prism spectrum text — makes hero numbers refract */
+[data-theme="prism"] .spectrum-text {
+  background: linear-gradient(135deg, #ff6b6b, #fbbf24 30%, #10b981 55%, #06b6d4 75%, #8b5cf6);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  background-size: 200% 200%;
+  animation: spectrum-shift 12s var(--ease) infinite alternate;
+}
+@keyframes spectrum-shift {
+  0%   { background-position:   0% 50%; }
+  100% { background-position: 100% 50%; }
+}
+/* In other themes, .spectrum-text degrades to plain foreground colour. */
+.spectrum-text { color: rgb(var(--cluster-text)); }
+
+/* ============================================================================
+   Original stylesheet below — preserved verbatim so existing components
+   keep rendering. They read rgb(var(--cluster-*)) which now varies per theme.
+   ============================================================================ */
 
 /* Skip to main content link - Accessibility */
 .skip-link {
@@ -81,6 +378,31 @@ body {
   @apply btn-base p-2 hover:bg-cluster-border/60 rounded-lg relative;
   @apply disabled:opacity-50 disabled:cursor-not-allowed;
 }
+
+/* Per-theme primary-button styling (layered overrides) ------------------- */
+[data-theme="prism"] .btn-primary {
+  background: linear-gradient(135deg, #8b5cf6, #ff6b6b 60%, #fbbf24);
+  background-size: 200% 200%;
+  border: none;
+  box-shadow: 0 8px 24px -10px rgba(139,92,246,0.5);
+  animation: btn-gradient-drift 6s var(--ease) infinite alternate;
+}
+@keyframes btn-gradient-drift {
+  0%   { background-position: 0% 0%; }
+  100% { background-position: 100% 100%; }
+}
+[data-theme="aurora"] .btn-primary {
+  background: linear-gradient(135deg,
+    color-mix(in oklab, rgb(var(--accent)) 22%, rgb(var(--cluster-card))),
+    color-mix(in oklab, #a084ff 20%, rgb(var(--cluster-card))));
+  border-color: color-mix(in oklab, rgb(var(--accent)) 48%, transparent);
+}
+[data-theme="graphite"] .btn-primary {
+  background: rgb(var(--cluster-text));
+  border-color: rgb(var(--cluster-text));
+  color: rgb(var(--cluster-bg));
+}
+[data-theme="graphite"] .btn-primary:hover { background: #000; border-color: #000; }
 
 /* Improved color contrast for muted text - Accessibility */
 .text-cluster-muted-accessible {
@@ -149,22 +471,38 @@ body {
   @apply bg-slate-700/50 text-slate-300 border border-slate-600;
 }
 
+/* Graphite needs lighter severity badges (dark-palette variants look wrong
+   on paper). Scope overrides here. */
+[data-theme="graphite"] .severity-critical { background: #fde2e6; color: #7c1026; border-color: #f5b5be; }
+[data-theme="graphite"] .severity-high     { background: #ffe4cc; color: #6f2805; border-color: #f2b88a; }
+[data-theme="graphite"] .severity-medium   { background: #fdefc6; color: #5c4103; border-color: #f0d683; }
+[data-theme="graphite"] .severity-low      { background: #d9e4f6; color: #1a2f5c; border-color: #a6bce0; }
+[data-theme="graphite"] .severity-info     { background: #ebe8dc; color: #3a3a3a; border-color: #c8c2b0; }
+
 /* Card hover effects - Enhanced */
 .card-hover {
   @apply transition-all duration-200;
-  @apply hover:shadow-lg hover:shadow-black/30 hover:border-slate-500;
+  @apply hover:shadow-lg hover:border-slate-500;
   @apply hover:-translate-y-0.5;
 }
+[data-theme="graphite"] .card-hover:hover,
+[data-theme="prism"] .card-hover:hover { box-shadow: 0 12px 30px -14px rgba(10,12,26,0.18); }
+[data-theme="calm-signal"] .card-hover:hover,
+[data-theme="aurora"] .card-hover:hover { box-shadow: 0 12px 30px -14px rgba(0,0,0,0.5); }
 
 .card-interactive {
   @apply card-hover cursor-pointer;
-  @apply focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900;
+  @apply focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2;
 }
 
 /* Glassmorphism effect */
 .glass {
-  @apply bg-white/5 backdrop-blur-lg border border-white/10;
+  @apply backdrop-blur-lg;
 }
+[data-theme="calm-signal"] .glass,
+[data-theme="aurora"] .glass { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); }
+[data-theme="graphite"] .glass { background: rgba(255,255,255,0.72); border: 1px solid rgb(var(--cluster-border)); }
+[data-theme="prism"] .glass { background: rgba(255,255,255,0.72); border: 1px solid rgb(var(--cluster-border)); }
 
 /* Pulse animation for live indicators */
 .live-indicator {
@@ -173,7 +511,8 @@ body {
 
 .live-indicator::before {
   content: '';
-  @apply absolute -left-3 top-1/2 -translate-y-1/2 w-2 h-2 bg-green-500 rounded-full;
+  @apply absolute -left-3 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full;
+  background: rgb(var(--accent));
   animation: livePulse 2s ease-in-out infinite;
 }
 
@@ -189,17 +528,9 @@ body {
 }
 
 /* Trend indicators */
-.trend-up {
-  @apply text-green-400;
-}
-
-.trend-down {
-  @apply text-red-400;
-}
-
-.trend-stable {
-  @apply text-slate-400;
-}
+.trend-up { color: rgb(var(--sev-ok)); }
+.trend-down { color: rgb(var(--sev-crit)); }
+.trend-stable { color: rgb(var(--cluster-muted)); }
 
 /* Tab navigation - Accessibility */
 .tab-list {
@@ -212,13 +543,12 @@ body {
   @apply focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset;
 }
 
-.tab-item[aria-selected="true"] {
-  @apply text-blue-400;
-}
+.tab-item[aria-selected="true"] { color: rgb(var(--accent-soft, var(--accent))); }
 
 .tab-item[aria-selected="true"]::after {
   content: '';
-  @apply absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500;
+  @apply absolute bottom-0 left-0 right-0 h-0.5;
+  background: rgb(var(--accent));
 }
 
 /* Modal animations */
@@ -226,6 +556,7 @@ body {
   @apply fixed inset-0 bg-black/60 backdrop-blur-sm;
   animation: fadeIn 200ms ease-out;
 }
+[data-theme="graphite"] .modal-backdrop { background: rgba(20,21,22,0.4); }
 
 .modal-content {
   animation: slideUp 300ms ease-out;
@@ -269,6 +600,10 @@ body {
 .toast-info {
   @apply bg-blue-900/90 text-blue-100 border border-blue-700;
 }
+
+[data-theme="graphite"] .toast-success { background: #d9efe4; color: #0d3a24; border-color: #9fd5b9; }
+[data-theme="graphite"] .toast-error   { background: #fde2e6; color: #5d0716; border-color: #f5b5be; }
+[data-theme="graphite"] .toast-info    { background: #d9e4f6; color: #0d2048; border-color: #a6bce0; }
 
 @keyframes slideInRight {
   from {
@@ -324,11 +659,11 @@ body {
     scrollbar-width: none;
     -ms-overflow-style: none;
   }
-  
+
   .tab-list::-webkit-scrollbar {
     display: none;
   }
-  
+
   .mobile-stack {
     @apply flex-col;
   }
@@ -357,4 +692,308 @@ body {
   @apply absolute -top-1 -right-1 w-5 h-5 flex items-center justify-center;
   @apply bg-red-500 text-white text-xs font-bold rounded-full;
   @apply animate-pulse;
+}
+
+/* ============================================================================
+   PHASE 5 — Material Design 3 component polish
+   Scoped to md-dark / md-light only — no other themes affected.
+   ============================================================================ */
+
+/* Card radius: MD3 spec uses 16px ("large") for content cards */
+[data-theme="md-dark"] .cluster-card,
+[data-theme="md-light"] .cluster-card,
+[data-theme="md-dark"] [class*="rounded-lg"],
+[data-theme="md-light"] [class*="rounded-lg"] {
+  border-radius: 16px;
+}
+
+/* Severity chips — token-driven, WCAG AA on both dark and light MD3 surfaces */
+[data-theme="md-dark"] .severity-critical { background: rgba(var(--sev-crit),0.15); color: rgb(var(--sev-crit)); border-color: rgba(var(--sev-crit),0.35); }
+[data-theme="md-dark"] .severity-high     { background: rgba(var(--sev-high),0.15); color: rgb(var(--sev-high)); border-color: rgba(var(--sev-high),0.35); }
+[data-theme="md-dark"] .severity-medium   { background: rgba(var(--sev-warn),0.15); color: rgb(var(--sev-warn)); border-color: rgba(var(--sev-warn),0.35); }
+[data-theme="md-dark"] .severity-low      { background: rgba(var(--sev-ok),  0.15); color: rgb(var(--sev-ok));   border-color: rgba(var(--sev-ok),  0.35); }
+[data-theme="md-dark"] .severity-info     { background: rgba(var(--sev-info), 0.15); color: rgb(var(--sev-info)); border-color: rgba(var(--sev-info),0.35); }
+
+[data-theme="md-light"] .severity-critical { background: rgba(var(--sev-crit),0.10); color: rgb(var(--sev-crit)); border-color: rgba(var(--sev-crit),0.30); }
+[data-theme="md-light"] .severity-high     { background: rgba(var(--sev-high),0.10); color: rgb(var(--sev-high)); border-color: rgba(var(--sev-high),0.30); }
+[data-theme="md-light"] .severity-medium   { background: rgba(var(--sev-warn),0.10); color: rgb(var(--sev-warn)); border-color: rgba(var(--sev-warn),0.30); }
+[data-theme="md-light"] .severity-low      { background: rgba(var(--sev-ok),  0.10); color: rgb(var(--sev-ok));   border-color: rgba(var(--sev-ok),  0.30); }
+[data-theme="md-light"] .severity-info     { background: rgba(var(--sev-info), 0.10); color: rgb(var(--sev-info)); border-color: rgba(var(--sev-info),0.30); }
+
+/* Card hover elevation — MD3 uses colour tinting (dark) / box-shadow (light) */
+[data-theme="md-dark"] .card-hover:hover  { box-shadow: none; background: rgb(var(--cluster-card)); filter: brightness(1.06); }
+[data-theme="md-light"] .card-hover:hover { box-shadow: var(--cluster-shadow-2, 0 2px 6px rgba(0,0,0,.12)); }
+
+/* Nav active item — MD3 secondary-container pill (28px radius) */
+[data-theme="md-dark"] nav a.bg-blue-600,
+[data-theme="md-light"] nav a.bg-blue-600 {
+  background: rgba(var(--accent), 0.18) !important;
+  color: rgb(var(--accent)) !important;
+  border-radius: 28px;
+}
+[data-theme="md-dark"] nav a[class*="bg-red-600"],
+[data-theme="md-light"] nav a[class*="bg-red-600"],
+[data-theme="md-dark"] nav a[class*="bg-purple-600"],
+[data-theme="md-light"] nav a[class*="bg-purple-600"],
+[data-theme="md-dark"] nav a[class*="bg-green-600"],
+[data-theme="md-light"] nav a[class*="bg-green-600"],
+[data-theme="md-dark"] nav a[class*="bg-teal-600"],
+[data-theme="md-light"] nav a[class*="bg-teal-600"],
+[data-theme="md-dark"] nav a[class*="bg-orange-600"],
+[data-theme="md-light"] nav a[class*="bg-orange-600"],
+[data-theme="md-dark"] nav a[class*="bg-blue-600"],
+[data-theme="md-light"] nav a[class*="bg-blue-600"] {
+  border-radius: 28px;
+}
+
+/* Table rows — MD3 surface hierarchy */
+[data-theme="md-dark"] thead tr,
+[data-theme="md-light"] thead tr {
+  background: rgb(var(--cluster-card));
+}
+[data-theme="md-dark"] tbody tr:hover,
+[data-theme="md-light"] tbody tr:hover {
+  background: rgba(var(--accent), 0.08);
+}
+
+/* ============================================================================
+   LIGHT-THEME DARK-PANEL REMEDIATION
+   Pages pre-dating the theme system use hardcoded dark Tailwind classes
+   (bg-gray-800, bg-gray-900, text-white, etc.).  These overrides remap the
+   most common patterns to cluster tokens on light themes so they stay readable.
+
+   Technique: [class*="X"] matches any element whose class attribute contains
+   substring X — catches bg-gray-800, bg-gray-800/50, bg-gray-800/30, etc.
+   Scoped by element type (div/section/span) so `hover:bg-gray-700` on <tr>
+   elements doesn't get a forced background in their non-hover default state.
+   ============================================================================ */
+
+/* All text inputs/selects/textareas use theme tokens in light themes ---------- */
+[data-theme="graphite"] input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="color"]),
+[data-theme="graphite"] select,
+[data-theme="graphite"] textarea,
+[data-theme="prism"]    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="color"]),
+[data-theme="prism"]    select,
+[data-theme="prism"]    textarea,
+[data-theme="md-light"] input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="color"]),
+[data-theme="md-light"] select,
+[data-theme="md-light"] textarea {
+  background-color: rgb(var(--cluster-card)) !important;
+  color: rgb(var(--cluster-text)) !important;
+  border-color: rgb(var(--cluster-border)) !important;
+}
+[data-theme="graphite"] input::placeholder,
+[data-theme="graphite"] textarea::placeholder,
+[data-theme="prism"]    input::placeholder,
+[data-theme="prism"]    textarea::placeholder,
+[data-theme="md-light"] input::placeholder,
+[data-theme="md-light"] textarea::placeholder {
+  color: rgb(var(--cluster-muted)) !important;
+  opacity: 1;
+}
+
+/* Block containers with hardcoded dark bg → cluster-bg / cluster-card -------- */
+[data-theme="graphite"] div[class*="bg-gray-900"],
+[data-theme="graphite"] section[class*="bg-gray-900"],
+[data-theme="graphite"] thead[class*="bg-gray-900"],
+[data-theme="prism"]    div[class*="bg-gray-900"],
+[data-theme="prism"]    section[class*="bg-gray-900"],
+[data-theme="prism"]    thead[class*="bg-gray-900"],
+[data-theme="md-light"] div[class*="bg-gray-900"],
+[data-theme="md-light"] section[class*="bg-gray-900"],
+[data-theme="md-light"] thead[class*="bg-gray-900"] {
+  background-color: rgb(var(--cluster-bg)) !important;
+}
+
+[data-theme="graphite"] div[class*="bg-gray-800"],
+[data-theme="graphite"] section[class*="bg-gray-800"],
+[data-theme="graphite"] aside[class*="bg-gray-800"],
+[data-theme="graphite"] thead[class*="bg-gray-800"],
+[data-theme="graphite"] tr[class*="bg-gray-800"],
+[data-theme="prism"]    div[class*="bg-gray-800"],
+[data-theme="prism"]    section[class*="bg-gray-800"],
+[data-theme="prism"]    aside[class*="bg-gray-800"],
+[data-theme="prism"]    thead[class*="bg-gray-800"],
+[data-theme="prism"]    tr[class*="bg-gray-800"],
+[data-theme="md-light"] div[class*="bg-gray-800"],
+[data-theme="md-light"] section[class*="bg-gray-800"],
+[data-theme="md-light"] aside[class*="bg-gray-800"],
+[data-theme="md-light"] thead[class*="bg-gray-800"],
+[data-theme="md-light"] tr[class*="bg-gray-800"] {
+  background-color: rgb(var(--cluster-card)) !important;
+}
+
+[data-theme="graphite"] div[class*="bg-gray-700"],
+[data-theme="graphite"] thead[class*="bg-gray-700"],
+[data-theme="prism"]    div[class*="bg-gray-700"],
+[data-theme="prism"]    thead[class*="bg-gray-700"],
+[data-theme="md-light"] div[class*="bg-gray-700"],
+[data-theme="md-light"] thead[class*="bg-gray-700"] {
+  background-color: rgb(var(--cluster-border) / 0.5) !important;
+}
+
+/* Inline elements (badges, inline code) with dark bg ------------------------- */
+[data-theme="graphite"] span[class*="bg-gray-700"],
+[data-theme="graphite"] span[class*="bg-gray-800"],
+[data-theme="prism"]    span[class*="bg-gray-700"],
+[data-theme="prism"]    span[class*="bg-gray-800"],
+[data-theme="md-light"] span[class*="bg-gray-700"],
+[data-theme="md-light"] span[class*="bg-gray-800"] {
+  background-color: rgb(var(--cluster-border)) !important;
+  color: rgb(var(--cluster-text)) !important;
+}
+
+/* Pre / code blocks with dark bg --------------------------------------------- */
+[data-theme="graphite"] pre[class*="bg-gray-"],
+[data-theme="graphite"] code[class*="bg-gray-"],
+[data-theme="prism"]    pre[class*="bg-gray-"],
+[data-theme="prism"]    code[class*="bg-gray-"],
+[data-theme="md-light"] pre[class*="bg-gray-"],
+[data-theme="md-light"] code[class*="bg-gray-"] {
+  background-color: rgb(var(--cluster-card)) !important;
+  color: rgb(var(--cluster-text)) !important;
+}
+
+/* Gray text that's invisible on light bg: remap to theme text / muted -------- */
+/* text-gray-300 (#d1d5db) and text-gray-400 (#9ca3af) are near-invisible on white */
+[data-theme="graphite"] [class*="text-gray-3"],
+[data-theme="graphite"] [class*="text-gray-4"],
+[data-theme="prism"]    [class*="text-gray-3"],
+[data-theme="prism"]    [class*="text-gray-4"],
+[data-theme="md-light"] [class*="text-gray-3"],
+[data-theme="md-light"] [class*="text-gray-4"] {
+  color: rgb(var(--cluster-text)) !important;
+}
+[data-theme="graphite"] [class*="text-gray-5"],
+[data-theme="graphite"] [class*="text-gray-6"],
+[data-theme="prism"]    [class*="text-gray-5"],
+[data-theme="prism"]    [class*="text-gray-6"],
+[data-theme="md-light"] [class*="text-gray-5"],
+[data-theme="md-light"] [class*="text-gray-6"] {
+  color: rgb(var(--cluster-muted)) !important;
+}
+
+/* Border colours: gray-700/600 → cluster-border ----------------------------- */
+[data-theme="graphite"] [class*="border-gray-700"],
+[data-theme="graphite"] [class*="border-gray-600"],
+[data-theme="prism"]    [class*="border-gray-700"],
+[data-theme="prism"]    [class*="border-gray-600"],
+[data-theme="md-light"] [class*="border-gray-700"],
+[data-theme="md-light"] [class*="border-gray-600"] {
+  border-color: rgb(var(--cluster-border)) !important;
+}
+
+/* Hover row/item states in tables/lists -------------------------------------- */
+[data-theme="graphite"] tr[class*="hover:bg-gray-"]:hover,
+[data-theme="prism"]    tr[class*="hover:bg-gray-"]:hover,
+[data-theme="md-light"] tr[class*="hover:bg-gray-"]:hover {
+  background-color: rgb(var(--cluster-border) / 0.3) !important;
+}
+[data-theme="graphite"] button[class*="hover:bg-gray-"]:not([class*="bg-blue"]):not([class*="bg-red"]):not([class*="bg-orange"]):not([class*="bg-green"]):hover,
+[data-theme="prism"]    button[class*="hover:bg-gray-"]:not([class*="bg-blue"]):not([class*="bg-red"]):not([class*="bg-orange"]):not([class*="bg-green"]):hover,
+[data-theme="md-light"] button[class*="hover:bg-gray-"]:not([class*="bg-blue"]):not([class*="bg-red"]):not([class*="bg-orange"]):not([class*="bg-green"]):hover {
+  background-color: rgb(var(--cluster-border) / 0.5) !important;
+  color: rgb(var(--cluster-text)) !important;
+}
+
+/* Issues page: make very small eyebrow text slightly bolder on light themes -- */
+[data-theme="graphite"] .text-cluster-muted,
+[data-theme="prism"]    .text-cluster-muted {
+  color: rgb(var(--cluster-muted));
+}
+/* Increase legibility for ultra-small (10px) uppercase tracking labels */
+[data-theme="graphite"] [class*="tracking-[0.2em]"][class*="text-cluster-muted"],
+[data-theme="prism"]    [class*="tracking-[0.2em]"][class*="text-cluster-muted"] {
+  color: rgb(var(--cluster-text) / 0.65) !important;
+  font-weight: 600 !important;
+}
+
+/* ============================================================================
+   LIGHT-THEME COLOUR EXTENSION — incident detail + chat panel
+   Covers text-gray-200, text-white on non-button elements,
+   text-purple-3xx / text-blue-1xx near-invisible on cream/white bg,
+   and purple/blue-tinted bg containers.
+   ============================================================================ */
+
+/* text-gray-200 (near-white) → cluster-text ---------------------------------- */
+[data-theme="graphite"] [class*="text-gray-2"],
+[data-theme="prism"]    [class*="text-gray-2"],
+[data-theme="md-light"] [class*="text-gray-2"] {
+  color: rgb(var(--cluster-text)) !important;
+}
+
+/* text-white on plain text nodes (NOT buttons — they keep white for contrast) */
+[data-theme="graphite"] h1[class*="text-white"],
+[data-theme="graphite"] h2[class*="text-white"],
+[data-theme="graphite"] h3[class*="text-white"],
+[data-theme="graphite"] p[class*="text-white"],
+[data-theme="graphite"] span[class*="text-white"],
+[data-theme="graphite"] strong[class*="text-white"],
+[data-theme="graphite"] li[class*="text-white"],
+[data-theme="prism"]    h1[class*="text-white"],
+[data-theme="prism"]    h2[class*="text-white"],
+[data-theme="prism"]    h3[class*="text-white"],
+[data-theme="prism"]    p[class*="text-white"],
+[data-theme="prism"]    span[class*="text-white"],
+[data-theme="prism"]    strong[class*="text-white"],
+[data-theme="prism"]    li[class*="text-white"],
+[data-theme="md-light"] h1[class*="text-white"],
+[data-theme="md-light"] h2[class*="text-white"],
+[data-theme="md-light"] h3[class*="text-white"],
+[data-theme="md-light"] p[class*="text-white"],
+[data-theme="md-light"] span[class*="text-white"],
+[data-theme="md-light"] strong[class*="text-white"],
+[data-theme="md-light"] li[class*="text-white"] {
+  color: rgb(var(--cluster-text)) !important;
+}
+
+/* text-purple-300/400 (light lavender) → accent on light backgrounds --------- */
+[data-theme="graphite"] [class*="text-purple-3"],
+[data-theme="graphite"] [class*="text-purple-4"],
+[data-theme="prism"]    [class*="text-purple-3"],
+[data-theme="prism"]    [class*="text-purple-4"],
+[data-theme="md-light"] [class*="text-purple-3"],
+[data-theme="md-light"] [class*="text-purple-4"] {
+  color: rgb(var(--accent)) !important;
+}
+
+/* text-blue-100/200 (near-white blues) → accent ------------------------------ */
+[data-theme="graphite"] [class*="text-blue-1"],
+[data-theme="graphite"] [class*="text-blue-2"],
+[data-theme="prism"]    [class*="text-blue-1"],
+[data-theme="prism"]    [class*="text-blue-2"],
+[data-theme="md-light"] [class*="text-blue-1"],
+[data-theme="md-light"] [class*="text-blue-2"] {
+  color: rgb(var(--accent)) !important;
+}
+
+/* bg-purple-900/bg-blue-900 containers → soft accent tint ------------------- */
+[data-theme="graphite"] div[class*="bg-purple-9"],
+[data-theme="graphite"] div[class*="bg-blue-9"],
+[data-theme="prism"]    div[class*="bg-purple-9"],
+[data-theme="prism"]    div[class*="bg-blue-9"],
+[data-theme="md-light"] div[class*="bg-purple-9"],
+[data-theme="md-light"] div[class*="bg-blue-9"] {
+  background-color: rgb(var(--accent) / 0.06) !important;
+}
+
+/* Purple + blue borders → soft accent strokes -------------------------------- */
+[data-theme="graphite"] [class*="border-purple-7"],
+[data-theme="graphite"] [class*="border-blue-7"],
+[data-theme="prism"]    [class*="border-purple-7"],
+[data-theme="prism"]    [class*="border-blue-7"],
+[data-theme="md-light"] [class*="border-purple-7"],
+[data-theme="md-light"] [class*="border-blue-7"] {
+  border-color: rgb(var(--accent) / 0.25) !important;
+}
+
+/* ============================================================================
+   GRAPHITE EDITORIAL TYPOGRAPHY — apply display serif to page headings.
+   --font-display is already loaded (Fraunces + Newsreader, see layout.tsx).
+   Only h1 (primary page title) gets the serif treatment; narrower headings
+   keep Inter to avoid cargo-culting serif onto every card label.
+   ============================================================================ */
+[data-theme="graphite"] h1 {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
 }

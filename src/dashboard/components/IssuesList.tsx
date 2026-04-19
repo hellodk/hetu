@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo, useCallback } from 'react'
+import Link from 'next/link'
 import { AlertTriangle, AlertCircle, Info, ChevronRight, ExternalLink, X, Sparkles, Wrench, Search, Filter } from 'lucide-react'
 import clsx from 'clsx'
 import { Modal } from './Modal'
@@ -307,15 +308,21 @@ export function IssuesList({ issues, expanded = false, onViewAll, onIssueClick, 
                         <div className="mt-3">
                           <p className="text-xs text-slate-400 uppercase tracking-wide mb-2">Affected Resources</p>
                           <div className="flex flex-wrap gap-2">
-                            {(issue.affectedResources ?? []).map((resource, idx) => (
-                              <span
-                                key={idx}
-                                className="px-2 py-1 bg-black/20 rounded text-xs font-mono text-cluster-text flex items-center gap-1"
-                              >
-                                {resource}
-                                <ExternalLink className="w-3 h-3 text-slate-400" aria-hidden="true" />
-                              </span>
-                            ))}
+                            {(issue.affectedResources ?? []).map((resource, idx) => {
+                              const parts = resource.split('/')
+                              const ns = parts.length >= 2 ? parts[0] : 'default'
+                              const name = parts.length >= 2 ? parts[1] : parts[0]
+                              return (
+                                <Link
+                                  key={idx}
+                                  href={`/workloads/pods/${ns}/${name}?group=core&version=v1`}
+                                  className="px-2 py-1 bg-black/20 hover:bg-blue-600/20 rounded text-xs font-mono text-cluster-text hover:text-blue-400 flex items-center gap-1 transition-colors"
+                                >
+                                  {resource}
+                                  <ExternalLink className="w-3 h-3 text-slate-400" aria-hidden="true" />
+                                </Link>
+                              )
+                            })}
                           </div>
                         </div>
                       </>

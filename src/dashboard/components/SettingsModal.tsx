@@ -4,6 +4,23 @@ import { Modal } from './Modal'
 import { PlayCircle, Activity, Save, Download } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 
+type ThemeChoice = 'graphite' | 'calm-signal' | 'aurora' | 'prism' | 'auto' | 'md-dark' | 'md-light'
+const THEME_VALUES: readonly ThemeChoice[] = ['graphite', 'calm-signal', 'aurora', 'prism', 'auto', 'md-dark', 'md-light'] as const
+const THEME_LABELS: Record<ThemeChoice, string> = {
+    graphite:      'Graphite — editorial light (default)',
+    'calm-signal': 'Calm signal — restrained dark',
+    aurora:        'Aurora — magical dark',
+    prism:         'Prism — white wow',
+    auto:          'Auto — follow OS preference',
+    'md-dark':     'Material Dark — MD3 dark palette',
+    'md-light':    'Material Light — MD3 light palette',
+}
+const LEGACY_MIGRATION: Record<string, ThemeChoice> = {
+    light:  'graphite',
+    dark:   'calm-signal',
+    system: 'auto',
+}
+
 interface SettingsModalProps {
     isOpen: boolean
     onClose: () => void
@@ -36,13 +53,18 @@ export function SettingsModal({
     const [savingOverride, setSavingOverride] = useState(false)
     const [overrideLocation, setOverrideLocation] = useState<string>('')
     const [overrideLoadError, setOverrideLoadError] = useState<string>('')
-    const [themePref, setThemePref] = useState<'light' | 'dark' | 'system'>('system')
+    const [themePref, setThemePref] = useState<ThemeChoice>('graphite')
 
     useEffect(() => {
         if (typeof window === 'undefined') return
         try {
-            const stored = (localStorage.getItem('ci_theme') as 'light' | 'dark' | 'system' | null) || 'system'
-            setThemePref(stored)
+            const raw = localStorage.getItem('ci_theme')
+            let next: ThemeChoice = 'graphite'
+            if (raw) {
+                if (LEGACY_MIGRATION[raw]) next = LEGACY_MIGRATION[raw]
+                else if ((THEME_VALUES as readonly string[]).includes(raw)) next = raw as ThemeChoice
+            }
+            setThemePref(next)
         } catch {
             // ignore
         }
@@ -50,14 +72,12 @@ export function SettingsModal({
 
     useEffect(() => {
         if (typeof window === 'undefined') return
-        try {
-            localStorage.setItem('ci_theme', themePref)
-        } catch {
-            // ignore
-        }
         const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
-        const shouldDark = themePref === 'dark' || (themePref === 'system' && prefersDark)
-        document.documentElement.classList.toggle('dark', shouldDark)
+        const resolved: Exclude<ThemeChoice, 'auto'> =
+            themePref === 'auto' ? (prefersDark ? 'calm-signal' : 'graphite') : themePref
+        document.documentElement.setAttribute('data-theme', resolved)
+        const LIGHT = ['graphite', 'prism', 'md-light']
+        document.documentElement.classList.toggle('dark', !LIGHT.includes(resolved))
     }, [themePref])
 
     useEffect(() => {
@@ -259,15 +279,19 @@ export function SettingsModal({
                 </div>
 
                 <div>
-                    <label className="block text-slate-400 mb-1 font-medium">Theme Preference</label>
+                    <label className="block text-slate-400 mb-1 font-medium">Theme</label>
                     <select
                         value={themePref}
-                        onChange={(e) => setThemePref(e.target.value as 'light' | 'dark' | 'system')}
+                        onChange={(e) => {
+                            const val = e.target.value as ThemeChoice
+                            try { localStorage.setItem('ci_theme', val) } catch { /* ignore */ }
+                            setThemePref(val)
+                        }}
                         className="w-full bg-cluster-card border border-cluster-border rounded-lg p-2 text-cluster-text focus:ring-blue-500 focus:border-blue-500 outline-none transition-all cursor-pointer appearance-none"
                     >
-                        <option value="system">System</option>
-                        <option value="dark">Dark</option>
-                        <option value="light">Light</option>
+                        {THEME_VALUES.map(v => (
+                            <option key={v} value={v}>{THEME_LABELS[v]}</option>
+                        ))}
                     </select>
                     <p className="text-xs text-cluster-muted mt-1">
                         Applies instantly and is saved in this browser.

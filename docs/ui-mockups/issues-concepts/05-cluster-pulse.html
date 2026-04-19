@@ -1,0 +1,1025 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>05 — Cluster Pulse · Issues</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Fira+Code:wght@300;400;500;600&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ── Design Concept ──────────────────────────────────────────────────────────
+   CLUSTER PULSE — Improvement concept for the Issues dashboard.
+
+   Aesthetic: Editorial Scientific — a premium research dashboard. Warm cream
+   paper, serif headings, precision mono data. Feels like a data section from
+   Nature or The Economist. Calm but information-dense. The design treats the
+   cluster like a living organism — the "pulse" metaphor.
+
+   Key improvement over current design:
+   ✦ 24h activity sparklines per category (vital signs monitor)
+   ✦ Severity distribution as dot-matrix vis (immediate count gestalt)
+   ✦ Namespace cards showing issue density per namespace
+   ✦ Focus/blur interaction — clicking a category dims others
+   ✦ Issue age distribution (how long have issues been open?)
+   ✦ Remediation effort estimate display
+   ────────────────────────────────────────────────────────────────────────── */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --paper:      #faf8f3;
+  --paper2:     #f4f0e6;
+  --paper3:     #ede8d9;
+  --ink:        #1c1917;
+  --ink2:       #44403c;
+  --ink3:       #78716c;
+  --rule:       #d6cfc0;
+  --rule2:      #e7e2d5;
+  --crimson:    #9f1239;
+  --crimson2:   #be123c;
+  --rust:       #c2410c;
+  --amber:      #b45309;
+  --amber2:     #f59e0b;
+  --forest:     #166534;
+  --forest2:    #16a34a;
+  --ocean:      #1e40af;
+  --ocean2:     #3b82f6;
+  --font-serif: 'Instrument Serif', Georgia, serif;
+  --font-sans:  'Instrument Sans', system-ui, sans-serif;
+  --font-mono:  'Fira Code', 'Menlo', monospace;
+}
+
+html { font-size: 14px; }
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Subtle grain texture */
+body::before {
+  content: '';
+  position: fixed; inset: 0; z-index: 0;
+  opacity: 0.03;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 200px 200px;
+}
+
+.shell {
+  position: relative; z-index: 1;
+  max-width: 1380px;
+  margin: 0 auto;
+  padding: 0 24px 48px;
+}
+
+/* ── Masthead ── */
+.masthead {
+  border-bottom: 2px solid var(--ink);
+  padding: 20px 0 16px;
+  margin-bottom: 28px;
+  display: flex;
+  align-items: baseline;
+  gap: 0;
+}
+.masthead-publication {
+  font-family: var(--font-serif);
+  font-size: 10px;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--ink3);
+  padding-right: 16px;
+  border-right: 1px solid var(--rule);
+}
+.masthead-title {
+  font-family: var(--font-serif);
+  font-size: 28px;
+  line-height: 1;
+  color: var(--ink);
+  padding: 0 16px;
+  font-style: italic;
+}
+.masthead-sub {
+  font-size: 11px;
+  color: var(--ink3);
+  font-family: var(--font-mono);
+  padding-left: 16px;
+  border-left: 1px solid var(--rule);
+}
+.masthead-right {
+  margin-left: auto;
+  text-align: right;
+}
+.masthead-date {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink3);
+  letter-spacing: 0.06em;
+}
+.masthead-score {
+  font-family: var(--font-serif);
+  font-size: 22px;
+  color: var(--crimson2);
+  font-style: italic;
+}
+
+/* ── Lead section (hero) ── */
+.lead-section {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 28px;
+  align-items: start;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--rule);
+  margin-bottom: 24px;
+}
+
+/* Health dial */
+.health-dial {
+  position: relative;
+  width: 120px;
+  flex-shrink: 0;
+}
+.health-dial svg { display: block; }
+.health-dial-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.health-pct {
+  font-family: var(--font-serif);
+  font-size: 26px;
+  color: var(--crimson2);
+  line-height: 1;
+}
+.health-word {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  color: var(--ink3);
+  text-transform: uppercase;
+  margin-top: 2px;
+}
+
+/* Lead text */
+.lead-text {}
+.lead-headline {
+  font-family: var(--font-serif);
+  font-size: 20px;
+  line-height: 1.35;
+  color: var(--ink);
+  margin-bottom: 8px;
+}
+.lead-body {
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--ink2);
+  max-width: 520px;
+}
+.lead-tags {
+  display: flex;
+  gap: 6px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+.lead-tag {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  padding: 3px 8px;
+  border: 1px solid currentColor;
+  text-transform: uppercase;
+}
+.lead-tag.crit { color: var(--crimson2); border-color: var(--crimson2); background: rgba(190,18,60,0.05); }
+.lead-tag.high { color: var(--rust);     border-color: var(--rust);     background: rgba(194,65,12,0.05); }
+.lead-tag.med  { color: var(--amber);    border-color: var(--amber);    background: rgba(180,83,9,0.05); }
+.lead-tag.ok   { color: var(--forest);   border-color: var(--forest);   background: rgba(22,101,52,0.05); }
+
+/* Severity dot-matrix */
+.dot-matrix {
+  flex-shrink: 0;
+}
+.dm-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  color: var(--ink3);
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.dm-grid {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 3px;
+  width: 136px;
+}
+.dm-dot {
+  width: 11px; height: 11px;
+  border-radius: 50%;
+  transition: transform 0.1s;
+}
+.dm-dot:hover { transform: scale(1.4); }
+.dm-dot.crit { background: var(--crimson2); }
+.dm-dot.high { background: var(--rust); opacity: 0.8; }
+.dm-dot.med  { background: var(--amber2); opacity: 0.7; }
+.dm-dot.low  { background: var(--ink3); opacity: 0.3; }
+.dm-legend {
+  margin-top: 8px;
+  display: flex;
+  gap: 10px;
+}
+.dm-leg-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-mono);
+  font-size: 8px;
+  color: var(--ink3);
+}
+.dm-leg-dot { width: 6px; height: 6px; border-radius: 50%; }
+
+/* ── Column grid ── */
+.col-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 280px;
+  gap: 1px;
+  background: var(--rule);
+  border: 1px solid var(--rule);
+  margin-bottom: 24px;
+}
+.col {
+  background: var(--paper);
+  padding: 20px;
+}
+
+/* Section headers — editorial style */
+.section-num {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--rule);
+  letter-spacing: 0.1em;
+}
+.section-head {
+  font-family: var(--font-serif);
+  font-size: 14px;
+  font-style: italic;
+  color: var(--ink);
+  border-bottom: 1px solid var(--rule);
+  padding-bottom: 8px;
+  margin-bottom: 14px;
+  margin-top: 2px;
+}
+
+/* Vital signs — category sparklines */
+.vital {
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--rule2);
+}
+.vital:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+
+.vital-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.vital-name {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--ink2);
+  letter-spacing: 0.06em;
+}
+.vital-count {
+  font-family: var(--font-serif);
+  font-size: 18px;
+  line-height: 1;
+}
+.vital-count.crit { color: var(--crimson2); }
+.vital-count.high { color: var(--rust); }
+.vital-count.med  { color: var(--amber); }
+.vital-count.ok   { color: var(--forest); }
+
+/* Vital sparkline (inline SVG) */
+.vital-spark {
+  width: 100%;
+  height: 36px;
+  margin-bottom: 4px;
+}
+.vital-spark path { fill: none; stroke-width: 1.5; stroke-linecap: round; }
+.vital-spark .area { opacity: 0.12; }
+
+.vital-footer {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--ink3);
+}
+
+/* Issue age bars */
+.age-item {
+  margin-bottom: 10px;
+}
+.age-label {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--ink3);
+  margin-bottom: 3px;
+  letter-spacing: 0.04em;
+}
+.age-bar-bg {
+  height: 8px;
+  background: var(--paper3);
+  border-radius: 1px;
+  overflow: hidden;
+}
+.age-bar-fill {
+  height: 100%;
+  border-radius: 1px;
+  animation: age-fill 0.8s cubic-bezier(.16,1,.3,1) both;
+}
+@keyframes age-fill { from { width: 0 !important; } }
+
+/* Namespace table */
+.ns-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.ns-table tr {
+  border-bottom: 1px solid var(--rule2);
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.ns-table tr:hover { background: var(--paper2); }
+.ns-table td {
+  padding: 7px 0;
+  vertical-align: middle;
+}
+.ns-table .ns-name-cell {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink2);
+  padding-right: 8px;
+  white-space: nowrap;
+}
+.ns-heat {
+  width: 100%;
+  height: 6px;
+  background: var(--paper3);
+  border-radius: 1px;
+  overflow: hidden;
+}
+.ns-heat-fill { height: 100%; border-radius: 1px; }
+.ns-count-cell {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-align: right;
+  padding-left: 8px;
+  white-space: nowrap;
+  min-width: 24px;
+}
+
+/* ── Bottom section: top items ── */
+.top-issues {
+  border-top: 2px solid var(--ink);
+  padding-top: 20px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+}
+
+.top-col-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--rule);
+  padding-bottom: 8px;
+}
+.top-col-num {
+  font-family: var(--font-serif);
+  font-size: 11px;
+  color: var(--ink3);
+  font-style: italic;
+}
+.top-col-title {
+  font-family: var(--font-serif);
+  font-size: 14px;
+  font-style: italic;
+}
+
+.top-item {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--rule2);
+  cursor: pointer;
+  transition: padding-left 0.15s;
+}
+.top-item:hover { padding-left: 4px; }
+.top-item-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 3px;
+}
+.top-item-sev {
+  width: 4px;
+  flex-shrink: 0;
+  border-radius: 2px;
+  align-self: stretch;
+  min-height: 12px;
+}
+.top-item-name {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ink);
+  line-height: 1.3;
+}
+.top-item-meta {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--ink3);
+  margin-left: 12px;
+  margin-top: 2px;
+}
+.top-item-tags {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+  margin-left: 12px;
+}
+.mini-tag {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  padding: 1px 5px;
+  border-radius: 2px;
+  letter-spacing: 0.05em;
+}
+.mini-tag.crit { background: rgba(190,18,60,0.1); color: var(--crimson2); }
+.mini-tag.high { background: rgba(194,65,12,0.1); color: var(--rust); }
+.mini-tag.med  { background: rgba(180,83,9,0.1);  color: var(--amber); }
+
+/* ── Colophon ── */
+.colophon {
+  border-top: 1px solid var(--rule);
+  margin-top: 24px;
+  padding-top: 12px;
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--ink3);
+  letter-spacing: 0.06em;
+}
+
+/* Animations */
+.shell { animation: appear 0.4s ease both; }
+@keyframes appear { from { opacity: 0; transform: translateY(4px); } }
+.vital { animation: slide-up 0.5s ease both; }
+.vital:nth-child(1) { animation-delay: 0.1s; }
+.vital:nth-child(2) { animation-delay: 0.15s; }
+.vital:nth-child(3) { animation-delay: 0.2s; }
+.vital:nth-child(4) { animation-delay: 0.25s; }
+@keyframes slide-up { from { opacity: 0; transform: translateY(6px); } }
+
+.top-item { animation: fade-in 0.4s ease both; }
+@keyframes fade-in { from { opacity: 0; } }
+</style>
+</head>
+<body>
+
+<div class="shell">
+
+  <!-- ── Masthead ── -->
+  <div class="masthead">
+    <span class="masthead-publication">Cluster Intel</span>
+    <span class="masthead-title">Cluster Pulse</span>
+    <span class="masthead-sub">Issues &amp; Health Report — Live</span>
+    <div class="masthead-right">
+      <div class="masthead-date">APR 18 · 14:32 UTC · GRAPHITE</div>
+      <div class="masthead-score">38% health</div>
+    </div>
+  </div>
+
+  <!-- ── Lead ── -->
+  <div class="lead-section">
+
+    <!-- Health dial -->
+    <div class="health-dial">
+      <svg width="120" height="120" viewBox="0 0 120 120">
+        <!-- Tick marks -->
+        <g stroke="var(--rule)" stroke-width="1">
+          <line x1="60" y1="8" x2="60" y2="15" transform="rotate(0 60 60)"/>
+          <line x1="60" y1="8" x2="60" y2="15" transform="rotate(36 60 60)"/>
+          <line x1="60" y1="8" x2="60" y2="15" transform="rotate(72 60 60)"/>
+          <line x1="60" y1="8" x2="60" y2="15" transform="rotate(108 60 60)"/>
+          <line x1="60" y1="8" x2="60" y2="15" transform="rotate(144 60 60)"/>
+          <line x1="60" y1="8" x2="60" y2="15" transform="rotate(180 60 60)"/>
+          <line x1="60" y1="8" x2="60" y2="15" transform="rotate(216 60 60)"/>
+          <line x1="60" y1="8" x2="60" y2="15" transform="rotate(252 60 60)"/>
+          <line x1="60" y1="8" x2="60" y2="15" transform="rotate(288 60 60)"/>
+          <line x1="60" y1="8" x2="60" y2="15" transform="rotate(324 60 60)"/>
+        </g>
+        <!-- Background ring -->
+        <circle cx="60" cy="60" r="48" fill="none" stroke="var(--rule)" stroke-width="4"/>
+        <!-- Red arc (critical range: 0–40%) -->
+        <circle cx="60" cy="60" r="48" fill="none" stroke="rgba(190,18,60,0.2)" stroke-width="4"
+          stroke-dasharray="120.63 180.95" stroke-dashoffset="0"
+          transform="rotate(-90 60 60)"/>
+        <!-- Score arc -->
+        <circle cx="60" cy="60" r="48" fill="none" stroke="var(--crimson2)" stroke-width="4"
+          stroke-dasharray="301.59" stroke-dashoffset="186"
+          stroke-linecap="round"
+          transform="rotate(-90 60 60)"
+          style="transition:stroke-dashoffset 1.4s cubic-bezier(.22,.61,.36,1);"
+          id="healthArc"/>
+      </svg>
+      <div class="health-dial-center">
+        <div class="health-pct">38%</div>
+        <div class="health-word">health</div>
+      </div>
+    </div>
+
+    <!-- Lead text -->
+    <div class="lead-text">
+      <h1 class="lead-headline">Cluster is in <em>critical range</em> — security posture drives overall degradation</h1>
+      <p class="lead-body">
+        7 critical CVE findings across <strong>kube-system</strong> and <strong>avika</strong> namespaces are the primary health driver.
+        App error rate is trending downward (−2 resolved this shift).
+        Pod health has fully recovered. 81 total active issues across 3 active categories.
+      </p>
+      <div class="lead-tags">
+        <span class="lead-tag crit">7 Critical</span>
+        <span class="lead-tag high">65 High</span>
+        <span class="lead-tag med">9 Medium</span>
+        <span class="lead-tag ok">Pod Health Clear</span>
+      </div>
+    </div>
+
+    <!-- Dot matrix severity visualisation -->
+    <div class="dot-matrix">
+      <div class="dm-label">81 Active Issues</div>
+      <div class="dm-grid" id="dotMatrix"></div>
+      <div class="dm-legend">
+        <div class="dm-leg-item"><span class="dm-leg-dot" style="background:var(--crimson2);"></span>CRIT 7</div>
+        <div class="dm-leg-item"><span class="dm-leg-dot" style="background:var(--rust);"></span>HIGH 65</div>
+        <div class="dm-leg-item"><span class="dm-leg-dot" style="background:var(--amber2);"></span>MED 9</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── Column grid ── -->
+  <div class="col-grid">
+
+    <!-- Col 1: Vital signs -->
+    <div class="col">
+      <div class="section-num">§ 1</div>
+      <div class="section-head">Vital Signs — 24h</div>
+
+      <div class="vital">
+        <div class="vital-header">
+          <span class="vital-name">SECURITY CVEs</span>
+          <span class="vital-count crit">68</span>
+        </div>
+        <svg class="vital-spark" viewBox="0 0 200 36" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="gcrit" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0%" stop-color="var(--crimson2)" stop-opacity="0.2"/>
+              <stop offset="100%" stop-color="var(--crimson2)" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+          <path class="area" fill="url(#gcrit)" d="M0,28 L25,26 L50,24 L75,22 L100,22 L125,18 L150,14 L175,10 L200,8 L200,36 L0,36 Z"/>
+          <path stroke="var(--crimson2)" d="M0,28 L25,26 L50,24 L75,22 L100,22 L125,18 L150,14 L175,10 L200,8"/>
+        </svg>
+        <div class="vital-footer">
+          <span>24h ago: 64</span>
+          <span style="color:var(--crimson2);">↑ Trending up</span>
+          <span>now: 68</span>
+        </div>
+      </div>
+
+      <div class="vital">
+        <div class="vital-header">
+          <span class="vital-name">APP ERRORS</span>
+          <span class="vital-count high">4</span>
+        </div>
+        <svg class="vital-spark" viewBox="0 0 200 36" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="ghigh" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0%" stop-color="var(--rust)" stop-opacity="0.2"/>
+              <stop offset="100%" stop-color="var(--rust)" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+          <path class="area" fill="url(#ghigh)" d="M0,8 L25,10 L50,14 L75,16 L100,20 L125,22 L150,24 L175,26 L200,28 L200,36 L0,36 Z"/>
+          <path stroke="var(--rust)" d="M0,8 L25,10 L50,14 L75,16 L100,20 L125,22 L150,24 L175,26 L200,28"/>
+        </svg>
+        <div class="vital-footer">
+          <span>24h ago: 6</span>
+          <span style="color:var(--forest2);">↓ Improving</span>
+          <span>now: 4</span>
+        </div>
+      </div>
+
+      <div class="vital">
+        <div class="vital-header">
+          <span class="vital-name">CLUSTER EVENTS</span>
+          <span class="vital-count med">9</span>
+        </div>
+        <svg class="vital-spark" viewBox="0 0 200 36" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="gmed" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0%" stop-color="var(--amber2)" stop-opacity="0.2"/>
+              <stop offset="100%" stop-color="var(--amber2)" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+          <path class="area" fill="url(#gmed)" d="M0,18 L25,16 L50,20 L75,18 L100,16 L125,20 L150,18 L175,16 L200,18 L200,36 L0,36 Z"/>
+          <path stroke="var(--amber2)" d="M0,18 L25,16 L50,20 L75,18 L100,16 L125,20 L150,18 L175,16 L200,18"/>
+        </svg>
+        <div class="vital-footer">
+          <span>24h ago: 9</span>
+          <span style="color:var(--ink3);">→ Stable</span>
+          <span>now: 9</span>
+        </div>
+      </div>
+
+      <div class="vital">
+        <div class="vital-header">
+          <span class="vital-name">POD HEALTH</span>
+          <span class="vital-count ok">0</span>
+        </div>
+        <svg class="vital-spark" viewBox="0 0 200 36" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="gok" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0%" stop-color="var(--forest2)" stop-opacity="0.2"/>
+              <stop offset="100%" stop-color="var(--forest2)" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+          <path class="area" fill="url(#gok)" d="M0,10 L25,12 L50,16 L75,20 L100,24 L125,26 L150,28 L175,32 L200,34 L200,36 L0,36 Z"/>
+          <path stroke="var(--forest2)" d="M0,10 L25,12 L50,16 L75,20 L100,24 L125,26 L150,28 L175,32 L200,34"/>
+        </svg>
+        <div class="vital-footer">
+          <span>24h ago: 5</span>
+          <span style="color:var(--forest2);">↓ Fully resolved</span>
+          <span>now: 0</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Col 2: Issue age distribution -->
+    <div class="col">
+      <div class="section-num">§ 2</div>
+      <div class="section-head">Issue Age Distribution</div>
+
+      <p style="font-size:11px;color:var(--ink3);margin-bottom:16px;line-height:1.6;">How long have active issues been open? Older unresolved issues indicate systemic problems.</p>
+
+      <div class="age-item" style="animation-delay:0.1s;">
+        <div class="age-label">
+          <span>&lt; 1 hour</span>
+          <span style="color:var(--ink);">12 issues</span>
+        </div>
+        <div class="age-bar-bg">
+          <div class="age-bar-fill" style="width:15%;background:var(--rust);animation-delay:0.1s;"></div>
+        </div>
+      </div>
+
+      <div class="age-item" style="animation-delay:0.15s;">
+        <div class="age-label">
+          <span>1–6 hours</span>
+          <span style="color:var(--ink);">28 issues</span>
+        </div>
+        <div class="age-bar-bg">
+          <div class="age-bar-fill" style="width:34%;background:var(--amber2);animation-delay:0.15s;"></div>
+        </div>
+      </div>
+
+      <div class="age-item" style="animation-delay:0.2s;">
+        <div class="age-label">
+          <span>6–24 hours</span>
+          <span style="color:var(--ink);">19 issues</span>
+        </div>
+        <div class="age-bar-bg">
+          <div class="age-bar-fill" style="width:23%;background:var(--amber);animation-delay:0.2s;"></div>
+        </div>
+      </div>
+
+      <div class="age-item" style="animation-delay:0.25s;">
+        <div class="age-label">
+          <span>1–3 days</span>
+          <span style="color:var(--ink);">15 issues</span>
+        </div>
+        <div class="age-bar-bg">
+          <div class="age-bar-fill" style="width:18%;background:var(--ink3);animation-delay:0.25s;"></div>
+        </div>
+      </div>
+
+      <div class="age-item" style="animation-delay:0.3s;">
+        <div class="age-label">
+          <span>&gt; 3 days (chronic)</span>
+          <span style="color:var(--crimson2);font-weight:500;">7 issues</span>
+        </div>
+        <div class="age-bar-bg">
+          <div class="age-bar-fill" style="width:9%;background:var(--crimson2);animation-delay:0.3s;"></div>
+        </div>
+      </div>
+
+      <div style="margin-top:20px;padding-top:14px;border-top:1px solid var(--rule2);">
+        <div class="section-head" style="font-size:12px;margin-bottom:10px;">Estimated Remediation Burden</div>
+        <div style="font-family:var(--font-mono);font-size:10px;color:var(--ink2);line-height:2;">
+          <div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--rule2);">
+            <span>Quick wins (&lt;15 min)</span>
+            <span style="color:var(--forest);">8 items</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--rule2);">
+            <span>Medium effort (15–60 min)</span>
+            <span style="color:var(--amber);">23 items</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--rule2);">
+            <span>Large effort (&gt;1 hour)</span>
+            <span style="color:var(--rust);">50 items</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:3px 0;">
+            <span style="font-weight:600;">Total estimated</span>
+            <span style="color:var(--crimson2);font-weight:500;">~6 hours</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Col 3: Namespace impact -->
+    <div class="col">
+      <div class="section-num">§ 3</div>
+      <div class="section-head">Namespace Impact Density</div>
+
+      <p style="font-size:11px;color:var(--ink3);margin-bottom:12px;line-height:1.6;">Issue concentration by namespace. Heat indicates combined critical + high severity load.</p>
+
+      <table class="ns-table">
+        <tbody>
+          <tr>
+            <td class="ns-name-cell">kube-system</td>
+            <td><div class="ns-heat"><div class="ns-heat-fill" style="width:95%;background:var(--crimson2);"></div></div></td>
+            <td class="ns-count-cell" style="color:var(--crimson2);">31</td>
+          </tr>
+          <tr>
+            <td class="ns-name-cell">avika</td>
+            <td><div class="ns-heat"><div class="ns-heat-fill" style="width:72%;background:var(--rust);"></div></div></td>
+            <td class="ns-count-cell" style="color:var(--rust);">18</td>
+          </tr>
+          <tr>
+            <td class="ns-name-cell">caretta</td>
+            <td><div class="ns-heat"><div class="ns-heat-fill" style="width:48%;background:var(--rust);opacity:0.7;"></div></div></td>
+            <td class="ns-count-cell" style="color:var(--rust);">12</td>
+          </tr>
+          <tr>
+            <td class="ns-name-cell">monitoring</td>
+            <td><div class="ns-heat"><div class="ns-heat-fill" style="width:32%;background:var(--amber2);"></div></div></td>
+            <td class="ns-count-cell" style="color:var(--amber);">8</td>
+          </tr>
+          <tr>
+            <td class="ns-name-cell">elk</td>
+            <td><div class="ns-heat"><div class="ns-heat-fill" style="width:20%;background:var(--amber2);opacity:0.7;"></div></div></td>
+            <td class="ns-count-cell" style="color:var(--amber);">5</td>
+          </tr>
+          <tr>
+            <td class="ns-name-cell">cluster-intel</td>
+            <td><div class="ns-heat"><div class="ns-heat-fill" style="width:16%;background:var(--amber2);opacity:0.5;"></div></div></td>
+            <td class="ns-count-cell" style="color:var(--amber);">4</td>
+          </tr>
+          <tr>
+            <td class="ns-name-cell">cert-manager</td>
+            <td><div class="ns-heat"><div class="ns-heat-fill" style="width:8%;background:var(--forest2);"></div></div></td>
+            <td class="ns-count-cell" style="color:var(--forest);">2</td>
+          </tr>
+          <tr>
+            <td class="ns-name-cell">ingress-nginx</td>
+            <td><div class="ns-heat"><div class="ns-heat-fill" style="width:4%;background:var(--forest2);opacity:0.7;"></div></div></td>
+            <td class="ns-count-cell" style="color:var(--forest);">1</td>
+          </tr>
+          <tr>
+            <td class="ns-name-cell" style="color:var(--ink3);">default</td>
+            <td><div class="ns-heat"><div class="ns-heat-fill" style="width:0%;background:var(--forest2);"></div></div></td>
+            <td class="ns-count-cell" style="color:var(--ink3);">0</td>
+          </tr>
+          <tr>
+            <td class="ns-name-cell" style="color:var(--ink3);">kube-public</td>
+            <td><div class="ns-heat"></div></td>
+            <td class="ns-count-cell" style="color:var(--ink3);">0</td>
+          </tr>
+          <tr>
+            <td class="ns-name-cell" style="color:var(--ink3);">flux-system</td>
+            <td><div class="ns-heat"></div></td>
+            <td class="ns-count-cell" style="color:var(--ink3);">0</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Col 4: Action focus -->
+    <div class="col" style="background:var(--paper2);">
+      <div class="section-num">§ 4</div>
+      <div class="section-head" style="border-bottom-color:var(--rule);">Recommended Focus</div>
+
+      <p style="font-size:11px;color:var(--ink3);margin-bottom:14px;line-height:1.6;">Ranked by impact-per-effort. Address in order for fastest health score improvement.</p>
+
+      <div style="display:flex;flex-direction:column;gap:12px;">
+
+        <div style="padding:10px;background:rgba(190,18,60,0.06);border-left:3px solid var(--crimson2);">
+          <div style="font-family:var(--font-mono);font-size:9px;color:var(--crimson2);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:4px;">↑ Highest ROI</div>
+          <div style="font-size:11px;font-weight:500;margin-bottom:2px;">Patch CIS 5.2.1 privileged containers</div>
+          <div style="font-family:var(--font-mono);font-size:9px;color:var(--ink3);">7 pods · kube-system · ~30 min</div>
+          <div style="font-family:var(--font-mono);font-size:9px;color:var(--forest);margin-top:4px;">→ +12% health score</div>
+        </div>
+
+        <div style="padding:10px;background:rgba(194,65,12,0.05);border-left:3px solid var(--rust);">
+          <div style="font-family:var(--font-mono);font-size:9px;color:var(--rust);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:4px;">Quick win</div>
+          <div style="font-size:11px;font-weight:500;margin-bottom:2px;">Fix DNS errors in caretta/avika</div>
+          <div style="font-family:var(--font-mono);font-size:9px;color:var(--ink3);">3 groups · ~15 min</div>
+          <div style="font-family:var(--font-mono);font-size:9px;color:var(--forest);margin-top:4px;">→ +5% health score</div>
+        </div>
+
+        <div style="padding:10px;background:rgba(180,83,9,0.05);border-left:3px solid var(--amber);">
+          <div style="font-family:var(--font-mono);font-size:9px;color:var(--amber);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:4px;">Medium effort</div>
+          <div style="font-size:11px;font-weight:500;margin-bottom:2px;">Enable network policies across namespaces</div>
+          <div style="font-family:var(--font-mono);font-size:9px;color:var(--ink3);">18 pods · ~45 min</div>
+          <div style="font-family:var(--font-mono);font-size:9px;color:var(--forest);margin-top:4px;">→ +8% health score</div>
+        </div>
+
+        <div style="padding:10px;background:rgba(22,101,52,0.05);border-left:3px solid var(--forest2);">
+          <div style="font-family:var(--font-mono);font-size:9px;color:var(--forest2);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:4px;">Already done</div>
+          <div style="font-size:11px;font-weight:500;margin-bottom:2px;">Pod health fully recovered</div>
+          <div style="font-family:var(--font-mono);font-size:9px;color:var(--ink3);">All 45 pods running · 0 issues</div>
+          <div style="font-family:var(--font-mono);font-size:9px;color:var(--forest);margin-top:4px;">✓ +15% from yesterday</div>
+        </div>
+
+        <div style="margin-top:4px;padding:10px;border:1px solid var(--rule);text-align:center;">
+          <div style="font-family:var(--font-serif);font-size:24px;font-style:italic;color:var(--crimson2);">63%</div>
+          <div style="font-family:var(--font-mono);font-size:9px;color:var(--ink3);letter-spacing:0.08em;text-transform:uppercase;margin-top:2px;">Achievable score</div>
+          <div style="font-family:var(--font-mono);font-size:9px;color:var(--ink3);margin-top:4px;">after top 3 fixes (∼1.5h work)</div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── Top issues ── -->
+  <div class="top-issues">
+    <div>
+      <div class="top-col-head">
+        <span class="top-col-num">I.</span>
+        <span class="top-col-title">Critical Security Findings</span>
+      </div>
+      <div class="top-item" style="animation-delay:0.1s;">
+        <div class="top-item-head">
+          <div class="top-item-sev" style="background:var(--crimson2);"></div>
+          <div class="top-item-name">Privileged container — kube-system/calico-node</div>
+        </div>
+        <div class="top-item-meta">kube-system · CIS 5.2.1 · pod-security</div>
+        <div class="top-item-tags"><span class="mini-tag crit">CRITICAL</span></div>
+      </div>
+      <div class="top-item" style="animation-delay:0.12s;">
+        <div class="top-item-head">
+          <div class="top-item-sev" style="background:var(--crimson2);"></div>
+          <div class="top-item-name">Privileged container — kube-system/kube-proxy</div>
+        </div>
+        <div class="top-item-meta">kube-system · CIS 5.2.1 · pod-security</div>
+        <div class="top-item-tags"><span class="mini-tag crit">CRITICAL</span></div>
+      </div>
+      <div class="top-item" style="animation-delay:0.14s;">
+        <div class="top-item-head">
+          <div class="top-item-sev" style="background:var(--crimson2);"></div>
+          <div class="top-item-name">Network policy missing — avika namespace</div>
+        </div>
+        <div class="top-item-meta">avika · CIS 5.3.2 · network</div>
+        <div class="top-item-tags"><span class="mini-tag crit">CRITICAL</span></div>
+      </div>
+      <div class="top-item" style="animation-delay:0.16s;">
+        <div class="top-item-head">
+          <div class="top-item-sev" style="background:var(--rust);"></div>
+          <div class="top-item-name">Service account with excessive permissions</div>
+        </div>
+        <div class="top-item-meta">kube-system · RBAC · secrets-access</div>
+        <div class="top-item-tags"><span class="mini-tag high">HIGH</span></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="top-col-head">
+        <span class="top-col-num">II.</span>
+        <span class="top-col-title">Active App Error Groups</span>
+      </div>
+      <div class="top-item" style="animation-delay:0.15s;">
+        <div class="top-item-head">
+          <div class="top-item-sev" style="background:var(--rust);"></div>
+          <div class="top-item-name">DNSConfigForming — otel-collector</div>
+        </div>
+        <div class="top-item-meta">elk · 53,655 occurrences · first 13s ago</div>
+        <div class="top-item-tags"><span class="mini-tag high">HIGH</span></div>
+      </div>
+      <div class="top-item" style="animation-delay:0.17s;">
+        <div class="top-item-head">
+          <div class="top-item-sev" style="background:var(--rust);"></div>
+          <div class="top-item-name">FailedScheduling — coredns pods</div>
+        </div>
+        <div class="top-item-meta">kube-system · 30,175 occurrences · pending</div>
+        <div class="top-item-tags"><span class="mini-tag high">HIGH</span></div>
+      </div>
+      <div class="top-item" style="animation-delay:0.19s;">
+        <div class="top-item-head">
+          <div class="top-item-sev" style="background:var(--amber);"></div>
+          <div class="top-item-name">OOMKilled — elk/ai-deep-analysis</div>
+        </div>
+        <div class="top-item-meta">elk · 9,982 occurrences · memory limit</div>
+        <div class="top-item-tags"><span class="mini-tag med">MED</span></div>
+      </div>
+      <div class="top-item" style="animation-delay:0.21s;">
+        <div class="top-item-head">
+          <div class="top-item-sev" style="background:var(--amber);"></div>
+          <div class="top-item-name">Unhealthy probe — monitoring/prometheus</div>
+        </div>
+        <div class="top-item-meta">monitoring · 9,982 occurrences · readiness</div>
+        <div class="top-item-tags"><span class="mini-tag med">MED</span></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="top-col-head">
+        <span class="top-col-num">III.</span>
+        <span class="top-col-title">Cluster Events</span>
+      </div>
+      <div class="top-item" style="animation-delay:0.2s;">
+        <div class="top-item-head">
+          <div class="top-item-sev" style="background:var(--amber2);"></div>
+          <div class="top-item-name">BackOff restart × 4 — caretta/vm-0</div>
+        </div>
+        <div class="top-item-meta">caretta · Warning · 13h57m ago</div>
+        <div class="top-item-tags"><span class="mini-tag med">WARN</span></div>
+      </div>
+      <div class="top-item" style="animation-delay:0.22s;">
+        <div class="top-item-head">
+          <div class="top-item-sev" style="background:var(--amber2);"></div>
+          <div class="top-item-name">NodeNotReady — transient spike</div>
+        </div>
+        <div class="top-item-meta">cylon · Warning · resolved 2h ago</div>
+        <div class="top-item-tags"><span class="mini-tag med">WARN</span></div>
+      </div>
+      <div class="top-item" style="animation-delay:0.24s;">
+        <div class="top-item-head">
+          <div class="top-item-sev" style="background:var(--ink3);opacity:0.5;"></div>
+          <div class="top-item-name">PersistentVolume — near capacity</div>
+        </div>
+        <div class="top-item-meta">monitoring · Info · 85% used</div>
+        <div class="top-item-tags"><span class="mini-tag med" style="color:var(--ocean2);background:rgba(59,130,246,0.1);">INFO</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Colophon ── -->
+  <div class="colophon">
+    <span>CLUSTER PULSE v0.5 · GRAPHITE THEME · LIVE DATA</span>
+    <span>Refresh: 30s · Issues page improvement concept</span>
+    <span>GENERATED 2026-04-18 14:32:07 UTC</span>
+  </div>
+
+</div>
+
+<script>
+// Generate dot matrix for severity distribution
+const dotMatrix = document.getElementById('dotMatrix');
+// 7 critical, 65 high (show ~35 capped), 9 medium
+const dots = [
+  ...Array(7).fill('crit'),
+  ...Array(35).fill('high'),
+  ...Array(9).fill('med'),
+  ...Array(30).fill('low'),
+];
+
+dots.forEach((cls, i) => {
+  const d = document.createElement('div');
+  d.className = `dm-dot ${cls}`;
+  d.style.animationDelay = `${i * 0.015}s`;
+  dotMatrix.appendChild(d);
+});
+
+// Animate health arc
+const arc = document.getElementById('healthArc');
+if (arc) {
+  arc.style.strokeDashoffset = 301.59;
+  setTimeout(() => {
+    arc.style.transition = 'stroke-dashoffset 1.4s cubic-bezier(.22,.61,.36,1)';
+    arc.style.strokeDashoffset = 186;
+  }, 200);
+}
+</script>
+
+</body>
+</html>

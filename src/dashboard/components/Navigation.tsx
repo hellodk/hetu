@@ -1,13 +1,28 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, Boxes, Server, Network, Database,
   Shield, Gauge, ChevronDown, ChevronRight, Menu, X, Bug, Globe, Zap, TrendingDown,
-  Activity, Settings, Sun, Moon, Monitor
+  Activity, Settings, BarChart2, Search, AlertTriangle
 } from 'lucide-react'
+
+type ThemeChoice = 'graphite' | 'calm-signal' | 'aurora' | 'prism' | 'auto' | 'md-dark' | 'md-light'
+const THEME_VALUES: readonly ThemeChoice[] = ['graphite', 'calm-signal', 'aurora', 'prism', 'auto', 'md-dark', 'md-light'] as const
+const LEGACY_MIGRATION: Record<string, ThemeChoice> = {
+  light:  'graphite',
+  dark:   'calm-signal',
+  system: 'auto',
+}
+
+function resolveTheme(choice: ThemeChoice): 'graphite' | 'calm-signal' | 'aurora' | 'prism' | 'md-dark' | 'md-light' {
+  if (choice !== 'auto') return choice
+  const prefersDark = typeof window !== 'undefined'
+    && window.matchMedia?.('(prefers-color-scheme: dark)').matches
+  return prefersDark ? 'calm-signal' : 'graphite'
+}
 
 interface NavSection {
   name: string
@@ -79,33 +94,53 @@ export function Navigation() {
   const pathname = usePathname()
   const [openSections, setOpenSections] = useState<Set<string>>(new Set(['Workloads']))
   const [mobileOpen, setMobileOpen] = useState(false)
-  const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('system')
-
-  const themeIcon = useMemo(() => {
-    if (theme === 'light') return <Sun className="w-4 h-4" />
-    if (theme === 'dark') return <Moon className="w-4 h-4" />
-    return <Monitor className="w-4 h-4" />
-  }, [theme])
+  const [theme, setTheme] = useState<ThemeChoice>('graphite')
+  const [incidentBadge, setIncidentBadge] = useState(0)
 
   useEffect(() => {
     try {
-      const stored = (localStorage.getItem('ci_theme') as 'light' | 'dark' | 'system' | null) || 'system'
-      setTheme(stored)
+      const raw = localStorage.getItem('ci_theme')
+      let next: ThemeChoice = 'graphite'
+      if (raw) {
+        if (LEGACY_MIGRATION[raw]) next = LEGACY_MIGRATION[raw]
+        else if ((THEME_VALUES as readonly string[]).includes(raw)) next = raw as ThemeChoice
+      }
+      setTheme(next)
     } catch {
       // ignore
     }
   }, [])
 
   useEffect(() => {
-    try {
-      localStorage.setItem('ci_theme', theme)
-    } catch {
-      // ignore
-    }
-    const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
-    const shouldDark = theme === 'dark' || (theme === 'system' && prefersDark)
-    document.documentElement.classList.toggle('dark', shouldDark)
+    const resolved = resolveTheme(theme)
+    document.documentElement.setAttribute('data-theme', resolved)
+    document.documentElement.classList.toggle('dark', !['graphite', 'prism', 'md-light'].includes(resolved))
   }, [theme])
+
+  // Sync theme when another browser tab writes to localStorage
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== 'ci_theme' || !e.newValue) return
+      const val = e.newValue
+      if (LEGACY_MIGRATION[val]) setTheme(LEGACY_MIGRATION[val])
+      else if ((THEME_VALUES as readonly string[]).includes(val)) setTheme(val as ThemeChoice)
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
+  }, [])
+
+  // Fetch open incident count for nav badge
+  useEffect(() => {
+    const apiUrl = typeof window !== 'undefined' ? ((window as any).__CLUSTER_INTEL_API__ || '') : ''
+    fetch(`${apiUrl}/api/v1/incidents`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!data) return
+        const list: any[] = Array.isArray(data) ? data : (data?.incidents ?? [])
+        setIncidentBadge(list.filter(i => i.status !== 'resolved').length)
+      })
+      .catch(() => {})
+  }, [])
 
   const toggle = (name: string) => {
     setOpenSections(prev => {
@@ -121,33 +156,26 @@ export function Navigation() {
     return pathname === path || pathname?.startsWith(path + '/')
   }
 
+  const openSearch = () => window.dispatchEvent(new Event('open-global-search'))
+
   const nav = (
-    <nav className="flex flex-col h-full">
+    <nav className="flex flex-col flex-1 min-h-0">
+      {/* Search trigger */}
+      <div className="p-3 border-b border-cluster-border">
+        <button
+          onClick={openSearch}
+          className="flex items-center gap-2 w-full px-3 py-2 rounded-lg border border-cluster-border/70 bg-cluster-bg/50 text-cluster-muted hover:border-cluster-border hover:text-cluster-text transition-colors text-sm"
+        >
+          <Search className="w-3.5 h-3.5 flex-shrink-0" />
+          <span className="flex-1 text-left text-xs">Search…</span>
+          <kbd className="text-[10px] font-mono opacity-50">⌘K</kbd>
+        </button>
+      </div>
+
       {/* Top links */}
       <div className="p-4 border-b border-cluster-border">
-        <div className="flex items-center justify-between gap-2 mb-2">
-          <div className="text-xs font-semibold tracking-wide text-cluster-muted uppercase">
-            Navigation
-          </div>
-          <div className="flex items-center gap-2">
-            <label className="sr-only" htmlFor="theme">
-              Theme
-            </label>
-            <div className="flex items-center gap-1.5 text-xs text-cluster-muted">
-              {themeIcon}
-              <select
-                id="theme"
-                value={theme}
-                onChange={(e) => setTheme(e.target.value as 'light' | 'dark' | 'system')}
-                className="bg-transparent text-xs text-cluster-muted hover:text-cluster-text focus:outline-none cursor-pointer"
-                aria-label="Theme"
-              >
-                <option value="system">System</option>
-                <option value="light">Light</option>
-                <option value="dark">Dark</option>
-              </select>
-            </div>
-          </div>
+        <div className="text-xs font-semibold tracking-wide text-cluster-muted uppercase mb-2">
+          Navigation
         </div>
         <Link
           href="/"
@@ -157,6 +185,15 @@ export function Navigation() {
         >
           <LayoutDashboard className="w-4 h-4" />
           Overview
+        </Link>
+        <Link
+          href="/issues"
+          className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors mt-1 ${
+            pathname?.startsWith('/issues') ? 'bg-amber-600/15 text-amber-700 dark:text-amber-300' : 'text-cluster-muted hover:bg-cluster-border/50 hover:text-cluster-text'
+          }`}
+        >
+          <AlertTriangle className="w-4 h-4" />
+          Issues
         </Link>
         <Link
           href="/errors"
@@ -183,7 +220,12 @@ export function Navigation() {
           }`}
         >
           <Zap className="w-4 h-4" />
-          Incidents & RCA
+          <span className="flex-1">Incidents & RCA</span>
+          {incidentBadge > 0 && (
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-purple-600/20 text-purple-700 dark:text-purple-300 border border-purple-500/30 leading-none">
+              {incidentBadge}
+            </span>
+          )}
         </Link>
         <Link
           href="/optimization"
@@ -211,6 +253,15 @@ export function Navigation() {
         >
           <Shield className="w-4 h-4" />
           Security
+        </Link>
+        <Link
+          href="/management"
+          className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors mt-1 ${
+            pathname?.startsWith('/management') ? 'bg-purple-600/15 text-purple-700 dark:text-purple-300' : 'text-cluster-muted hover:bg-cluster-border/50 hover:text-cluster-text'
+          }`}
+        >
+          <BarChart2 className="w-4 h-4" />
+          Executive Summary
         </Link>
         <Link
           href="/settings"
@@ -259,6 +310,7 @@ export function Navigation() {
           </div>
         ))}
       </div>
+
     </nav>
   )
 
@@ -274,7 +326,7 @@ export function Navigation() {
 
       {/* Sidebar */}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 w-56 bg-cluster-bg border-r border-cluster-border transform transition-transform duration-200 lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-40 w-56 bg-cluster-bg border-r border-cluster-border flex flex-col transform transition-transform duration-200 lg:translate-x-0 ${
           mobileOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
