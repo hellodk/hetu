@@ -1,3 +1,5 @@
+//go:build !nolblogs
+
 package main
 
 import (
@@ -23,7 +25,6 @@ type HTTPPusher struct {
 	flushTicker *time.Ticker
 }
 
-// NewHTTPPusher creates a pusher targeting the given analyzer URL.
 func NewHTTPPusher(analyzerURL string, batchSize int) *HTTPPusher {
 	if batchSize <= 0 {
 		batchSize = 50
@@ -35,7 +36,6 @@ func NewHTTPPusher(analyzerURL string, batchSize int) *HTTPPusher {
 	}
 }
 
-// Start begins the background flush loop. Returns a publish func.
 func (p *HTTPPusher) Start(ctx context.Context) func(LBRequest) {
 	p.flushTicker = time.NewTicker(5 * time.Second)
 
@@ -43,7 +43,7 @@ func (p *HTTPPusher) Start(ctx context.Context) func(LBRequest) {
 		for {
 			select {
 			case <-ctx.Done():
-				p.flush(ctx) // final flush
+				p.flush(ctx)
 				return
 			case <-p.flushTicker.C:
 				p.flush(ctx)
@@ -74,27 +74,27 @@ func (p *HTTPPusher) flush(ctx context.Context) {
 
 	body, err := json.Marshal(batch)
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to marshal LB request batch")
+		log.Error().Err(err).Msg("lblogs: failed to marshal LB request batch")
 		return
 	}
 
 	url := p.analyzerURL + "/api/v1/lb/ingest"
 	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(body))
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to create ingest request")
+		log.Error().Err(err).Msg("lblogs: failed to create ingest request")
 		return
 	}
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := p.client.Do(req)
 	if err != nil {
-		log.Error().Err(err).Int("batch", len(batch)).Msg("Failed to push LB batch to analyzer")
+		log.Error().Err(err).Int("batch", len(batch)).Msg("lblogs: failed to push batch to analyzer")
 		return
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		log.Warn().Int("status", resp.StatusCode).Int("batch", len(batch)).Msg("Analyzer ingest returned non-200")
+		log.Warn().Int("status", resp.StatusCode).Int("batch", len(batch)).Msg("lblogs: analyzer ingest returned non-200")
 		return
 	}
 
@@ -102,17 +102,15 @@ func (p *HTTPPusher) flush(ctx context.Context) {
 		Accepted int `json:"accepted"`
 	}
 	json.NewDecoder(resp.Body).Decode(&result)
-	log.Debug().Int("pushed", result.Accepted).Str("target", url).Msg("Pushed LB batch to analyzer")
+	log.Debug().Int("pushed", result.Accepted).Str("target", url).Msg("lblogs: pushed batch to analyzer")
 }
 
-// Stop shuts down the flush loop.
 func (p *HTTPPusher) Stop() {
 	if p.flushTicker != nil {
 		p.flushTicker.Stop()
 	}
-	// Final flush with background context
 	p.flush(context.Background())
 	log.Info().
 		Str("url", fmt.Sprintf("%s/api/v1/lb/ingest", p.analyzerURL)).
-		Msg("HTTP pusher stopped")
+		Msg("lblogs: HTTP pusher stopped")
 }

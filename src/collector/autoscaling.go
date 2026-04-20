@@ -9,7 +9,7 @@ import (
 )
 
 // collectHPAMetrics gathers metrics for HorizontalPodAutoscalers
-func (c *Collector) collectHPAMetrics(ctx context.Context) {
+func (c *Collector) collectHPAMetrics(_ context.Context) {
 	hpas, err := c.informerFactory.Autoscaling().V2().HorizontalPodAutoscalers().Lister().List(labels.Everything())
 	if err != nil {
 		return

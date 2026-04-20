@@ -29,6 +29,16 @@ services:
     environment:
       - KUBECONFIG_PATH=/kubeconfig
       - LOG_LEVEL=${LOG_LEVEL:-info}
+      # Pod log streaming subsystem (set to "true" to enable)
+      - ENABLE_PODLOGS=${ENABLE_PODLOGS:-true}
+      - WATCH_NAMESPACES=${WATCH_NAMESPACES:-}
+      # LB log subsystem (disabled by default; requires AWS credentials)
+      - ENABLE_LBLOGS=${ENABLE_LBLOGS:-false}
+      - LB_CONFIGS=${LB_CONFIGS:-}
+      - CW_LOG_GROUPS=${CW_LOG_GROUPS:-}
+      - AWS_REGION=${AWS_REGION:-}
+      - DELIVERY_MODE=${DELIVERY_MODE:-nats}
+      - ANALYZER_URL=http://analyzer:8081
     volumes:
       - ${KUBECONFIG:-~/.kube/config}:/kubeconfig:ro
     restart: unless-stopped

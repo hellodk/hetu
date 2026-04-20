@@ -21,22 +21,15 @@ func Fingerprint(p *ParsedLog) string {
 	return hash(p.Service + "|" + p.Level + "|" + tmpl)
 }
 
-// normalizeStack strips volatile parts from stack traces so that the same
-// crash in different runs produces the same fingerprint.
 func normalizeStack(stack string) string {
 	s := stack
-	// Strip line numbers (e.g. :42, :123)
 	s = reLineNumbers.ReplaceAllString(s, ":_")
-	// Strip hex addresses (0x7fff...)
 	s = reHexAddr.ReplaceAllString(s, "0x_")
-	// Strip UUIDs
 	s = reUUID.ReplaceAllString(s, "_UUID_")
-	// Strip timestamps
 	s = reTimestamp.ReplaceAllString(s, "_TS_")
 	return s
 }
 
-// topNFrames extracts the first N frame-like lines from a stack trace.
 func topNFrames(stack string, n int) string {
 	lines := strings.Split(stack, "\n")
 	var frames []string
@@ -45,7 +38,6 @@ func topNFrames(stack string, n int) string {
 		if trimmed == "" {
 			continue
 		}
-		// Look for frame-like lines (at ..., in ..., File "...", goroutine, etc.)
 		if isFrameLine(trimmed) {
 			frames = append(frames, trimmed)
 			if len(frames) >= n {
@@ -68,9 +60,7 @@ func isFrameLine(line string) bool {
 		strings.Contains(line, ".ts:")
 }
 
-// extractExceptionType pulls the exception class/type from a parsed log.
 func extractExceptionType(p *ParsedLog) string {
-	// Try the error field first
 	if p.Error != "" {
 		if idx := strings.Index(p.Error, ":"); idx > 0 {
 			candidate := strings.TrimSpace(p.Error[:idx])
@@ -79,7 +69,6 @@ func extractExceptionType(p *ParsedLog) string {
 			}
 		}
 	}
-	// Try first line of stack
 	lines := strings.Split(p.StackTrace, "\n")
 	if len(lines) > 0 {
 		first := strings.TrimSpace(lines[0])
@@ -101,8 +90,6 @@ func isExceptionName(s string) bool {
 		strings.Contains(s, "Fault")
 }
 
-// templateMessage replaces volatile substrings so that messages differing
-// only in IDs, IPs, timestamps, etc. collapse to the same fingerprint.
 func templateMessage(msg string) string {
 	s := msg
 	s = reUUID.ReplaceAllString(s, ":id")
@@ -115,7 +102,7 @@ func templateMessage(msg string) string {
 
 func hash(s string) string {
 	h := sha1.Sum([]byte(s))
-	return fmt.Sprintf("%x", h[:10]) // 20 hex chars
+	return fmt.Sprintf("%x", h[:10])
 }
 
 // Compiled regexes for fingerprinting.

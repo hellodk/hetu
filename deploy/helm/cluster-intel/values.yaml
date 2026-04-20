@@ -92,6 +92,18 @@ collector:
       memory: 256Mi
   prometheusUrl: "http://prometheus-server.monitoring.svc.cluster.local:9090"
   env: []
+  # Pod log streaming subsystem. Streams logs from running pods via the k8s API.
+  podlogs:
+    enabled: true
+    watchNamespaces: ""   # comma-separated; empty = all namespaces
+  # LB log subsystem. Polls S3 / CloudWatch for ALB/NLB access logs.
+  # Requires AWS credentials (via IRSA or node IAM role).
+  lblogs:
+    enabled: false
+    deliveryMode: "nats"   # "nats" or "http"
+    awsRegion: ""
+    cwLogGroups: ""        # comma-separated CloudWatch log group names
+    lbConfigs: ""          # JSON array of LBConfig objects
   # Per-component override of top-level securityContext. Empty ⇒ inherit.
   securityContext: {}
   # Per-component override of top-level affinity / topologySpreadConstraints.

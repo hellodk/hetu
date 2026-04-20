@@ -1,3 +1,5 @@
+//go:build !nolblogs
+
 package main
 
 import (
@@ -10,15 +12,14 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-// CloudWatchSource tails CloudWatch Log Groups for ALB/NLB access logs
-// using FilterLogEvents polling. Each log group gets its own goroutine.
+// CloudWatchSource tails CloudWatch Log Groups for ALB/NLB access logs.
 type CloudWatchSource struct {
 	client    *cloudwatchlogs.Client
 	logGroups []string
 	interval  time.Duration
 	lookback  time.Duration
 	clusterID string
-	publish   func(LBRequest) // callback: NATS or HTTP push
+	publish   func(LBRequest)
 
 	mu      sync.Mutex
 	cursors map[string]int64 // logGroup → last event timestamp (ms)
@@ -56,12 +57,11 @@ func (cw *CloudWatchSource) Start(ctx context.Context) {
 	log.Info().
 		Int("logGroups", len(cw.logGroups)).
 		Dur("interval", cw.interval).
-		Msg("CloudWatch tailing started")
+		Msg("lblogs: CloudWatch tailing started")
 	wg.Wait()
 }
 
 func (cw *CloudWatchSource) tailLogGroup(ctx context.Context, logGroup string) {
-	// Initialize cursor to lookback window
 	cw.mu.Lock()
 	if _, ok := cw.cursors[logGroup]; !ok {
 		cw.cursors[logGroup] = time.Now().Add(-cw.lookback).UnixMilli()
@@ -71,7 +71,6 @@ func (cw *CloudWatchSource) tailLogGroup(ctx context.Context, logGroup string) {
 	ticker := time.NewTicker(cw.interval)
 	defer ticker.Stop()
 
-	// First poll immediately
 	cw.pollLogGroup(ctx, logGroup)
 
 	for {
@@ -89,16 +88,14 @@ func (cw *CloudWatchSource) pollLogGroup(ctx context.Context, logGroup string) {
 	startTime := cw.cursors[logGroup]
 	cw.mu.Unlock()
 
-	// Derive LB name and type from log group name
 	lbName := inferLBName(logGroup)
-	lbType := "alb"
 
 	var totalParsed int
 	var maxTS int64
 
 	input := &cloudwatchlogs.FilterLogEventsInput{
 		LogGroupName: aws.String(logGroup),
-		StartTime:    aws.Int64(startTime + 1), // exclusive of last seen
+		StartTime:    aws.Int64(startTime + 1),
 		Interleaved:  aws.Bool(true),
 	}
 
@@ -106,7 +103,7 @@ func (cw *CloudWatchSource) pollLogGroup(ctx context.Context, logGroup string) {
 	for paginator.HasMorePages() {
 		page, err := paginator.NextPage(ctx)
 		if err != nil {
-			log.Error().Err(err).Str("logGroup", logGroup).Msg("CloudWatch FilterLogEvents error")
+			log.Error().Err(err).Str("logGroup", logGroup).Msg("lblogs: CloudWatch FilterLogEvents error")
 			return
 		}
 
@@ -121,18 +118,16 @@ func (cw *CloudWatchSource) pollLogGroup(ctx context.Context, logGroup string) {
 				maxTS = ts
 			}
 
-			// Parse ALB access log line
 			req, err := ParseALBLine(msg, lbName, cw.clusterID)
 			if err != nil || req == nil {
 				continue
 			}
-			req.LBType = lbType
+			req.LBType = "alb"
 			totalParsed++
 			cw.publish(*req)
 		}
 	}
 
-	// Advance cursor
 	if maxTS > 0 {
 		cw.mu.Lock()
 		if maxTS > cw.cursors[logGroup] {
@@ -145,21 +140,19 @@ func (cw *CloudWatchSource) pollLogGroup(ctx context.Context, logGroup string) {
 		log.Debug().
 			Str("logGroup", logGroup).
 			Int("parsed", totalParsed).
-			Msg("CloudWatch poll complete")
+			Msg("lblogs: CloudWatch poll complete")
 	}
 }
 
 // inferLBName extracts a short LB name from a CloudWatch log group path.
 // e.g., "/aws/elasticloadbalancing/app/my-alb/abc123" → "my-alb"
 func inferLBName(logGroup string) string {
-	parts := splitPath(logGroup)
-	// Try to find a meaningful segment after "app" or "net"
+	parts := splitLBPath(logGroup)
 	for i, p := range parts {
 		if (p == "app" || p == "net") && i+1 < len(parts) {
 			return parts[i+1]
 		}
 	}
-	// Fallback: last non-empty segment
 	for i := len(parts) - 1; i >= 0; i-- {
 		if parts[i] != "" {
 			return parts[i]
@@ -168,7 +161,7 @@ func inferLBName(logGroup string) string {
 	return logGroup
 }
 
-func splitPath(s string) []string {
+func splitLBPath(s string) []string {
 	var parts []string
 	start := 0
 	for i := 0; i < len(s); i++ {
@@ -183,4 +176,47 @@ func splitPath(s string) []string {
 		parts = append(parts, s[start:])
 	}
 	return parts
+}
+
+// LogGroupInfo describes a discovered CloudWatch Log Group.
+type LogGroupInfo struct {
+	Name          string    `json:"name"`
+	ARN           string    `json:"arn,omitempty"`
+	RetentionDays int32     `json:"retentionDays,omitempty"`
+	StoredBytes   int64     `json:"storedBytes"`
+	LastEventAt   time.Time `json:"lastEventAt,omitempty"`
+}
+
+// DiscoverLogGroups finds CloudWatch Log Groups matching the given prefix.
+func DiscoverLogGroups(ctx context.Context, client *cloudwatchlogs.Client, prefix string) ([]LogGroupInfo, error) {
+	input := &cloudwatchlogs.DescribeLogGroupsInput{}
+	if prefix != "" {
+		input.LogGroupNamePrefix = aws.String(prefix)
+	}
+
+	var results []LogGroupInfo
+
+	paginator := cloudwatchlogs.NewDescribeLogGroupsPaginator(client, input)
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, lg := range page.LogGroups {
+			info := LogGroupInfo{
+				Name:        aws.ToString(lg.LogGroupName),
+				ARN:         aws.ToString(lg.Arn),
+				StoredBytes: aws.ToInt64(lg.StoredBytes),
+			}
+			if lg.RetentionInDays != nil {
+				info.RetentionDays = *lg.RetentionInDays
+			}
+			if lg.CreationTime != nil {
+				info.LastEventAt = time.UnixMilli(*lg.CreationTime)
+			}
+			results = append(results, info)
+		}
+	}
+
+	return results, nil
 }

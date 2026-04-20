@@ -1,3 +1,5 @@
+//go:build !nolblogs
+
 package main
 
 import (
@@ -9,12 +11,10 @@ import (
 )
 
 // ParseALBLine parses a single ALB access log line.
-// Format: https://docs.aws.amazon.com/elasticloadbalancing/latest/application/load-balancer-access-logs.html
-// Fields are space-separated. Quoted fields may contain spaces.
 func ParseALBLine(line, lbName, cluster string) (*LBRequest, error) {
 	fields := splitALBFields(line)
 	if len(fields) < 25 {
-		return nil, nil // skip malformed lines
+		return nil, nil
 	}
 
 	ts, err := time.Parse(time.RFC3339Nano, fields[1])
@@ -29,7 +29,6 @@ func ParseALBLine(line, lbName, cluster string) (*LBRequest, error) {
 	tgtProcTime := parseSeconds(fields[6])
 	resProcTime := parseSeconds(fields[7])
 
-	// field[12] is "verb url protocol"
 	method, rawURL := parseRequestField(fields[12])
 	urlPattern := templateURL(rawURL)
 
@@ -67,14 +66,12 @@ func ParseALBLine(line, lbName, cluster string) (*LBRequest, error) {
 }
 
 // ParseNLBLine parses a single NLB access log line.
-// Format: https://docs.aws.amazon.com/elasticloadbalancing/latest/network/load-balancer-access-logs.html
 func ParseNLBLine(line, lbName, cluster string) (*LBRequest, error) {
 	fields := strings.Fields(line)
 	if len(fields) < 10 {
 		return nil, nil
 	}
 
-	// NLB format: type version timestamp elb listener client:port destination:port connection_time tls_handshake_time ...
 	ts, err := time.Parse(time.RFC3339Nano, fields[2])
 	if err != nil {
 		return nil, nil
@@ -93,7 +90,7 @@ func ParseNLBLine(line, lbName, cluster string) (*LBRequest, error) {
 
 // ParseClassicELBLine parses a classic ELB access log line.
 func ParseClassicELBLine(line, lbName, cluster string) (*LBRequest, error) {
-	fields := splitALBFields(line) // same quoting rules
+	fields := splitALBFields(line)
 	if len(fields) < 12 {
 		return nil, nil
 	}
@@ -138,8 +135,6 @@ var (
 	reBase64Segment  = regexp.MustCompile(`/[A-Za-z0-9+/]{20,}=*`)
 )
 
-// templateURL replaces volatile path segments with placeholders to control
-// cardinality in aggregations. /users/123/orders/abc -> /users/:id/orders/:id
 func templateURL(rawURL string) string {
 	u, err := url.Parse(rawURL)
 	if err != nil || u.Path == "" {
@@ -153,9 +148,8 @@ func templateURL(rawURL string) string {
 	return path
 }
 
-// --- Helpers ---
+// --- Field parsing helpers ---
 
-// splitALBFields splits an ALB log line respecting quoted fields.
 func splitALBFields(line string) []string {
 	var fields []string
 	i := 0
@@ -167,7 +161,6 @@ func splitALBFields(line string) []string {
 			break
 		}
 		if line[i] == '"' {
-			// Quoted field
 			end := strings.IndexByte(line[i+1:], '"')
 			if end == -1 {
 				fields = append(fields, line[i+1:])
@@ -212,7 +205,6 @@ func parseRequestField(field string) (method, rawURL string) {
 }
 
 func extractTGName(arn string) string {
-	// arn:aws:elasticloadbalancing:...:targetgroup/name/hash
 	if idx := strings.Index(arn, "targetgroup/"); idx >= 0 {
 		rest := arn[idx+len("targetgroup/"):]
 		if slashIdx := strings.IndexByte(rest, '/'); slashIdx > 0 {

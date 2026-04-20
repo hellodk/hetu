@@ -101,7 +101,6 @@ func parseJSON(line string, p *ParsedLog) bool {
 
 func parseLogfmt(line string, p *ParsedLog) {
 	fields := map[string]string{}
-	// Simple logfmt parser: split by spaces, then by =
 	parts := splitLogfmt(line)
 	for k, v := range parts {
 		fields[k] = v
@@ -122,20 +121,16 @@ func splitLogfmt(line string) map[string]string {
 	result := map[string]string{}
 	i := 0
 	for i < len(line) {
-		// Skip whitespace
 		for i < len(line) && line[i] == ' ' {
 			i++
 		}
-		// Find key
 		eqIdx := strings.IndexByte(line[i:], '=')
 		if eqIdx == -1 {
 			break
 		}
 		key := line[i : i+eqIdx]
 		i += eqIdx + 1
-		// Find value
 		if i < len(line) && line[i] == '"' {
-			// Quoted value
 			endQuote := strings.IndexByte(line[i+1:], '"')
 			if endQuote == -1 {
 				result[key] = line[i+1:]
@@ -170,15 +165,15 @@ func parsePlain(line string, p *ParsedLog) {
 // --- Pattern detectors ---
 
 var (
-	javaStackRe   = regexp.MustCompile(`(?m)^\s+at\s+[\w.$]+\(`)
-	goPanicRe     = regexp.MustCompile(`(?m)^goroutine \d+ \[`)
-	pythonTBRe    = regexp.MustCompile(`Traceback \(most recent call last\)`)
-	nodeStackRe   = regexp.MustCompile(`at\s+.+\(.+:\d+:\d+\)`)
-	dotnetExRe    = regexp.MustCompile(`System\.\w+Exception`)
-	timeoutRe     = regexp.MustCompile(`(?i)(context deadline exceeded|i/o timeout|connect ETIMEDOUT|upstream timeout|read tcp .+ timeout|connection timed out|request timeout|gateway timeout)`)
-	oomRe         = regexp.MustCompile(`(?i)(OOMKilled|out of memory|OutOfMemoryError|cannot allocate memory|ENOMEM)`)
-	http5xxRe     = regexp.MustCompile(`(?:HTTP|status|code)\s*[=: ]\s*5\d\d\b`)
-	gcPressureRe  = regexp.MustCompile(`(?i)(gc pause|Full GC|\[gc\]|pause time|STW|stop-the-world)`)
+	javaStackRe  = regexp.MustCompile(`(?m)^\s+at\s+[\w.$]+\(`)
+	goPanicRe    = regexp.MustCompile(`(?m)^goroutine \d+ \[`)
+	pythonTBRe   = regexp.MustCompile(`Traceback \(most recent call last\)`)
+	nodeStackRe  = regexp.MustCompile(`at\s+.+\(.+:\d+:\d+\)`)
+	dotnetExRe   = regexp.MustCompile(`System\.\w+Exception`)
+	timeoutRe    = regexp.MustCompile(`(?i)(context deadline exceeded|i/o timeout|connect ETIMEDOUT|upstream timeout|read tcp .+ timeout|connection timed out|request timeout|gateway timeout)`)
+	oomRe        = regexp.MustCompile(`(?i)(OOMKilled|out of memory|OutOfMemoryError|cannot allocate memory|ENOMEM)`)
+	http5xxRe    = regexp.MustCompile(`(?:HTTP|status|code)\s*[=: ]\s*5\d\d\b`)
+	gcPressureRe = regexp.MustCompile(`(?i)(gc pause|Full GC|\[gc\]|pause time|STW|stop-the-world)`)
 )
 
 func detectPatterns(p *ParsedLog) {

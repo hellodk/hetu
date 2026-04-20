@@ -70,7 +70,7 @@ func (c *Collector) getDNSHealth(ctx context.Context) *DNSHealth {
 				valStr, ok := pResp.Data.Result[0].Value[1].(string)
 				if ok && valStr != "NaN" {
 					var val float64
-					fmt.Sscanf(valStr, "%f", &val)
+					_, _ = fmt.Sscanf(valStr, "%f", &val)
 					results[name] = val
 				}
 			}
