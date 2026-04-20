@@ -15,7 +15,7 @@ COPY src/collector/ ./src/collector/
 # Build the binary (GOWORK=off to use replace directives in go.mod)
 WORKDIR /app/src/collector
 RUN GOWORK=off CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
-    -ldflags="-w -s -X main.version=6.0.0" \
+    -ldflags="-w -s -X main.version=7.0.0" \
     -o /collector .
 
 # Runtime stage

@@ -1,7 +1,7 @@
 .PHONY: build test test-e2e tidy docker-build docker-push helm-deploy helm-template e2e-phase0 run stop status doctor hooks-install
 
 # --- Configuration ---
-REGISTRY   ?= ghcr.io/your-org
+REGISTRY   ?= hellodk
 VERSION    ?= 7.0.0
 SERVICES   := collector analyzer collector-podlogs collector-lblogs
 DASHBOARD  := dashboard
@@ -39,17 +39,19 @@ docker-build:
 	@for svc in $(SERVICES); do \
 		echo "Building docker image cluster-intel-$$svc:$(VERSION)..."; \
 		docker build -t $(REGISTRY)/cluster-intel-$$svc:$(VERSION) \
+			-t $(REGISTRY)/cluster-intel-$$svc:latest \
 			-f src/$$svc/Dockerfile .; \
 	done
 	@echo "Building docker image cluster-intel-$(DASHBOARD):$(VERSION)..."
 	docker build -t $(REGISTRY)/cluster-intel-$(DASHBOARD):$(VERSION) \
+		-t $(REGISTRY)/cluster-intel-$(DASHBOARD):latest \
 		-f src/$(DASHBOARD)/Dockerfile src/$(DASHBOARD)/
 
 docker-push:
-	@for svc in $(SERVICES); do \
+	@for svc in $(SERVICES) $(DASHBOARD); do \
 		docker push $(REGISTRY)/cluster-intel-$$svc:$(VERSION); \
+		docker push $(REGISTRY)/cluster-intel-$$svc:latest; \
 	done
-	docker push $(REGISTRY)/cluster-intel-$(DASHBOARD):$(VERSION)
 
 # --- Helm ---
 helm-deps:

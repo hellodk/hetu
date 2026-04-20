@@ -495,6 +495,15 @@ body {
   @apply focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2;
 }
 
+/* Muted text inside cards lifts to full --cluster-text on hover, making
+   labels/descriptions readable without disturbing semantic badge colours. */
+:is(.card-hover, .card-interactive) :is(.text-cluster-muted, .text-slate-400, .text-slate-500) {
+  transition: color 200ms ease;
+}
+:is(.card-hover, .card-interactive):hover :is(.text-cluster-muted, .text-slate-400, .text-slate-500) {
+  color: rgb(var(--cluster-text));
+}
+
 /* Glassmorphism effect */
 .glass {
   @apply backdrop-blur-lg;
