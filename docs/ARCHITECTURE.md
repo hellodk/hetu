@@ -530,6 +530,225 @@ sequenceDiagram
 └─────────────────────────────────────────────────────┘
 ```
 
+## Collector Design Rationale
+
+### Why Three Separate Collector Binaries?
+
+The three collector binaries serve fundamentally different data sources with different dependency profiles, deployment topologies, and RBAC requirements. Splitting them keeps each binary minimal and independently deployable.
+
+| | `collector` | `collector-podlogs` | `collector-lblogs` |
+|--|-------------|---------------------|--------------------|
+| **Data source** | K8s API (events, pod/node/HPA state, metrics API) | K8s logs API (streaming container stdout/stderr) | AWS S3 / CloudWatch (ALB · NLB · ELB access logs) |
+| **Output** | HTTP ring-buffer API (polled by Analyzer) | NATS `logs.*` subjects | NATS `lb.request` / `lb.spike` subjects |
+| **Key Go deps** | `k8s.io/client-go`, `k8s.io/metrics`, Prometheus client | `k8s.io/client-go`, NATS bus pkg | `aws-sdk-go-v2` (S3 + CloudWatch), NATS bus pkg |
+| **K8s RBAC** | `get/list/watch` on pods, nodes, events, metrics, HPA, PVC, RBAC CRDs | `get/list` pods, `get` pods/log | none — only needs NATS + AWS credentials |
+| **IAM / cloud** | none | none | IRSA (pod annotation) or static AWS credentials |
+| **Can run outside K8s** | no | no | yes — only needs NATS URL + AWS access |
+| **Scaling unit** | 1 replica (watches entire API server) | 1 replica per cluster (reconciliation loop) | 1 replica (S3 polling is stateful, in-memory tracker) |
+| **Binary size** | ~40 MB | ~39 MB | ~11 MB (AWS SDK not in K8s binaries) |
+
+### Why OTel Collector Cannot Replace Them
+
+The OpenTelemetry Collector deployed in this stack (`monitoring/otel-collector.yaml`) is an **app-level telemetry forwarder**: it receives OTLP traces emitted by cluster-intel services and routes them to Tempo. It is not a K8s data collector. Even the full OTel Contrib distribution cannot replace the custom collectors for these reasons:
+
+#### 1. Wrong output protocol — no NATS exporter
+
+OTel Contrib ships 60+ exporters (Prometheus, Kafka, Loki, OTLP, Elasticsearch…). None target NATS. All three custom collectors publish to NATS topics consumed by the Analyzer. Bridging this gap requires a custom exporter plugin compiled into a bespoke OTel distribution.
+
+#### 2. Wrong data model — telemetry points vs domain objects
+
+OTel's data model is `Metric | Trace | Log` in OTLP wire format. The cluster-intel collectors produce typed domain objects:
+
+```
+collector       → TelemetryEvent { reason, involvedObject, count, score }
+collector-podlogs → ParsedLog { fingerprint, level, stackTrace, reason, service }
+collector-lblogs  → LBRequest { elb, target_group, elb_status, latency_ms }
+                    LBSpikeEvent { 5xx_rate, baseline, target_group }
+```
+
+These carry semantic meaning specific to the analyzer's correlation engine. Mapping them onto OTLP would require a custom processor layer that reimplements the same logic.
+
+#### 3. No health scoring — `k8s_cluster` receiver collects raw metrics only
+
+OTel's `k8s_cluster` receiver scrapes kubelet metrics (CPU/memory per pod/node). It does not:
+- Watch the full K8s object graph for state transitions
+- Detect `CrashLoopBackOff`, `ImagePullBackOff`, node pressure conditions
+- Compute composite health scores from pod status + event severity + HPA scaling pressure
+
+The `k8sobjects` receiver can stream raw K8s object JSON as log records but applies no aggregation, scoring, or incident correlation.
+
+#### 4. No error fingerprinting — `filelog` receiver tails files, not K8s API
+
+OTel's `filelog` receiver reads log files from node filesystem via hostPath mounts (requires DaemonSet). `collector-podlogs` calls the K8s API `pods/log` endpoint directly (no node access needed). Beyond the transport difference, OTel has no concept of error deduplication by fingerprint (hash of stack trace template + class name) or grouping by service across pods.
+
+#### 5. No ALB-specific log parser
+
+OTel's `awss3` receiver ingests S3 files as opaque blobs. ALB/NLB/ELB access logs use a space-delimited format with 26+ type-specific fields. `collector-lblogs` implements three parsers (ALB, NLB, Classic ELB), offset tracking per S3 prefix, and spike detection. None of these exist in OTel contrib.
+
+#### Summary
+
+```
+OTel Collector   = telemetry pipeline  (move bytes, add attributes, route)
+cluster-intel    = intelligence adapters (translate raw K8s/cloud state →
+                   typed domain events that drive the Analyzer's AI engine)
+```
+
+OTel is correctly used *alongside* the collectors — not instead of them. The
+observability stack (Tempo + OTel + Grafana) traces the cluster-intel services
+themselves. The custom collectors feed the analyzer's correlation and RCA engine.
+
+---
+
+## Collector Consolidation — Unified Binary Design
+
+The three collector binaries can be merged into a single binary. Below is an
+honest complexity breakdown with a concrete design.
+
+### Subsystem Interface
+
+Each collector becomes a subsystem behind a shared interface:
+
+```go
+// pkg/collector/subsystem.go
+type Subsystem interface {
+    Name()  string
+    Start(ctx context.Context) error
+    Stop()
+}
+```
+
+Unified `main.go` composes enabled subsystems based on config feature flags:
+
+```go
+// ENABLE_K8S_COLLECTOR=true   (default)
+// ENABLE_PODLOGS=true          (default)
+// ENABLE_LBLOGS=false          (requires AWS credentials)
+
+var subsystems []Subsystem
+if cfg.Collector.K8sEnabled   { subsystems = append(subsystems, k8s.New(cfg, k8sClient, nats)) }
+if cfg.Collector.PodlogsEnabled { subsystems = append(subsystems, podlogs.New(cfg, k8sClient, nats)) }
+if cfg.Collector.LblogsEnabled  { subsystems = append(subsystems, lblogs.New(cfg, awsCfg, nats)) }
+```
+
+Shared infrastructure is initialised once:
+
+```
+One K8s client (both k8s and podlogs subsystems share it)
+One NATS connection
+One HTTP server (combined /healthz, /readyz, /metrics, /api/v1/* endpoints)
+One signal handler → calls Stop() on all subsystems
+One Prometheus registry → subsystems register their own counters under it
+```
+
+### Directory Layout
+
+```
+src/collector/              ← renamed: existing main collector becomes k8s subsystem
+  main.go                   ← new unified entrypoint
+  config.go                 ← merged config with feature flags
+  http.go                   ← combined HTTP server
+  subsystems/
+    k8s/
+      collector.go          ← existing main.go informer + metrics logic
+    podlogs/
+      collector.go          ← existing collector-podlogs/main.go logic
+      parser.go             ← existing ParseLogLine + Fingerprint
+    lblogs/
+      collector.go          ← existing collector-lblogs/main.go logic
+      parsers.go            ← ALB / NLB / Classic ELB parsers
+      cloudwatch.go         ← CloudWatch source
+      http_pusher.go        ← HTTP delivery fallback
+```
+
+The three existing source directories (`src/collector-podlogs/`,
+`src/collector-lblogs/`) become dead code and can be removed after migration.
+
+### Go Module — Combined Dependencies
+
+```
+k8s.io/client-go        (k8s + podlogs subsystems)
+k8s.io/metrics          (k8s subsystem only)
+aws/aws-sdk-go-v2/s3    (lblogs subsystem — adds ~20 MB to binary)
+aws/aws-sdk-go-v2/cloudwatchlogs
+github.com/nats-io/nats.go
+github.com/prometheus/client_golang
+```
+
+The AWS SDK is always compiled in. To exclude it for K8s-only deployments, use
+Go build tags (`//go:build !nolblogs`) — adds build complexity but keeps the
+K8s-only image at ~45 MB instead of ~65 MB.
+
+### Helm Chart Changes
+
+Three Deployments → One Deployment:
+
+```diff
+- collector.yaml           (3 separate deployments)
+- collector-podlogs.yaml
+- collector-lblogs.yaml
++ collector.yaml           (one deployment, feature flags via env)
+
+# values.yaml additions
++ collector:
++   k8sEnabled: true
++   podlogsEnabled: true
++   lbLogsEnabled: false
++   watchNamespaces: ""
++   awsRegion: ""
++   lbConfigs: "[]"         # JSON array of LBConfig objects
+```
+
+ServiceAccount gets combined RBAC (K8s `pods/log` + IRSA annotation for AWS):
+
+```yaml
+serviceAccount:
+  annotations:
+    eks.amazonaws.com/role-arn: "arn:aws:iam::ACCOUNT:role/cluster-intel-lblogs"
+```
+
+### Complexity Breakdown
+
+| Area | Effort | Notes |
+|------|--------|-------|
+| Subsystem interface + unified main | **~1 day** | ~200 lines; mostly plumbing |
+| Move k8s + podlogs logic into packages | **~0.5 day** | Mechanical refactor; shared K8s client |
+| Move lblogs logic into package | **~0.5 day** | AWS client init moves to main |
+| Merge configs + feature flags | **~0.5 day** | One struct, env-var driven |
+| Unified HTTP server | **~0.5 day** | Combine existing routes |
+| Update Helm chart | **~1 day** | Merge 3 Deployments + RBAC |
+| Update docker-compose + Dockerfiles | **~0.5 day** | One Dockerfile instead of three |
+| Tests (unit + integration) | **~2 days** | Each subsystem testable in isolation |
+| **Total** | **~6–7 days** | Assuming green-field restructure |
+
+### Tradeoffs
+
+| | Unified binary | Keep separate |
+|--|---------------|---------------|
+| Operational complexity | Lower — one Deployment to watch | Higher — three Deployments |
+| Independent scaling | **Not possible** | Each scaled on its own |
+| Blast radius | **Higher** — lblogs panic stops K8s watching | Isolated per subsystem |
+| Binary size | ~65 MB (AWS SDK always present) | 40 + 39 + 11 = 90 MB total, but isolated |
+| AWS IAM in K8s pods | IRSA on main collector pod | IRSA on lblogs pod only |
+| K8s-only deployments | AWS SDK always compiled in | Clean separation |
+| Build tags to exclude lblogs | Possible but adds CI matrix | Not needed |
+
+### Recommendation
+
+**Merge `collector` + `collector-podlogs` now (low complexity, ~2 days):**
+Both need `k8s.io/client-go`, share the K8s client, and have the same RBAC
+scope. There is no cross-dependency penalty. This eliminates one Deployment and
+halves the K8s API server connection count.
+
+**Keep `collector-lblogs` separate** (or make it opt-in with a build tag):
+It has a completely different external dependency (AWS SDK), different IAM
+requirements (IRSA), can run outside the cluster, and has zero overlap with
+the K8s RBAC model. Merging it saves one Deployment but adds AWS SDK to every
+cluster-intel installation regardless of whether S3 log ingestion is used.
+
+If you do want a single binary for all three, the build-tag approach is the
+right path — `make docker-build` builds with lblogs enabled by default;
+`make docker-build NO_LBLOGS=1` produces the lean K8s-only image.
+
 ## Air-Gap Deployment
 
 For air-gapped environments:
