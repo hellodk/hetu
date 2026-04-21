@@ -59,7 +59,7 @@ export function IncidentsFeed({ issues, onViewAll }: IncidentsFeedProps) {
           {shown.map(issue => (
             <li
               key={issue.id}
-              className="flex items-start gap-3 px-4 py-3 border-b border-cluster-border/50 last:border-0 card-hover cursor-pointer"
+              className="flex items-start gap-3 px-4 py-3 border-b border-cluster-border/50 last:border-0"
             >
               {/* Left severity bar */}
               <div

@@ -4,7 +4,7 @@ interface Recommendation {
   id:       string
   category: string
   title:    string
-  severity: string
+  severity: 'critical' | 'high' | 'medium' | 'low'
   impact: {
     costSavings?: { monthly: number; currency: string }
     effort:       string
@@ -48,7 +48,7 @@ export function RecommendationsPanel({ recommendations, onViewAll }: Recommendat
           {shown.map((rec, i) => (
             <li
               key={rec.id}
-              className="px-4 py-3 border-b border-cluster-border/50 last:border-0 card-hover cursor-pointer"
+              className="px-4 py-3 border-b border-cluster-border/50 last:border-0"
             >
               <div className="text-[10px] font-bold text-cluster-muted mb-1">
                 #{i + 1} · {rec.category.toUpperCase()}
