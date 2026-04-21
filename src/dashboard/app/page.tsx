@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import packageJson from '../package.json'
 import {
-  AlertTriangle, RefreshCw, Settings, Bell, Download,
+  AlertTriangle, RefreshCw,
   Check, X, Info
 } from 'lucide-react'
 import { IssuesList } from '@/components/IssuesList'
