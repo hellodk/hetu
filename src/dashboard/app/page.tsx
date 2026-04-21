@@ -2,19 +2,19 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import packageJson from '../package.json'
 import {
-  Activity, Shield, DollarSign, Boxes,
-  AlertTriangle, CheckCircle, Clock, TrendingUp,
-  Server, Cpu, HardDrive, Network,
-  ChevronRight, RefreshCw, Settings, Bell, Download,
+  AlertTriangle, RefreshCw, Settings, Bell, Download,
   Check, X, Info
 } from 'lucide-react'
-import { ScoreCard } from '@/components/ScoreCard'
 import { IssuesList } from '@/components/IssuesList'
 import { RecommendationsList } from '@/components/RecommendationsList'
-import { ResourceUtilization } from '@/components/ResourceUtilization'
 import { TimelineChart } from '@/components/TimelineChart'
-import { ClusterSummary } from '@/components/ClusterSummary'
 import { AIInsightFeed } from '@/components/AIInsightFeed'
+import { CriticalBanner } from '@/components/CriticalBanner'
+import { StatusBar } from '@/components/StatusBar'
+import { RiskSummaryPanel } from '@/components/RiskSummaryPanel'
+import { IncidentsFeed } from '@/components/IncidentsFeed'
+import { RecommendationsPanel } from '@/components/RecommendationsPanel'
+import { ClusterVitals } from '@/components/ClusterVitals'
 import { CoreDNSHealth } from '@/components/CoreDNSHealth'
 import { SettingsModal } from '@/components/SettingsModal'
 import { NamespacesTable, NamespaceStats } from '@/components/NamespacesTable'
@@ -60,7 +60,7 @@ interface Recommendation {
   category: string
   title: string
   description: string
-  severity: string
+  severity: 'critical' | 'high' | 'medium' | 'low'
   confidence: number
   impact: {
     costSavings?: { monthly: number; currency: string }
@@ -567,98 +567,27 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen flex flex-col">
       {isMockProfile && <MockWatermark />}
-      {/* Header */}
-      <header className="border-b border-cluster-border bg-cluster-card/50 backdrop-blur-sm sticky top-0 z-50">
-        <div className="max-w-[1800px] mx-auto px-4 sm:px-6 py-3 sm:py-4">
-          <div className="flex items-center justify-between gap-4">
-            {/* Logo and Title */}
-            <div className="flex items-center gap-2 sm:gap-4 min-w-0">
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <Activity className="w-6 h-6 sm:w-8 sm:h-8 text-blue-500" aria-hidden="true" />
-                <h1 className="text-lg sm:text-xl font-bold truncate">
-                  <span className="hidden sm:inline">K8s Cluster Intelligence</span>
-                  <span className="sm:hidden">K8s Health</span>
-                </h1>
-              </div>
-              <span
-                className="hidden sm:inline-flex items-center px-3 py-1 bg-blue-600/20 text-blue-200 border border-blue-500/30 text-sm rounded-full"
-                title="Cluster ID"
-                aria-label={`Cluster: ${displayReport.clusterId}`}
-              >
-                {displayReport.clusterId}
-              </span>
-              {/* Profile badge — tells the operator at a glance whether this
-                  dashboard is showing real telemetry or synthetic demo data. */}
-              <ProfileBadge profile={displayReport.status?.profile ?? 'live'} />
-            </div>
-
-            {/* Header Actions */}
-            <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
-              {/* Last Updated - Hidden on mobile */}
-              {lastUpdated && (
-                <span className="hidden md:flex items-center gap-1.5 text-slate-400 text-sm">
-                  <Clock className="w-4 h-4" aria-hidden="true" />
-                  <span>Updated {lastUpdated.toLocaleTimeString()}</span>
-                </span>
-              )}
-
-              {/* Action Buttons Group */}
-              <div className="flex items-center gap-1 sm:gap-2 p-1 bg-cluster-border/50 rounded-lg" role="group" aria-label="Dashboard actions">
-                <button
-                  onClick={handleRefresh}
-                  className="btn-icon tooltip-trigger"
-                  disabled={loading}
-                  aria-label={loading ? 'Refreshing data...' : 'Refresh dashboard data'}
-                >
-                  <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
-                  <span className="tooltip">Refresh</span>
-                </button>
-
-                <button
-                  onClick={() => {
-                    const blob = new Blob([JSON.stringify(displayReport, null, 2)], { type: 'application/json' })
-                    const url = URL.createObjectURL(blob)
-                    const a = document.createElement('a')
-                    a.href = url
-                    a.download = `k8s-health-report-${displayReport.clusterId}-${new Date().toISOString()}.json`
-                    a.click()
-                    URL.revokeObjectURL(url)
-                    addToast('success', 'Exported health report to JSON')
-                  }}
-                  className="btn-icon tooltip-trigger"
-                  aria-label="Export JSON Report"
-                >
-                  <Download className="w-5 h-5" aria-hidden="true" />
-                  <span className="tooltip">Export Report</span>
-                </button>
-
-                <button
-                  className="btn-icon tooltip-trigger relative"
-                  onClick={() => setActiveTab('issues')}
-                  aria-label={`Notifications${criticalIssueCount > 0 ? `, ${criticalIssueCount} critical` : ''}`}
-                >
-                  <Bell className="w-5 h-5" aria-hidden="true" />
-                  {criticalIssueCount > 0 && (
-                    <span className="badge-notification" aria-hidden="true">
-                      {criticalIssueCount}
-                    </span>
-                  )}
-                  <span className="tooltip">Notifications</span>
-                </button>
-
-                <button
-                  className="btn-icon tooltip-trigger"
-                  onClick={() => setShowSettings(true)}
-                  aria-label="Settings"
-                >
-                  <Settings className="w-5 h-5" aria-hidden="true" />
-                  <span className="tooltip">Settings</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
+      <StatusBar
+        clusterId={displayReport.clusterId}
+        profile={displayReport.status?.profile ?? 'live'}
+        lastUpdated={lastUpdated}
+        loading={loading}
+        criticalCount={criticalIssueCount}
+        version={packageJson.version}
+        onRefresh={handleRefresh}
+        onExport={() => {
+          const blob = new Blob([JSON.stringify(displayReport, null, 2)], { type: 'application/json' })
+          const url = URL.createObjectURL(blob)
+          const a = document.createElement('a')
+          a.href = url
+          a.download = `k8s-health-report-${displayReport.clusterId}-${new Date().toISOString()}.json`
+          a.click()
+          URL.revokeObjectURL(url)
+          addToast('success', 'Exported health report to JSON')
+        }}
+        onBell={() => setActiveTab('issues')}
+        onSettings={() => setShowSettings(true)}
+      />
 
       {/* Main Content */}
       <main id="main-content" className="flex-1 max-w-[1800px] w-full mx-auto px-4 sm:px-6 py-4 sm:py-6" ref={mainContentRef}>
@@ -671,53 +600,43 @@ export default function Dashboard() {
           Cluster summary, resource utilization, and the issue/recommendation
           tabs below still render from real telemetry when available.
         */}
+        {/* Critical banner — full-width, above main content, only when any score ≤ 25 */}
+        {displayReport.scores && (
+          <CriticalBanner
+            scores={displayReport.scores}
+            onViewIssues={() => setActiveTab('issues')}
+          />
+        )}
+
         {displayReport.scores ? (
-          <section aria-labelledby="scores-heading">
-            <h2 id="scores-heading" className="sr-only">Health Scores</h2>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 mb-6">
-              <ScoreCard
-                title="Overall Health"
-                score={displayReport.scores.overall}
-                icon={<Activity className="w-5 h-5 sm:w-6 sm:h-6" aria-hidden="true" />}
-                color="blue"
-                trend={displayReport.trends?.overall}
-                onClick={() => setBreakdownExpanded(!breakdownExpanded)}
+          <>
+            {/* Command-centre strip: Risk | Incidents | Recommendations */}
+            <section
+              aria-label="Cluster command centre"
+              className="grid grid-cols-1 lg:grid-cols-[260px_1fr_300px] gap-4 sm:gap-5 mb-5"
+            >
+              <RiskSummaryPanel
+                scores={displayReport.scores}
+                onDrillDown={(dim) => drillIntoDimension(dim)}
               />
-              <ScoreCard
-                title="Reliability"
-                score={displayReport.scores.reliability}
-                icon={<CheckCircle className="w-5 h-5 sm:w-6 sm:h-6" aria-hidden="true" />}
-                color="green"
-                trend={displayReport.trends?.reliability}
-                onClick={() => drillIntoDimension('reliability')}
+              <IncidentsFeed
+                issues={displayReport.topIssues}
+                onViewAll={() => setActiveTab('issues')}
               />
-              <ScoreCard
-                title="Security"
-                score={displayReport.scores.security}
-                icon={<Shield className="w-5 h-5 sm:w-6 sm:h-6" aria-hidden="true" />}
-                color="purple"
-                trend={displayReport.trends?.security}
-                onClick={() => drillIntoDimension('security')}
+              <RecommendationsPanel
+                recommendations={displayReport.recommendations}
+                onViewAll={() => setActiveTab('recommendations')}
               />
-              <ScoreCard
-                title="Cost Efficiency"
-                score={displayReport.scores.cost}
-                icon={<DollarSign className="w-5 h-5 sm:w-6 sm:h-6" aria-hidden="true" />}
-                color="emerald"
-                trend={displayReport.trends?.cost}
-                subtitle={displayReport.estimatedMonthlySavings > 0 ? `$${displayReport.estimatedMonthlySavings.toLocaleString()}/mo savings` : undefined}
-                onClick={() => drillIntoDimension('cost')}
-              />
-              <ScoreCard
-                title="Architecture"
-                score={displayReport.scores.architecture}
-                icon={<Boxes className="w-5 h-5 sm:w-6 sm:h-6" aria-hidden="true" />}
-                color="amber"
-                trend={displayReport.trends?.architecture}
-                onClick={() => drillIntoDimension('architecture')}
+            </section>
+
+            {/* Cluster vitals row */}
+            <div className="mb-5">
+              <ClusterVitals
+                summary={displayReport.summary}
+                resources={displayReport.resourceUtilization}
               />
             </div>
-          </section>
+          </>
         ) : (
           <DiagnosticPanel
             status={displayReport.status}
@@ -769,8 +688,6 @@ export default function Dashboard() {
           >
             {activeTab === 'overview' && (
               <>
-                <ClusterSummary summary={displayReport.summary} />
-                <ResourceUtilization resources={displayReport.resourceUtilization} />
                 <CoreDNSHealth />
                 <IssuesList
                   issues={displayReport.topIssues.slice(0, 3)}
