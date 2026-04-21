@@ -96,6 +96,12 @@ kubeconfig.yaml
 .champ/
 .playwright-mcp/
 
+# ---- IDE workspace files --------------------------------------------------
+*.code-workspace
+
+# ---- tests/ harness -------------------------------------------------------
+tests/node_modules/
+
 # ---- Personal scratch / session notes ------------------------------------
 prompts
 

@@ -80,7 +80,7 @@ export default function AnomaliesPage() {
         </div>
         <button
           onClick={fetchData}
-          className="flex items-center gap-2 px-3 py-1.5 text-sm bg-white/10 hover:bg-white/20 rounded-md text-white"
+          className="flex items-center gap-2 px-3 py-1.5 text-sm bg-cluster-border/40 hover:bg-cluster-border/60 rounded-md text-cluster-text"
         >
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /> Refresh
         </button>

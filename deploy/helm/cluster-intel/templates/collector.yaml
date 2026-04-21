@@ -44,6 +44,28 @@ spec:
               value: /etc/cluster-intel/config.yaml
             - name: CI_COLLECTOR_PROMETHEUS_URL
               value: {{ .Values.collector.prometheusUrl | quote }}
+            - name: ENABLE_PODLOGS
+              value: {{ .Values.collector.podlogs.enabled | quote }}
+            - name: WATCH_NAMESPACES
+              value: {{ .Values.collector.podlogs.watchNamespaces | quote }}
+            - name: ENABLE_LBLOGS
+              value: {{ .Values.collector.lblogs.enabled | quote }}
+            - name: DELIVERY_MODE
+              value: {{ .Values.collector.lblogs.deliveryMode | quote }}
+            {{- if .Values.collector.lblogs.awsRegion }}
+            - name: AWS_REGION
+              value: {{ .Values.collector.lblogs.awsRegion | quote }}
+            {{- end }}
+            {{- if .Values.collector.lblogs.cwLogGroups }}
+            - name: CW_LOG_GROUPS
+              value: {{ .Values.collector.lblogs.cwLogGroups | quote }}
+            {{- end }}
+            {{- if .Values.collector.lblogs.lbConfigs }}
+            - name: LB_CONFIGS
+              value: {{ .Values.collector.lblogs.lbConfigs | quote }}
+            {{- end }}
+            - name: ANALYZER_URL
+              value: "http://{{ include "cluster-intel.fullname" . }}-analyzer:8081"
             {{- with .Values.collector.env }}
             {{- toYaml . | nindent 12 }}
             {{- end }}

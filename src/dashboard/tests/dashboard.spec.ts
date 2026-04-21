@@ -12,17 +12,16 @@ test.describe('Cluster Intelligence Dashboard', () => {
   });
 
   test('should load the dashboard and show health scores', async ({ page }) => {
-    // On desktop the heading reads "K8s Cluster Intelligence"; on mobile
-    // it collapses to "K8s Health" (page.tsx:527-528). Accept either so
-    // the chromium + mobile-chrome projects both pass.
-    await expect(page.getByRole('heading', { name: /K8s (Cluster Intelligence|Health)/i })).toBeVisible();
+    // The StatusBar brand element is inside [data-testid="status-bar"].
+    // Use the testid so this assertion is immune to tag changes (h1 vs div)
+    // and to Playwright's CSS-hidden-span accessible-name edge cases.
+    await expect(page.getByTestId('status-bar')).toBeVisible();
 
     // Check for health scores section
-    const scoresHeading = page.locator('#scores-heading');
-    await expect(scoresHeading).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Risk summary' })).toBeVisible();
 
     // Verify presence of Overall Health score card
-    await expect(page.getByText('Overall Health')).toBeVisible();
+    await expect(page.getByText('Risk Summary')).toBeVisible();
     
     // Verify presence of Reliability score card
     await expect(page.getByText('Reliability')).toBeVisible();
@@ -50,12 +49,13 @@ test.describe('Cluster Intelligence Dashboard', () => {
   });
 
   test('should be responsive', async ({ page, isMobile }) => {
-    if (isMobile) {
-      // Check for mobile-specific elements, like a hamburger menu or condensed view
-      // In page.tsx, some elements have 'hidden md:flex'
-      await expect(page.locator('.md\\:flex')).not.toBeVisible();
-    } else {
-      await expect(page.locator('.hidden.md\\:flex')).toBeVisible();
+    // The StatusBar is rendered on every viewport; assert by its testid so
+    // this is immune to tag changes and CSS-hidden-span accessible-name quirks.
+    await expect(page.getByTestId('status-bar')).toBeVisible();
+    if (!isMobile) {
+      // On larger viewports the cluster-id span is visible inside the status bar.
+      // Verify the bar contains text (not just an empty shell).
+      await expect(page.getByTestId('status-bar')).toContainText('K8s');
     }
   });
 });

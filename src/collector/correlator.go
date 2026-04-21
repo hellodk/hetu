@@ -132,7 +132,7 @@ func (c *Collector) queryPrometheusAroundTime(ctx context.Context, obj types.Inv
 							continue
 						}
 						var val float64
-						fmt.Sscanf(valStr, "%f", &val)
+						_, _ = fmt.Sscanf(valStr, "%f", &val)
 						points = append(points, types.DataPoint{
 							Timestamp: time.Unix(ts, 0),
 							Value:     val,

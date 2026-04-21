@@ -41,6 +41,20 @@ type Config struct {
 	BufferSize            int           `json:"bufferSize"`
 	NATSEndpoint          string        `json:"natsEndpoint"`
 	PrometheusEndpoint    string        `json:"prometheusEndpoint"`
+
+	// Pod log streaming subsystem (podlogs.go)
+	PodlogsEnabled  bool   `json:"podlogsEnabled"`
+	WatchNamespaces string `json:"watchNamespaces"`
+
+	// LB log subsystem (lblogs.go — requires !nolblogs build tag)
+	LblogsEnabled  bool          `json:"lbLogsEnabled"`
+	LBConfigs      string        `json:"lbConfigs"`   // JSON array of LBConfig
+	CWLogGroups    string        `json:"cwLogGroups"` // comma-separated CloudWatch log group names
+	AWSRegion      string        `json:"awsRegion"`
+	CWPollInterval time.Duration `json:"cwPollInterval"`
+	CWLookback     time.Duration `json:"cwLookback"`
+	LBDeliveryMode string        `json:"lbDeliveryMode"` // "nats" (default) or "http"
+	AnalyzerURL    string        `json:"analyzerURL"`
 }
 
 // Collector is the main collector service
@@ -196,7 +210,7 @@ func (c *Collector) initMetrics() {
 }
 
 // Start begins collecting cluster telemetry
-func (c *Collector) Start(ctx context.Context) error {
+func (c *Collector) Start(ctx context.Context) {
 	log.Info().Str("cluster", c.config.ClusterID).Msg("Starting collector")
 
 	c.setupEventInformer()
@@ -218,15 +232,13 @@ func (c *Collector) Start(ctx context.Context) error {
 	c.wg.Add(2)
 	go c.serveMetrics()
 	go c.serveHealth()
-
-	return nil
 }
 
 // setupEventInformer creates the event informer
 func (c *Collector) setupEventInformer() {
 	eventInformer := c.informerFactory.Core().V1().Events().Informer()
 
-	eventInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+	_, _ = eventInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj any) {
 			event := obj.(*corev1.Event)
 			c.processEvent(event)
@@ -242,7 +254,7 @@ func (c *Collector) setupEventInformer() {
 func (c *Collector) setupPodInformer() {
 	podInformer := c.informerFactory.Core().V1().Pods().Informer()
 
-	podInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+	_, _ = podInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj any) {
 			pod := obj.(*corev1.Pod)
 			c.processPodStateChange(pod, "added")
@@ -262,7 +274,7 @@ func (c *Collector) setupPodInformer() {
 func (c *Collector) setupNodeInformer() {
 	nodeInformer := c.informerFactory.Core().V1().Nodes().Informer()
 
-	nodeInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+	_, _ = nodeInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj any) {
 			node := obj.(*corev1.Node)
 			c.processNodeStateChange(node, "added")
@@ -390,7 +402,7 @@ func isPodUnhealthy(pod *corev1.Pod) bool {
 }
 
 // processNodeStateChange handles node state changes
-func (c *Collector) processNodeStateChange(node *corev1.Node, action string) {
+func (c *Collector) processNodeStateChange(node *corev1.Node, _ string) {
 	for _, condition := range node.Status.Conditions {
 		if condition.Status == corev1.ConditionTrue {
 			switch condition.Type {
@@ -571,8 +583,9 @@ func (c *Collector) serveMetrics() {
 	mux.Handle("/metrics", promhttp.HandlerFor(c.registry, promhttp.HandlerOpts{}))
 
 	c.metricsServer = &http.Server{
-		Addr:    fmt.Sprintf("%s:%d", c.config.BindAddress, c.config.MetricsPort),
-		Handler: mux,
+		Addr:              fmt.Sprintf("%s:%d", c.config.BindAddress, c.config.MetricsPort),
+		Handler:           mux,
+		ReadHeaderTimeout: 30 * time.Second,
 	}
 
 	log.Info().Int("port", c.config.MetricsPort).Msg("Starting metrics server")
@@ -631,7 +644,7 @@ func (c *Collector) serveHealth() {
 		tailLines := int64(100)
 		if lines := r.URL.Query().Get("tailLines"); lines != "" {
 			var parsed int64
-			fmt.Sscanf(lines, "%d", &parsed)
+			_, _ = fmt.Sscanf(lines, "%d", &parsed)
 			if parsed > 0 {
 				tailLines = parsed
 			}
@@ -654,8 +667,9 @@ func (c *Collector) serveHealth() {
 	})
 
 	c.healthServer = &http.Server{
-		Addr:    fmt.Sprintf("%s:%d", c.config.BindAddress, c.config.HealthPort),
-		Handler: mux,
+		Addr:              fmt.Sprintf("%s:%d", c.config.BindAddress, c.config.HealthPort),
+		Handler:           mux,
+		ReadHeaderTimeout: 30 * time.Second,
 	}
 
 	log.Info().Int("port", c.config.HealthPort).Msg("Starting health server")
@@ -674,10 +688,10 @@ func (c *Collector) Stop() {
 	defer cancel()
 
 	if c.metricsServer != nil {
-		c.metricsServer.Shutdown(shutdownCtx)
+		_ = c.metricsServer.Shutdown(shutdownCtx)
 	}
 	if c.healthServer != nil {
-		c.healthServer.Shutdown(shutdownCtx)
+		_ = c.healthServer.Shutdown(shutdownCtx)
 	}
 
 	c.wg.Wait()
@@ -706,6 +720,17 @@ func main() {
 		BufferSize:            getEnvIntOrDefault("BUFFER_SIZE", 10000),
 		NATSEndpoint:          coalesce(getEnvOrDefault("NATS_ENDPOINT", ""), ucfg.Bus.NATS.URL, "nats://nats:4222"),
 		PrometheusEndpoint:    getEnvOrDefault("PROMETHEUS_ENDPOINT", "http://prometheus:9090"),
+
+		PodlogsEnabled:  getEnvBool("ENABLE_PODLOGS"),
+		WatchNamespaces: getEnvOrDefault("WATCH_NAMESPACES", ""),
+		LblogsEnabled:   getEnvBool("ENABLE_LBLOGS"),
+		LBConfigs:       getEnvOrDefault("LB_CONFIGS", ""),
+		CWLogGroups:     getEnvOrDefault("CW_LOG_GROUPS", ""),
+		AWSRegion:       getEnvOrDefault("AWS_REGION", ""),
+		CWPollInterval:  getDurationOrDefault("CW_POLL_INTERVAL", 10*time.Second),
+		CWLookback:      getDurationOrDefault("CW_LOOKBACK", 5*time.Minute),
+		LBDeliveryMode:  getEnvOrDefault("DELIVERY_MODE", "nats"),
+		AnalyzerURL:     getEnvOrDefault("ANALYZER_URL", "http://cluster-intel-analyzer:8081"),
 	}
 
 	collector, err := NewCollector(config)
@@ -716,8 +741,13 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	if err := collector.Start(ctx); err != nil {
-		log.Fatal().Err(err).Msg("Failed to start collector")
+	collector.Start(ctx)
+
+	if config.PodlogsEnabled {
+		go startPodLogs(ctx, config)
+	}
+	if config.LblogsEnabled {
+		go startLBLogs(ctx, config)
 	}
 
 	sigCh := make(chan os.Signal, 1)
@@ -741,7 +771,7 @@ func getEnvOrDefault(key, defaultVal string) string {
 func getEnvIntOrDefault(key string, defaultVal int) int {
 	if val := os.Getenv(key); val != "" {
 		var result int
-		fmt.Sscanf(val, "%d", &result)
+		_, _ = fmt.Sscanf(val, "%d", &result)
 		return result
 	}
 	return defaultVal
@@ -764,4 +794,9 @@ func coalesce(vals ...string) string {
 		}
 	}
 	return ""
+}
+
+func getEnvBool(key string) bool {
+	v := strings.ToLower(strings.TrimSpace(os.Getenv(key)))
+	return v == "true" || v == "1" || v == "yes"
 }

@@ -265,7 +265,7 @@ export default function IncidentDetailPage() {
 
   return (
     <div className="p-6">
-      <Link href="/incidents" className="flex items-center gap-1 text-sm text-gray-400 hover:text-white mb-4">
+      <Link href="/incidents" className="flex items-center gap-1 text-sm text-cluster-muted hover:text-cluster-text mb-4">
         <ArrowLeft className="w-4 h-4" /> Back to Incidents
       </Link>
 

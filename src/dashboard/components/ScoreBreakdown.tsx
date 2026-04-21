@@ -335,7 +335,7 @@ export function ScoreBreakdown({ expanded, onToggle, focusDimension }: ScoreBrea
     <div className="mb-6">
       <button
         onClick={onToggle}
-        className="flex items-center gap-2 text-sm text-slate-400 hover:text-slate-200 transition-colors mb-3"
+        className="flex items-center gap-2 text-sm text-cluster-muted hover:text-cluster-text transition-colors mb-3"
       >
         {loading ? (
           <Loader2 className="w-4 h-4 animate-spin" />

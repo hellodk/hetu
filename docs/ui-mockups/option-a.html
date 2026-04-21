@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Option A — Alert Banner + Risk Summary Strip</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Inter, system-ui, sans-serif; background: #f5f3ee; color: #14151a; font-size: 14px; }
+
+  /* ── Critical Banner ── */
+  .critical-banner {
+    background: #DC2626;
+    color: #fff;
+    padding: 10px 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 13px;
+    font-weight: 500;
+    border-bottom: 2px solid #b91c1c;
+  }
+  .critical-banner .icon { font-size: 16px; flex-shrink: 0; }
+  .critical-banner strong { font-weight: 700; font-size: 14px; }
+  .critical-banner a { color: #fecaca; text-decoration: underline; cursor: pointer; margin-left: auto; white-space: nowrap; }
+  .critical-banner .duration { background: #b91c1c; padding: 2px 8px; border-radius: 4px; font-size: 11px; margin-left: 8px; }
+
+  /* ── Top Nav ── */
+  .topbar {
+    background: #fbfaf6;
+    border-bottom: 1px solid #e1ddd2;
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  .topbar-brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 16px; color: #14151a; }
+  .topbar-brand .dot { width: 8px; height: 8px; border-radius: 50%; background: #16a34a; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+  .cluster-pill { background: #ebe8dc; border: 1px solid #c8c2b0; border-radius: 20px; padding: 3px 10px; font-size: 12px; color: #4a4d57; }
+  .topbar-right { margin-left: auto; display: flex; align-items: center; gap: 10px; color: #4a4d57; font-size: 12px; }
+  .icon-btn { width: 32px; height: 32px; border-radius: 8px; border: 1px solid #e1ddd2; background: #fbfaf6; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #4a4d57; }
+  .icon-btn:hover { background: #e1ddd2; }
+
+  /* ── Risk Summary Strip ── */
+  .risk-strip {
+    background: #fbfaf6;
+    border-bottom: 1px solid #e1ddd2;
+    padding: 0 24px;
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+  }
+  .risk-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 20px;
+    border-right: 1px solid #e1ddd2;
+    cursor: pointer;
+    transition: background 0.15s;
+    min-width: 180px;
+  }
+  .risk-item:hover { background: #f0ede6; }
+  .risk-item:last-child { border-right: none; }
+  .risk-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .dot-critical { background: #DC2626; box-shadow: 0 0 0 3px #fee2e2; }
+  .dot-high     { background: #EA580C; box-shadow: 0 0 0 3px #ffedd5; }
+  .dot-degraded { background: #CA8A04; box-shadow: 0 0 0 3px #fef9c3; }
+  .dot-ok       { background: #16A34A; box-shadow: 0 0 0 3px #dcfce7; }
+  .risk-label { font-size: 12px; color: #4a4d57; }
+  .risk-name  { font-weight: 600; color: #14151a; font-size: 13px; }
+  .risk-score { margin-left: auto; font-size: 12px; font-weight: 700; }
+  .score-critical { color: #DC2626; }
+  .score-high     { color: #EA580C; }
+  .score-degraded { color: #CA8A04; }
+  .score-ok       { color: #16A34A; }
+  .risk-finding { font-size: 11px; color: #DC2626; font-weight: 500; }
+
+  /* ── Main ── */
+  .main { max-width: 1600px; margin: 0 auto; padding: 24px; }
+  .tabs {
+    display: flex;
+    gap: 0;
+    border-bottom: 2px solid #e1ddd2;
+    margin-bottom: 24px;
+  }
+  .tab {
+    padding: 10px 20px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #4a4d57;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    transition: all 0.15s;
+  }
+  .tab:hover { color: #14151a; }
+  .tab.active { color: #2732a8; border-bottom-color: #2732a8; }
+  .tab .badge { background: #e1ddd2; border-radius: 10px; padding: 1px 7px; font-size: 11px; margin-left: 5px; }
+  .tab.active .badge { background: #2732a8; color: #fff; }
+
+  /* ── Content Grid ── */
+  .content-grid { display: grid; grid-template-columns: 1fr 340px; gap: 24px; }
+
+  /* ── Cards ── */
+  .card { background: #fbfaf6; border: 1px solid #e1ddd2; border-radius: 12px; padding: 20px; }
+  .card-title { font-weight: 700; font-size: 15px; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; color: #14151a; }
+  .card-title .sub { font-size: 12px; font-weight: 400; color: #4a4d57; margin-left: auto; }
+
+  /* ── Cluster Overview ── */
+  .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .stat-tile { border-radius: 10px; padding: 14px; border: 1px solid; transition: all 0.15s; cursor: default; }
+  .stat-tile:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+  .stat-tile.blue   { background: #eff6ff; border-color: #bfdbfe; }
+  .stat-tile.purple { background: #faf5ff; border-color: #e9d5ff; }
+  .stat-tile.green  { background: #f0fdf4; border-color: #bbf7d0; }
+  .stat-tile.emerald { background: #ecfdf5; border-color: #a7f3d0; }
+  .stat-icon { font-size: 14px; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; font-size: 12px; color: #4a4d57; }
+  .stat-value { font-size: 26px; font-weight: 800; line-height: 1; margin: 4px 0; }
+  .stat-value.blue   { color: #2563eb; }
+  .stat-value.purple { color: #9333ea; }
+  .stat-value.green  { color: #16a34a; }
+  .stat-value.emerald { color: #059669; }
+
+  /* ── Events ── */
+  .events-row { display: flex; gap: 16px; margin-top: 16px; padding-top: 16px; border-top: 1px solid #e1ddd2; }
+  .event-chip { display: flex; align-items: center; gap-6px; gap: 6px; font-size: 13px; }
+  .event-chip .ev-label { color: #4a4d57; }
+  .event-chip .ev-count-warn  { color: #CA8A04; font-weight: 700; }
+  .event-chip .ev-count-crit  { color: #DC2626; font-weight: 700; }
+  .event-chip .ev-count-ok    { color: #4a4d57; }
+
+  /* ── Resource bars ── */
+  .resource-row { margin-bottom: 14px; }
+  .resource-label { display: flex; justify-content: space-between; font-size: 12px; color: #4a4d57; margin-bottom: 5px; }
+  .resource-label strong { color: #14151a; font-size: 13px; }
+  .bar-bg { background: #e1ddd2; border-radius: 4px; height: 8px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 4px; transition: width 0.4s; }
+  .bar-blue  { background: #3b82f6; }
+  .bar-green { background: #22c55e; }
+
+  /* ── AI Insights ── */
+  .insight-item {
+    display: flex;
+    gap: 10px;
+    padding: 12px 0;
+    border-bottom: 1px solid #e1ddd2;
+    align-items: flex-start;
+  }
+  .insight-item:last-child { border-bottom: none; }
+  .insight-sev { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 4px; }
+  .insight-tag { font-size: 10px; font-weight: 700; letter-spacing: 0.05em; padding: 2px 6px; border-radius: 4px; flex-shrink: 0; }
+  .tag-action { background: #fee2e2; color: #dc2626; }
+  .tag-observe { background: #f3f4f6; color: #6b7280; }
+  .insight-body { flex: 1; }
+  .insight-title { font-size: 13px; font-weight: 500; color: #14151a; line-height: 1.3; }
+  .insight-meta  { font-size: 11px; color: #4a4d57; margin-top: 2px; }
+
+  /* ── Pod dist ── */
+  .pod-bar { border-radius: 6px; overflow: hidden; display: flex; height: 10px; margin: 8px 0; }
+  .pod-bar .seg { height: 100%; }
+  .pod-legend { display: flex; gap: 16px; font-size: 12px; margin-top: 6px; }
+  .pod-legend span { display: flex; align-items: center; gap: 5px; color: #4a4d57; }
+  .pod-legend .dot { width: 8px; height: 8px; border-radius: 50%; }
+
+  /* ── Label ── */
+  .section-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: #4a4d57; margin-bottom: 10px; }
+
+  .option-watermark {
+    position: fixed; bottom: 16px; right: 16px;
+    background: #2732a8; color: #fff;
+    border-radius: 20px; padding: 6px 14px;
+    font-size: 12px; font-weight: 600;
+    box-shadow: 0 4px 12px rgba(39,50,168,0.3);
+    z-index: 100;
+  }
+</style>
+</head>
+<body>
+
+<!-- Critical Alert Banner -->
+<div class="critical-banner">
+  <span class="icon">🔴</span>
+  <div>
+    <strong>CRITICAL — Security posture: 0/100</strong>
+    &nbsp;·&nbsp; 11 active findings &nbsp;·&nbsp; "Remove <code>privileged: true</code> from 3 containers"
+    <span class="duration">Critical for 4h+</span>
+  </div>
+  <a href="#">View all security findings →</a>
+</div>
+
+<!-- Top Nav -->
+<nav class="topbar">
+  <div class="topbar-brand">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+    K8s Cluster Intelligence
+  </div>
+  <span class="cluster-pill">default</span>
+  <span class="cluster-pill" style="background:#dcfce7;border-color:#bbf7d0;color:#15803d;">
+    <span class="dot" style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#16a34a;margin-right:4px;"></span>LIVE
+  </span>
+  <div class="topbar-right">
+    Updated 9:27:04 PM
+    <div class="icon-btn">⟳</div>
+    <div class="icon-btn">↓</div>
+    <div class="icon-btn">🔔</div>
+    <div class="icon-btn">⚙</div>
+  </div>
+</nav>
+
+<!-- Risk Summary Strip (replaces 5 score rings) -->
+<div class="risk-strip">
+  <div class="risk-item" style="background:#fff5f5;">
+    <span class="risk-dot dot-critical"></span>
+    <div>
+      <div class="risk-label">CRITICAL</div>
+      <div class="risk-name">Security</div>
+      <div class="risk-finding">11 findings</div>
+    </div>
+    <span class="risk-score score-critical" style="font-size:22px;">0</span>
+  </div>
+  <div class="risk-item" style="background:#fff7ed;">
+    <span class="risk-dot dot-high"></span>
+    <div>
+      <div class="risk-label">HIGH</div>
+      <div class="risk-name">Architecture</div>
+      <div class="risk-finding">3 issues</div>
+    </div>
+    <span class="risk-score score-high" style="font-size:22px;">55</span>
+  </div>
+  <div class="risk-item" style="background:#fefce8;">
+    <span class="risk-dot dot-degraded"></span>
+    <div>
+      <div class="risk-label">DEGRADED</div>
+      <div class="risk-name">Overall Health</div>
+    </div>
+    <span class="risk-score score-degraded" style="font-size:22px;">52</span>
+  </div>
+  <div class="risk-item" style="background:#fefce8;">
+    <span class="risk-dot dot-degraded"></span>
+    <div>
+      <div class="risk-label">DEGRADED</div>
+      <div class="risk-name">Reliability</div>
+    </div>
+    <span class="risk-score score-degraded" style="font-size:22px;">75</span>
+  </div>
+  <div class="risk-item" style="background:#f0fdf4;">
+    <span class="risk-dot dot-ok"></span>
+    <div>
+      <div class="risk-label">OK</div>
+      <div class="risk-name">Cost Efficiency</div>
+    </div>
+    <span class="risk-score score-ok" style="font-size:22px;">88</span>
+  </div>
+</div>
+
+<!-- Main Content -->
+<main class="main">
+  <!-- Tabs (unchanged structure) -->
+  <div class="tabs">
+    <div class="tab active">Overview</div>
+    <div class="tab">Issues <span class="badge">0</span></div>
+    <div class="tab">Recommendations <span class="badge">0</span></div>
+    <div class="tab">Timeline</div>
+    <div class="tab">Namespaces</div>
+  </div>
+
+  <div class="content-grid">
+    <!-- Left column -->
+    <div style="display:flex;flex-direction:column;gap:20px;">
+
+      <!-- Cluster Overview -->
+      <div class="card">
+        <div class="card-title">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          Cluster Overview
+        </div>
+        <div class="stat-grid">
+          <div class="stat-tile blue">
+            <div class="stat-icon">⬛ Nodes</div>
+            <div class="stat-value blue">1</div>
+          </div>
+          <div class="stat-tile purple">
+            <div class="stat-icon">◧ Namespaces</div>
+            <div class="stat-value purple">0</div>
+          </div>
+          <div class="stat-tile emerald">
+            <div class="stat-icon">⬡ Total Pods</div>
+            <div class="stat-value emerald">39</div>
+          </div>
+          <div class="stat-tile green">
+            <div class="stat-icon">✓ Pod Health</div>
+            <div class="stat-value green">100%</div>
+          </div>
+        </div>
+
+        <div style="margin-top:16px;">
+          <div class="section-label">Pod Status Distribution</div>
+          <div class="pod-bar">
+            <div class="seg" style="width:100%;background:#22c55e;"></div>
+          </div>
+          <div class="pod-legend">
+            <span><span class="dot" style="background:#22c55e;"></span>Healthy 39</span>
+            <span><span class="dot" style="background:#eab308;"></span>Pending 0</span>
+            <span><span class="dot" style="background:#ef4444;"></span>Unhealthy 0</span>
+          </div>
+        </div>
+
+        <div class="events-row">
+          <div class="event-chip">
+            <span>⚠</span>
+            <span class="ev-label">Warning</span>
+            <span class="ev-count-warn">280</span>
+          </div>
+          <div class="event-chip">
+            <span>🔴</span>
+            <span class="ev-label">Critical</span>
+            <span class="ev-count-ok">0</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Resource Utilization -->
+      <div class="card">
+        <div class="card-title">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/></svg>
+          Resource Utilization
+          <span class="sub">● Real-time metrics</span>
+        </div>
+        <div class="resource-row">
+          <div class="resource-label">
+            <strong>CPU</strong>
+            <span>4.1 / 20.0 cores &nbsp;·&nbsp; <span style="color:#2563eb;font-weight:600;">21%</span></span>
+          </div>
+          <div class="bar-bg"><div class="bar-fill bar-blue" style="width:21%;"></div></div>
+        </div>
+        <div class="resource-row">
+          <div class="resource-label">
+            <strong>Memory</strong>
+            <span>8.2 / 32.0 GiB &nbsp;·&nbsp; <span style="color:#22c55e;font-weight:600;">26%</span></span>
+          </div>
+          <div class="bar-bg"><div class="bar-fill bar-green" style="width:26%;"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right column: AI Insights (redesigned) -->
+    <div class="card" style="height:fit-content;">
+      <div class="card-title">
+        ✦ AI Insights
+        <span class="sub">11 from 3 sources</span>
+      </div>
+
+      <!-- Action items first -->
+      <div class="section-label" style="color:#dc2626;">Actions Required (4)</div>
+      <div class="insight-item">
+        <span class="insight-sev" style="background:#dc2626;"></span>
+        <span class="insight-tag tag-action">ACTION</span>
+        <div class="insight-body">
+          <div class="insight-title">Remove <code>privileged: true</code> from container security context</div>
+          <div class="insight-meta">SECURITY · CIS 5.2.1 · 3 resources</div>
+        </div>
+      </div>
+      <div class="insight-item">
+        <span class="insight-sev" style="background:#dc2626;"></span>
+        <span class="insight-tag tag-action">ACTION</span>
+        <div class="insight-body">
+          <div class="insight-title">Use PVCs or emptyDir instead of hostPath volumes</div>
+          <div class="insight-meta">SECURITY · CIS 5.2.7 · 1 resource</div>
+        </div>
+      </div>
+      <div class="insight-item">
+        <span class="insight-sev" style="background:#EA580C;"></span>
+        <span class="insight-tag tag-action">ACTION</span>
+        <div class="insight-body">
+          <div class="insight-title">Set CPU/memory limits on 12 pods missing constraints</div>
+          <div class="insight-meta">RELIABILITY · 12 resources</div>
+        </div>
+      </div>
+      <div class="insight-item">
+        <span class="insight-sev" style="background:#CA8A04;"></span>
+        <span class="insight-tag tag-action">ACTION</span>
+        <div class="insight-body">
+          <div class="insight-title">Migrate 3 deprecated API versions before 1.32</div>
+          <div class="insight-meta">ARCHITECTURE · Deadline: 1.32 release</div>
+        </div>
+      </div>
+
+      <!-- Observations -->
+      <div class="section-label" style="margin-top:14px;">Observations (7)</div>
+      <div class="insight-item">
+        <span class="insight-sev" style="background:#9ca3af;"></span>
+        <span class="insight-tag tag-observe">INFO</span>
+        <div class="insight-body">
+          <div class="insight-title">CPU utilization normal at 21% of capacity</div>
+          <div class="insight-meta">COST · 4m ago</div>
+        </div>
+      </div>
+      <div style="text-align:center;padding:10px 0;font-size:12px;color:#4a4d57;">
+        <a href="#" style="color:#2732a8;">Show 6 more observations →</a>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div class="option-watermark">Option A — Alert Banner + Risk Strip</div>
+</body>
+</html>

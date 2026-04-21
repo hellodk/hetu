@@ -84,7 +84,7 @@ require_root_dir() { cd "$ROOT_DIR"; }
 # ── Defaults ──────────────────────────────────────────────────────────────────
 REGISTRY="${REGISTRY:-hellodk}"
 NAMESPACE="${NAMESPACE:-cluster-intel}"
-SERVICES=(collector analyzer collector-podlogs collector-lblogs)
+SERVICES=(collector analyzer)
 
 # ══════════════════════════════════════════════════════════════════════════════
 # COMMANDS
@@ -187,8 +187,6 @@ cmd_deploy() {
     case "$sub" in
         stack)    cmd_deploy_stack "$@" ;;
         upgrade)  cmd_deploy_upgrade "$@" ;;
-        podlogs)  cmd_deploy_podlogs "$@" ;;
-        lblogs)   cmd_deploy_lblogs "$@" ;;
         *)        error "Unknown deploy target: $sub"; exit 1 ;;
     esac
 }
@@ -328,119 +326,6 @@ cmd_deploy_upgrade() {
     done
     success "Upgrade complete"
 }
-
-cmd_deploy_podlogs() {
-    header "Deploy Pod Log Collector"
-    _prompt_input "Namespace" "$NAMESPACE"; NAMESPACE="$PROMPT_RESULT"
-    _prompt_input "Registry" "$REGISTRY"; REGISTRY="$PROMPT_RESULT"
-    local v; v=$(version)
-    _prompt_input "Image tag" "$v"; local tag="$PROMPT_RESULT"
-    _prompt_input "Watch namespaces (comma-separated, empty=all)" ""
-    local watch_ns="$PROMPT_RESULT"
-
-    info "Applying deployment manifest:"
-    run kubectl -n "$NAMESPACE" apply -f - <<EOF
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: collector-podlogs
-  labels: {app: collector-podlogs, app.kubernetes.io/part-of: cluster-intel}
-spec:
-  replicas: 1
-  selector:
-    matchLabels: {app: collector-podlogs}
-  template:
-    metadata:
-      labels: {app: collector-podlogs}
-    spec:
-      serviceAccountName: cluster-intel
-      containers:
-      - name: collector-podlogs
-        image: ${REGISTRY}/cluster-intel-collector-podlogs:${tag}
-        env:
-        - name: CI_CONFIG
-          value: /etc/cluster-intel/config.yaml
-        - name: WATCH_NAMESPACES
-          value: "${watch_ns}"
-        volumeMounts:
-        - name: config
-          mountPath: /etc/cluster-intel
-      volumes:
-      - name: config
-        configMap: {name: cluster-intel-config}
-EOF
-    success "Pod log collector deployed"
-}
-
-cmd_deploy_lblogs() {
-    header "Deploy LB Log Collector"
-    _prompt_input "Namespace" "$NAMESPACE"; NAMESPACE="$PROMPT_RESULT"
-    _prompt_input "Registry" "$REGISTRY"; REGISTRY="$PROMPT_RESULT"
-    local v; v=$(version)
-    _prompt_input "Image tag" "$v"; local tag="$PROMPT_RESULT"
-    _prompt_input "IRSA role ARN (for S3 access)" ""
-    local irsa_arn="$PROMPT_RESULT"
-
-    echo -e "\n${BOLD}Configure load balancers:${NC}" >&2
-    local lb_configs="[]"
-    local adding=true
-    local lbs=()
-
-    while [[ "$adding" == true ]]; do
-        _prompt_input "LB name" "prod-alb"; local lb_name="$PROMPT_RESULT"
-        _prompt_select "LB type:" "alb" "nlb" "elb"; local lb_type="$PROMPT_RESULT"
-        _prompt_input "S3 bucket" ""; local bucket="$PROMPT_RESULT"
-        _prompt_input "S3 prefix" "AWSLogs/"; local prefix="$PROMPT_RESULT"
-        _prompt_input "AWS region" "us-east-1"; local region="$PROMPT_RESULT"
-        lbs+=("{\"name\":\"${lb_name}\",\"type\":\"${lb_type}\",\"bucket\":\"${bucket}\",\"prefix\":\"${prefix}\",\"region\":\"${region}\",\"pollIntervalSeconds\":60}")
-        prompt_confirm "Add another LB?" || adding=false
-    done
-
-    # Join array
-    local joined
-    joined=$(printf ',%s' "${lbs[@]}")
-    lb_configs="[${joined:1}]"
-
-    local sa_annotation=""
-    if [[ -n "$irsa_arn" ]]; then
-        sa_annotation="eks.amazonaws.com/role-arn: ${irsa_arn}"
-    fi
-
-    info "Applying deployment manifest:"
-    run kubectl -n "$NAMESPACE" apply -f - <<EOF
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: collector-lblogs
-  labels: {app: collector-lblogs, app.kubernetes.io/part-of: cluster-intel}
-spec:
-  replicas: 1
-  selector:
-    matchLabels: {app: collector-lblogs}
-  template:
-    metadata:
-      labels: {app: collector-lblogs}
-      ${sa_annotation:+annotations: {$sa_annotation}}
-    spec:
-      serviceAccountName: cluster-intel
-      containers:
-      - name: collector-lblogs
-        image: ${REGISTRY}/cluster-intel-collector-lblogs:${tag}
-        env:
-        - name: CI_CONFIG
-          value: /etc/cluster-intel/config.yaml
-        - name: LB_CONFIGS
-          value: '${lb_configs}'
-        volumeMounts:
-        - name: config
-          mountPath: /etc/cluster-intel
-      volumes:
-      - name: config
-        configMap: {name: cluster-intel-config}
-EOF
-    success "LB log collector deployed"
-}
-
 # ── ci test ──────────────────────────────────────────────────────────────────
 cmd_test() {
     local sub="${1:-}"
@@ -467,7 +352,7 @@ cmd_test_unit() {
     local failed=false
 
     for d in pkg/config pkg/store pkg/bus pkg/kube pkg/llm pkg/types pkg/middleware \
-             src/collector src/analyzer src/collector-podlogs src/collector-lblogs; do
+             src/collector src/analyzer; do
         if [[ -d "$d" ]]; then
             info "Testing $d..."
             if run bash -c "cd $d && go test ./... -count=1 -timeout 120s" 2>&1 | tail -5; then
@@ -491,7 +376,7 @@ cmd_test_lint() {
     local failed=false
 
     # Go vet
-    for d in src/collector src/analyzer src/collector-podlogs src/collector-lblogs; do
+    for d in src/collector src/analyzer; do
         if [[ -d "$d" ]]; then
             info "go vet $d..."
             if run bash -c "cd $d && go vet ./..." 2>&1; then
@@ -587,7 +472,7 @@ cmd_logs() {
     _prompt_input "Namespace" "$NAMESPACE"; NAMESPACE="$PROMPT_RESULT"
 
     _prompt_select "Which component?" \
-        "collector" "analyzer" "dashboard" "collector-podlogs" "collector-lblogs" "all"
+        "collector" "analyzer" "dashboard" "all"
     local target="$PROMPT_RESULT"
 
     _prompt_input "Tail lines" "100"; local tail="$PROMPT_RESULT"
@@ -646,8 +531,7 @@ cmd_setup_local() {
     fi
 
     info "Installing Go dependencies..."
-    for d in pkg/config pkg/store pkg/bus pkg/kube pkg/llm src/collector src/analyzer \
-             src/collector-podlogs src/collector-lblogs; do
+    for d in pkg/config pkg/store pkg/bus pkg/kube pkg/llm src/collector src/analyzer; do
         [[ -d "$d" ]] && (cd "$d" && go mod tidy 2>/dev/null)
     done
     success "Go deps installed"

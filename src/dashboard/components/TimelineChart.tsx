@@ -128,7 +128,7 @@ export function TimelineChart() {
                 'px-3 py-1.5 text-xs font-medium rounded-lg transition-colors capitalize',
                 filter === type
                   ? 'bg-blue-600 text-white'
-                  : 'bg-cluster-border text-slate-400 hover:text-white'
+                  : 'bg-cluster-border text-cluster-muted hover:text-cluster-text'
               )}
               aria-pressed={filter === type}
             >

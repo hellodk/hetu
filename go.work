@@ -10,6 +10,4 @@ use (
 	./pkg/types
 	./src/analyzer
 	./src/collector
-	./src/collector-lblogs
-	./src/collector-podlogs
 )

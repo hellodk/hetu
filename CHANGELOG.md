@@ -5,6 +5,31 @@ All notable changes to K8s Cluster Intelligence Engine will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [7.0.0] - 2026-04-20
+
+### Breaking Changes
+- `src/collector-podlogs/` and `src/collector-lblogs/` deleted. Both subsystems
+  are now integrated into the unified `src/collector/` binary.
+- Docker images `cluster-intel-collector-podlogs` and `cluster-intel-collector-lblogs`
+  are no longer built. Use `cluster-intel-collector` with the env vars below.
+- `scripts/ci deploy podlogs` and `scripts/ci deploy lblogs` sub-commands removed.
+
+### Added
+- Unified collector binary with Go build-tag–controlled subsystems:
+  - `ENABLE_PODLOGS=true` / `WATCH_NAMESPACES` — pod log streaming (always compiled)
+  - `ENABLE_LBLOGS=true` — LB access-log ingestion (excluded via `-tags nolblogs`)
+- `make docker-build-lean` — builds collector without AWS SDK (`-tags nolblogs`)
+- Helm `values.yaml` gains `collector.podlogs.*` and `collector.lblogs.*` blocks
+- `docker-compose.yml` gains `ENABLE_PODLOGS`, `WATCH_NAMESPACES`, `ENABLE_LBLOGS`,
+  `LB_CONFIGS`, `CW_LOG_GROUPS`, `AWS_REGION`, `DELIVERY_MODE` env vars
+
+### Removed
+- `src/collector-podlogs/` — merged into `src/collector/podlogs*.go`
+- `src/collector-lblogs/` — merged into `src/collector/lblogs*.go` (build-tag gated)
+- `go.work` entries for the deleted modules
+
+---
+
 ## [6.0.0] - 2026-02-28
 
 ### Added

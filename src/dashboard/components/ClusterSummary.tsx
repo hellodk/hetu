@@ -36,7 +36,7 @@ export function ClusterSummary({ summary }: ClusterSummaryProps) {
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
         {/* Nodes */}
-        <div className="bg-blue-500/10 rounded-lg p-3 sm:p-4 border border-blue-500/20">
+        <div className="bg-blue-500/10 rounded-lg p-3 sm:p-4 border border-blue-500/20 card-hover">
           <div className="flex items-center gap-2 mb-2">
             <Server className="w-4 h-4 text-blue-400" aria-hidden="true" />
             <span className="text-sm text-slate-400">Nodes</span>
@@ -47,7 +47,7 @@ export function ClusterSummary({ summary }: ClusterSummaryProps) {
         </div>
 
         {/* Namespaces */}
-        <div className="bg-purple-500/10 rounded-lg p-3 sm:p-4 border border-purple-500/20">
+        <div className="bg-purple-500/10 rounded-lg p-3 sm:p-4 border border-purple-500/20 card-hover">
           <div className="flex items-center gap-2 mb-2">
             <Layers className="w-4 h-4 text-purple-400" aria-hidden="true" />
             <span className="text-sm text-slate-400">Namespaces</span>
@@ -58,7 +58,7 @@ export function ClusterSummary({ summary }: ClusterSummaryProps) {
         </div>
 
         {/* Total Pods */}
-        <div className="bg-emerald-500/10 rounded-lg p-3 sm:p-4 border border-emerald-500/20">
+        <div className="bg-emerald-500/10 rounded-lg p-3 sm:p-4 border border-emerald-500/20 card-hover">
           <div className="flex items-center gap-2 mb-2">
             <Boxes className="w-4 h-4 text-emerald-400" aria-hidden="true" />
             <span className="text-sm text-slate-400">Total Pods</span>
@@ -70,7 +70,7 @@ export function ClusterSummary({ summary }: ClusterSummaryProps) {
 
         {/* Pod Health */}
         <div className={clsx(
-          'rounded-lg p-3 sm:p-4 border',
+          'rounded-lg p-3 sm:p-4 border card-hover',
           healthPercentage >= 95 
             ? 'bg-green-500/10 border-green-500/20' 
             : healthPercentage >= 80 

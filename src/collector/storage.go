@@ -55,7 +55,7 @@ func (c *Collector) collectPVCMetrics(ctx context.Context) {
 					namespace := res.Metric["namespace"]
 					if ok && valStr != "NaN" && pvcName != "" {
 						var val float64
-						fmt.Sscanf(valStr, "%f", &val)
+						_, _ = fmt.Sscanf(valStr, "%f", &val)
 
 						key := fmt.Sprintf("%s/%s", namespace, pvcName)
 						if _, exists := results[key]; !exists {
