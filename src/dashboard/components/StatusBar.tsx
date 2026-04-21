@@ -30,10 +30,12 @@ export function StatusBar({
   const isLive = profile === 'live'
 
   return (
-    <header
-      className="bg-[#14151a] text-[#e5e7eb] px-4 sm:px-6 py-2 flex items-center gap-3 sm:gap-4 text-xs font-mono sticky top-0 z-50"
-      aria-label="Dashboard status bar"
-    >
+    <>
+      {/* Intentionally dark-fixed — this bar is theme-independent by design (terminal/status-bar aesthetic). */}
+      <header
+        className="bg-[#14151a] text-[#e5e7eb] px-4 sm:px-6 py-2 flex items-center gap-3 sm:gap-4 text-xs font-mono sticky top-0 z-50"
+        aria-label="Dashboard status bar"
+      >
       {/* Brand */}
       <div className="flex items-center gap-2 font-sans font-bold text-white text-sm mr-1 flex-shrink-0">
         <Activity className="w-4 h-4 text-blue-400" aria-hidden="true" />
@@ -121,5 +123,6 @@ export function StatusBar({
         </button>
       </div>
     </header>
+    </>
   )
 }
