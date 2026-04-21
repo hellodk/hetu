@@ -42,7 +42,7 @@ test.describe('Incident Command Centre', () => {
   test('StatusBar shows LIVE indicator', async ({ page }) => {
     await mockHealthReport(page, {
       scores: OK_SCORES,
-      status: { state: 'ok', profile: 'live', message: '', collector: { reachable: true }, llm: { reachable: true } },
+      status: { state: 'ok', profile: 'live', message: '', collector: { reachable: true }, llm: { reachable: true }, lastAnalysisAt: new Date().toISOString() },
     })
     await page.goto('/')
     await expect(page.getByRole('banner')).toContainText('LIVE')
@@ -51,7 +51,7 @@ test.describe('Incident Command Centre', () => {
   test('StatusBar shows DEMO indicator when mock profile', async ({ page }) => {
     await mockHealthReport(page, {
       scores: OK_SCORES,
-      status: { state: 'ok', profile: 'mock', message: '', collector: { reachable: true }, llm: { reachable: true } },
+      status: { state: 'ok', profile: 'mock', message: '', collector: { reachable: true }, llm: { reachable: true }, lastAnalysisAt: new Date().toISOString() },
     })
     await page.goto('/')
     await expect(page.getByRole('banner')).toContainText('DEMO')
