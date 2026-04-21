@@ -18,7 +18,7 @@ test.describe('Incident Command Centre', () => {
   test('CriticalBanner visible when any score ≤ 25', async ({ page }) => {
     await mockHealthReport(page, { scores: CRITICAL_SCORES })
     await page.goto('/')
-    const banner = page.getByRole('alert')
+    const banner = page.getByTestId('critical-banner')
     await expect(banner).toBeVisible()
     await expect(banner).toContainText('CRITICAL')
     await expect(banner).toContainText('Security: 0/100')
@@ -27,13 +27,13 @@ test.describe('Incident Command Centre', () => {
   test('CriticalBanner hidden when all scores ≥ 26', async ({ page }) => {
     await mockHealthReport(page, { scores: OK_SCORES })
     await page.goto('/')
-    await expect(page.getByRole('alert')).not.toBeAttached()
+    await expect(page.getByTestId('critical-banner')).not.toBeAttached()
   })
 
   test('CriticalBanner "View findings" button switches to issues tab', async ({ page }) => {
     await mockHealthReport(page, { scores: CRITICAL_SCORES })
     await page.goto('/')
-    await page.getByRole('alert').getByRole('button', { name: /view findings/i }).click()
+    await page.getByTestId('critical-banner').getByRole('button', { name: /view.*findings/i }).click()
     await expect(page.getByRole('tab', { name: /issues/i })).toHaveAttribute('aria-selected', 'true')
   })
 
@@ -45,7 +45,7 @@ test.describe('Incident Command Centre', () => {
       status: { state: 'ok', profile: 'live', message: '', collector: { reachable: true }, llm: { reachable: true }, lastAnalysisAt: new Date().toISOString() },
     })
     await page.goto('/')
-    await expect(page.getByRole('banner')).toContainText('LIVE')
+    await expect(page.getByTestId('status-bar')).toContainText('LIVE')
   })
 
   test('StatusBar shows DEMO indicator when mock profile', async ({ page }) => {
@@ -54,7 +54,7 @@ test.describe('Incident Command Centre', () => {
       status: { state: 'ok', profile: 'mock', message: '', collector: { reachable: true }, llm: { reachable: true }, lastAnalysisAt: new Date().toISOString() },
     })
     await page.goto('/')
-    await expect(page.getByRole('banner')).toContainText('DEMO')
+    await expect(page.getByTestId('status-bar')).toContainText('DEMO')
   })
 
   // ── RiskSummaryPanel ────────────────────────────────────────────────────────

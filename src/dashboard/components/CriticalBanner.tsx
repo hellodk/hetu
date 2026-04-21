@@ -39,6 +39,8 @@ export function CriticalBanner({ scores, onViewIssues }: CriticalBannerProps) {
       className="bg-red-600 text-white px-4 sm:px-6 py-2.5 flex items-center gap-3 text-sm font-medium"
       role="alert"
       aria-live="assertive"
+      aria-label="Critical health alert"
+      data-testid="critical-banner"
     >
       <AlertTriangle className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
       <strong className="font-bold tracking-wide">CRITICAL</strong>
