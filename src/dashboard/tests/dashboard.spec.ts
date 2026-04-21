@@ -15,14 +15,13 @@ test.describe('Cluster Intelligence Dashboard', () => {
     // On desktop the heading reads "K8s Cluster Intelligence"; on mobile
     // it collapses to "K8s Health" (page.tsx:527-528). Accept either so
     // the chromium + mobile-chrome projects both pass.
-    await expect(page.getByRole('heading', { name: /K8s (Cluster Intelligence|Health)/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /K8s (Cluster Intelligence|Intel)/i })).toBeVisible();
 
     // Check for health scores section
-    const scoresHeading = page.locator('#scores-heading');
-    await expect(scoresHeading).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Risk summary' })).toBeVisible();
 
     // Verify presence of Overall Health score card
-    await expect(page.getByText('Overall Health')).toBeVisible();
+    await expect(page.getByText('Risk Summary')).toBeVisible();
     
     // Verify presence of Reliability score card
     await expect(page.getByText('Reliability')).toBeVisible();
@@ -51,11 +50,11 @@ test.describe('Cluster Intelligence Dashboard', () => {
 
   test('should be responsive', async ({ page, isMobile }) => {
     if (isMobile) {
-      // Check for mobile-specific elements, like a hamburger menu or condensed view
-      // In page.tsx, some elements have 'hidden md:flex'
-      await expect(page.locator('.md\\:flex')).not.toBeVisible();
+      // On mobile the status bar abbreviates to "K8s Intel"
+      await expect(page.getByRole('heading', { name: 'K8s Intel' })).toBeVisible();
     } else {
-      await expect(page.locator('.hidden.md\\:flex')).toBeVisible();
+      // On desktop the status bar shows the full name
+      await expect(page.getByRole('heading', { name: 'K8s Cluster Intelligence' })).toBeVisible();
     }
   });
 });

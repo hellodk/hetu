@@ -35,13 +35,14 @@ export function StatusBar({
       <header
         className="bg-[#14151a] text-[#e5e7eb] px-4 sm:px-6 py-2 flex items-center gap-3 sm:gap-4 text-xs font-mono sticky top-0 z-50"
         aria-label="Dashboard status bar"
+        data-testid="status-bar"
       >
       {/* Brand */}
-      <div className="flex items-center gap-2 font-sans font-bold text-white text-sm mr-1 flex-shrink-0">
+      <h1 className="flex items-center gap-2 font-sans font-bold text-white text-sm mr-1 flex-shrink-0">
         <Activity className="w-4 h-4 text-blue-400" aria-hidden="true" />
         <span className="hidden sm:inline">K8s Cluster Intelligence</span>
         <span className="sm:hidden">K8s Intel</span>
-      </div>
+      </h1>
 
       <span className="text-[#374151] hidden sm:inline" aria-hidden="true">|</span>
 
