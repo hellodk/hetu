@@ -378,7 +378,7 @@ export default function LBLogsPage() {
           </label>
           <button
             onClick={handleRefresh}
-            className="flex items-center gap-2 px-3 py-1.5 text-sm bg-white/10 hover:bg-white/20 rounded-lg text-white transition-colors"
+            className="flex items-center gap-2 px-3 py-1.5 text-sm bg-cluster-border/40 hover:bg-cluster-border/60 rounded-lg text-cluster-text transition-colors"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             Refresh
@@ -576,7 +576,7 @@ export default function LBLogsPage() {
                   className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors border-b-2 -mb-px ${
                     activeTab === tab.key
                       ? 'border-blue-500 text-blue-400'
-                      : 'border-transparent text-slate-400 hover:text-white hover:border-slate-600'
+                      : 'border-transparent text-cluster-muted hover:text-cluster-text hover:border-cluster-border'
                   }`}
                 >
                   {tab.icon}
@@ -962,7 +962,7 @@ function SortableTable<T extends Record<string, any>>({
               <th
                 key={col.key}
                 className={`${col.align === 'right' ? 'text-right' : 'text-left'} px-4 py-2.5 text-slate-400 font-medium ${
-                  col.sortable ? 'cursor-pointer hover:text-white select-none' : ''
+                  col.sortable ? 'cursor-pointer hover:text-cluster-text select-none' : ''
                 }`}
                 onClick={() => col.sortable && onSort(col.key)}
               >

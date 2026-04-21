@@ -1031,7 +1031,7 @@ export default function ResourceDetailPage() {
               'flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap',
               tab === t.id
                 ? 'border-blue-500 text-blue-400'
-                : 'border-transparent text-gray-400 hover:text-white hover:border-gray-600'
+                : 'border-transparent text-cluster-muted hover:text-cluster-text hover:border-cluster-border'
             )}
           >
             {t.icon}

@@ -203,7 +203,7 @@ export default function ErrorDetailPage() {
   if (error || !group) {
     return (
       <div className="p-6">
-        <Link href="/errors" className="flex items-center gap-1 text-sm text-gray-400 hover:text-white mb-4">
+        <Link href="/errors" className="flex items-center gap-1 text-sm text-cluster-muted hover:text-cluster-text mb-4">
           <ArrowLeft className="w-4 h-4" /> Back to Errors
         </Link>
         <div className="p-4 bg-red-900/30 border border-red-700 rounded text-red-300">{error || 'Not found'}</div>
@@ -213,7 +213,7 @@ export default function ErrorDetailPage() {
 
   return (
     <div className="p-6 max-w-[1400px] mx-auto">
-      <Link href="/errors" className="flex items-center gap-1 text-sm text-gray-400 hover:text-white mb-4">
+      <Link href="/errors" className="flex items-center gap-1 text-sm text-cluster-muted hover:text-cluster-text mb-4">
         <ArrowLeft className="w-4 h-4" /> Back to Errors
       </Link>
 

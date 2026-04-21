@@ -94,7 +94,7 @@ export default function OptimizationPage() {
             <Play className="w-3.5 h-3.5" /> Run Analysis
           </button>
           <button onClick={fetchData}
-            className="flex items-center gap-2 px-3 py-1.5 text-sm bg-white/10 hover:bg-white/20 rounded text-white">
+            className="flex items-center gap-2 px-3 py-1.5 text-sm bg-cluster-border/40 hover:bg-cluster-border/60 rounded text-cluster-text">
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
         </div>

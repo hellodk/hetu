@@ -495,6 +495,21 @@ body {
   @apply focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2;
 }
 
+/* ── Light-theme legibility fix ──────────────────────────────────────────────
+   text-slate-400/500 and text-gray-400/500 are dark-mode idioms: on white/
+   light-paper backgrounds they render at ~2-3:1 contrast (WCAG fail).
+   Remap them to --cluster-muted which is pre-calibrated per theme and
+   reaches ≥4.5:1 on both graphite and prism backgrounds.
+   Dark themes (calm-signal, aurora, md-dark, md-light) are unaffected.    */
+:is([data-theme="graphite"], [data-theme="prism"]) .text-slate-400,
+:is([data-theme="graphite"], [data-theme="prism"]) .text-gray-400 {
+  color: rgb(var(--cluster-muted));
+}
+:is([data-theme="graphite"], [data-theme="prism"]) .text-slate-500,
+:is([data-theme="graphite"], [data-theme="prism"]) .text-gray-500 {
+  color: rgb(var(--cluster-muted) / 0.8);
+}
+
 /* Muted text inside cards lifts to full --cluster-text on hover, making
    labels/descriptions readable without disturbing semantic badge colours. */
 :is(.card-hover, .card-interactive) :is(.text-cluster-muted, .text-slate-400, .text-slate-500) {

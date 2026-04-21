@@ -421,7 +421,7 @@ export default function ErrorsPage() {
           </button>
           <button
             onClick={fetchGroups}
-            className="flex items-center gap-2 px-3 py-1.5 text-sm bg-white/10 hover:bg-white/20 rounded-lg text-white transition-colors"
+            className="flex items-center gap-2 px-3 py-1.5 text-sm bg-cluster-border/40 hover:bg-cluster-border/60 rounded-lg text-cluster-text transition-colors"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             Refresh
@@ -735,7 +735,7 @@ export default function ErrorsPage() {
                       <div>
                         <button
                           onClick={(e) => { e.stopPropagation(); toggleMessage(g.id) }}
-                          className="text-xs text-gray-500 uppercase tracking-wider mb-1 flex items-center gap-1 hover:text-gray-300"
+                          className="text-xs text-cluster-muted uppercase tracking-wider mb-1 flex items-center gap-1 hover:text-cluster-text"
                         >
                           Sample Message
                           {isMessageExpanded
