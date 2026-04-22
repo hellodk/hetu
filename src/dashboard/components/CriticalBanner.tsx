@@ -46,9 +46,9 @@ export function CriticalBanner({ scores, findingsCount, onViewIssues }: Critical
         data-testid="critical-banner"
       >
         <CheckCircle className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
-        <strong className="font-bold tracking-wide">NO FINDINGS</strong>
+        <strong className="font-bold tracking-wide">LOW SCORES</strong>
         <span className="hidden sm:inline text-green-200">—</span>
-        <span className="text-green-100">Low scores detected ({summary}) but no active issues found</span>
+        <span className="text-green-100">{summary} · No active findings</span>
       </div>
     )
   }
