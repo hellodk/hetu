@@ -28,7 +28,7 @@ async function rgbSum(
   prop: 'color' | 'backgroundColor' = 'color',
 ): Promise<number> {
   const raw = await locator.evaluate(
-    (el, p) => getComputedStyle(el).getPropertyValue(p),
+    (el, p) => (getComputedStyle(el) as unknown as Record<string, string>)[p] ?? '',
     prop,
   )
   const nums = raw.match(/\d+/g)?.slice(0, 3).map(Number) ?? [0, 0, 0]
