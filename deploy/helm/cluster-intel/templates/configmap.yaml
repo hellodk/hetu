@@ -42,7 +42,9 @@ data:
       endpoint: {{ .Values.llm.endpoint | quote }}
       {{- end }}
       model: {{ .Values.llm.model | quote }}
+      {{- if .Values.llm.apiKeySecret.name }}
       apiKeyFile: /etc/cluster-intel/secrets/llm/api-key
+      {{- end }}
       maxTokens: {{ .Values.llm.maxTokens }}
       temperature: {{ .Values.llm.temperature }}
       dailyTokenBudget: {{ .Values.llm.dailyTokenBudget }}

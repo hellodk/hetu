@@ -55,15 +55,17 @@ All images are published to Docker Hub under `hellodk/`:
 | `hellodk/cluster-intel-collector` | `7.0.0`, `latest` | ~40 MB |
 | `hellodk/cluster-intel-analyzer` | `7.0.0`, `latest` | ~41 MB |
 | `hellodk/cluster-intel-dashboard` | `7.0.0`, `latest` | ~247 MB |
-| `hellodk/cluster-intel-collector-podlogs` | `7.0.0`, `latest` | ~39 MB |
-| `hellodk/cluster-intel-collector-lblogs` | `7.0.0`, `latest` | ~11 MB |
 
 Go images use `FROM scratch` at runtime — no OS layer, CA certs only.
 Dashboard uses `node:20-alpine` with Next.js standalone output.
 
+> **Note:** `collector-podlogs` and `collector-lblogs` were consolidated into
+> the single `collector` binary in v7.0.0. Use build tags to control which
+> subsystems are compiled in (`nolblogs` to exclude the AWS SDK).
+
 ### Build
 
-Build all five images from the repo root:
+Build all three images from the repo root:
 
 ```bash
 make docker-build                        # uses REGISTRY=hellodk VERSION=7.0.0
@@ -72,9 +74,9 @@ make docker-build REGISTRY=myorg         # override registry prefix
 ```
 
 What the target does:
-1. Builds `collector`, `analyzer`, `collector-podlogs`, `collector-lblogs` using
-   each service's `Dockerfile` with **build context = repo root** (needed so
-   `COPY pkg/ ./pkg/` can reach shared packages).
+1. Builds `collector` and `analyzer` using each service's `Dockerfile` with
+   **build context = repo root** (needed so `COPY pkg/ ./pkg/` can reach
+   shared packages).
 2. Builds `dashboard` with **build context = `src/dashboard/`** (no shared Go
    packages; Next.js standalone output copied from builder stage).
 3. Tags each image as both `:VERSION` and `:latest` in one pass.
@@ -88,7 +90,7 @@ What the target does:
 ### Push
 
 ```bash
-make docker-push                         # push both :VERSION and :latest for all 5 images
+make docker-push                         # push both :VERSION and :latest for all 3 images
 make docker-push VERSION=8.0.0 REGISTRY=myorg
 ```
 
@@ -313,8 +315,8 @@ git commit -m "chore(helm): update bundled dependency charts"
 
 | Target | What it does | Key overrides |
 |--------|-------------|---------------|
-| `make docker-build` | Build all 5 images (`:VERSION` + `:latest`) | `REGISTRY=`, `VERSION=` |
-| `make docker-push` | Push all 5 images to registry | `REGISTRY=`, `VERSION=` |
+| `make docker-build` | Build all 3 images (`:VERSION` + `:latest`) | `REGISTRY=`, `VERSION=` |
+| `make docker-push` | Push all 3 images to registry | `REGISTRY=`, `VERSION=` |
 | `make helm-deps` | `helm dependency build` | — |
 | `make helm-template` | Dry-render chart to stdout | `NAMESPACE=` |
 | `make helm-deploy` | `helm upgrade --install` with `--wait` | `NAMESPACE=`, `ENV=`, `VALUES=` |
