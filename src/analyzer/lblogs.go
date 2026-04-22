@@ -149,12 +149,33 @@ func (a *LBLogAggregator) handleSetConfig(w http.ResponseWriter, r *http.Request
 		http.Error(w, "invalid body", http.StatusBadRequest)
 		return
 	}
+	if len(body.Configs) > 50 {
+		http.Error(w, "too many configs (max 50)", http.StatusBadRequest)
+		return
+	}
+	validTypes := map[string]bool{"alb": true, "nlb": true, "elb": true}
+	for _, c := range body.Configs {
+		if len(c.Name) == 0 || len(c.Name) > 128 {
+			http.Error(w, "each config must have a name (1–128 chars)", http.StatusBadRequest)
+			return
+		}
+		if !validTypes[c.Type] {
+			http.Error(w, "type must be alb, nlb, or elb", http.StatusBadRequest)
+			return
+		}
+		if len(c.Bucket) == 0 || len(c.Bucket) > 255 {
+			http.Error(w, "bucket must be 1–255 chars", http.StatusBadRequest)
+			return
+		}
+		if len(c.Region) == 0 || len(c.Region) > 64 {
+			http.Error(w, "region must be 1–64 chars", http.StatusBadRequest)
+			return
+		}
+	}
 	a.mu.Lock()
 	a.desiredConfigs = body.Configs
 	a.mu.Unlock()
-	a.mu.RLock()
-	defer a.mu.RUnlock()
-	writeJSON(w, map[string]any{"configs": a.desiredConfigs})
+	writeJSON(w, map[string]any{"configs": body.Configs})
 }
 
 func (a *LBLogAggregator) handleList(w http.ResponseWriter, r *http.Request) {

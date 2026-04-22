@@ -500,13 +500,13 @@ body {
    light-paper backgrounds they render at ~2-3:1 contrast (WCAG fail).
    Remap them to --cluster-muted which is pre-calibrated per theme and
    reaches ≥4.5:1 on both graphite and prism backgrounds.
-   Dark themes (calm-signal, aurora, md-dark, md-light) are unaffected.    */
-:is([data-theme="graphite"], [data-theme="prism"]) .text-slate-400,
-:is([data-theme="graphite"], [data-theme="prism"]) .text-gray-400 {
+   Dark themes (calm-signal, aurora, md-dark) are unaffected.    */
+:is([data-theme="graphite"], [data-theme="prism"], [data-theme="md-light"]) .text-slate-400,
+:is([data-theme="graphite"], [data-theme="prism"], [data-theme="md-light"]) .text-gray-400 {
   color: rgb(var(--cluster-muted));
 }
-:is([data-theme="graphite"], [data-theme="prism"]) .text-slate-500,
-:is([data-theme="graphite"], [data-theme="prism"]) .text-gray-500 {
+:is([data-theme="graphite"], [data-theme="prism"], [data-theme="md-light"]) .text-slate-500,
+:is([data-theme="graphite"], [data-theme="prism"], [data-theme="md-light"]) .text-gray-500 {
   color: rgb(var(--cluster-muted) / 0.8);
 }
 

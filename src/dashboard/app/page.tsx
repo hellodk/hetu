@@ -518,7 +518,7 @@ export default function Dashboard() {
             <AlertTriangle className="w-8 h-8 text-red-500" aria-hidden="true" />
           </div>
           <h1 className="text-xl font-semibold text-red-400 mb-2">Failed to load cluster data</h1>
-          <p className="text-slate-400 text-sm mb-6">{error}</p>
+          <p className="text-cluster-muted text-sm mb-6">{error}</p>
           <button
             onClick={handleRefresh}
             className="btn-primary"
@@ -589,6 +589,15 @@ export default function Dashboard() {
         onSettings={() => setShowSettings(true)}
       />
 
+      {/* Critical banner — full-bleed, sits between header and main content */}
+      {displayReport.scores && (
+        <CriticalBanner
+          scores={displayReport.scores}
+          findingsCount={displayReport.topIssues.length}
+          onViewIssues={() => setActiveTab('issues')}
+        />
+      )}
+
       {/* Main Content */}
       <main id="main-content" className="flex-1 max-w-[1800px] w-full mx-auto px-4 sm:px-6 py-4 sm:py-6" ref={mainContentRef}>
         {/*
@@ -600,14 +609,6 @@ export default function Dashboard() {
           Cluster summary, resource utilization, and the issue/recommendation
           tabs below still render from real telemetry when available.
         */}
-        {/* Critical banner — full-width, above main content, only when any score ≤ 25 */}
-        {displayReport.scores && (
-          <CriticalBanner
-            scores={displayReport.scores}
-            findingsCount={displayReport.topIssues.length}
-            onViewIssues={() => setActiveTab('issues')}
-          />
-        )}
 
         {displayReport.scores ? (
           <>
@@ -730,7 +731,7 @@ export default function Dashboard() {
 
       {/* Footer */}
       <footer className="border-t border-cluster-border mt-auto py-4">
-        <div className="max-w-[1800px] mx-auto px-4 sm:px-6 text-center text-slate-400 text-sm">
+        <div className="max-w-[1800px] mx-auto px-4 sm:px-6 text-center text-cluster-muted text-sm">
           <p>
             K8s AI Cluster Intelligence Engine v{packageJson.version}
             <span className="hidden sm:inline"> | </span>
