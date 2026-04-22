@@ -678,6 +678,10 @@ export default function SettingsPage() {
             </code>
           </p>
         )}
+        <p className="mt-3 text-xs text-cluster-muted flex items-start gap-1.5">
+          <span className="mt-0.5 shrink-0">⚠️</span>
+          <span>Config is in-memory only — apply the <code className="bg-cluster-border/50 px-1 rounded">LB_CONFIGS</code> env var (via Save → Copy → kubectl above) to persist across analyzer restarts.</span>
+        </p>
       </div>
 
       {/* Cluster Capabilities */}
