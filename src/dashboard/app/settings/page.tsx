@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from 'react'
 import { apiFetch, getApiUrl } from '@/lib/api'
 import {
   RefreshCw, Loader2, CheckCircle, XCircle,
-  Server, Brain, Save, RotateCcw, Key, Search, Palette, ChevronDown
+  Server, Brain, Save, RotateCcw, Key, Search, Palette, ChevronDown,
+  Network, Plus, Trash2, Copy, ExternalLink
 } from 'lucide-react'
 
 interface LLMConfig {
@@ -32,6 +33,17 @@ interface Capabilities {
   writeActions: boolean
 }
 
+interface LBConfig {
+  name: string
+  type: string
+  bucket: string
+  prefix?: string
+  region: string
+  pollIntervalSeconds?: number
+}
+
+const BLANK_LB: LBConfig = { name: '', type: 'alb', bucket: '', prefix: '', region: '', pollIntervalSeconds: 60 }
+
 type ThemeChoice = 'graphite' | 'calm-signal' | 'aurora' | 'prism' | 'auto' | 'md-dark' | 'md-light'
 
 const THEMES: { id: ThemeChoice; label: string; bg: string; accent: string; dark: boolean }[] = [
@@ -56,6 +68,15 @@ export default function SettingsPage() {
   const [theme, setThemeState] = useState<ThemeChoice>('graphite')
   const [themeDropdownOpen, setThemeDropdownOpen] = useState(false)
   const themeDropdownRef = useRef<HTMLDivElement>(null)
+
+  // LB config
+  const [lbConfigs, setLbConfigs] = useState<LBConfig[]>([])
+  const [activeLBNames, setActiveLBNames] = useState<Set<string>>(new Set())
+  const [lbSaving, setLbSaving] = useState(false)
+  const [lbSaved, setLbSaved] = useState(false)
+  const [showAddLB, setShowAddLB] = useState(false)
+  const [newLB, setNewLB] = useState<LBConfig>(BLANK_LB)
+  const [copied, setCopied] = useState(false)
 
   useEffect(() => {
     const stored = localStorage.getItem('ci_theme') as ThemeChoice | null
@@ -96,11 +117,15 @@ export default function SettingsPage() {
       apiFetch<LLMConfig>('/api/v1/llm/config').catch(() => null),
       apiFetch<{ providers: ProviderInfo[] }>('/api/v1/llm/providers').catch(() => ({ providers: [] })),
       apiFetch<Capabilities>('/api/v1/k8s/capabilities').catch(() => null),
-    ]).then(([cfg, prov, caps]) => {
+      apiFetch<{ configs: LBConfig[] }>('/api/v1/lb/config').catch(() => ({ configs: [] })),
+      apiFetch<{ loadBalancers: { name: string }[] }>('/api/v1/lb/list').catch(() => ({ loadBalancers: [] })),
+    ]).then(([cfg, prov, caps, lbCfg, lbList]) => {
       setLlmConfig(cfg)
       setForm(cfg)
       setProviders(prov.providers)
       setCapabilities(caps)
+      setLbConfigs(lbCfg.configs ?? [])
+      setActiveLBNames(new Set((lbList.loadBalancers ?? []).map(lb => lb.name)))
       setLoading(false)
     })
   }, [])
@@ -199,6 +224,39 @@ export default function SettingsPage() {
   )
 
   const selectedProvider = providers.find(p => p.id === form?.provider)
+
+  const saveLBConfig = async () => {
+    setLbSaving(true)
+    try {
+      const res = await fetch(`${getApiUrl()}/api/v1/lb/config`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ configs: lbConfigs }),
+      })
+      if (res.ok) { setLbSaved(true); setTimeout(() => setLbSaved(false), 2500) }
+    } finally { setLbSaving(false) }
+  }
+
+  const copyLBConfigJSON = () => {
+    const json = JSON.stringify(lbConfigs.map(c => ({
+      name: c.name, type: c.type, bucket: c.bucket,
+      ...(c.prefix ? { prefix: c.prefix } : {}),
+      region: c.region,
+      ...(c.pollIntervalSeconds ? { pollIntervalSeconds: c.pollIntervalSeconds } : {}),
+    })))
+    navigator.clipboard.writeText(json).then(() => {
+      setCopied(true); setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
+  const addLB = () => {
+    if (!newLB.name || !newLB.bucket || !newLB.region) return
+    setLbConfigs(prev => [...prev, { ...newLB }])
+    setNewLB(BLANK_LB)
+    setShowAddLB(false)
+  }
+
+  const removeLB = (idx: number) => setLbConfigs(prev => prev.filter((_, i) => i !== idx))
 
   if (loading) {
     return <div className="flex justify-center items-center min-h-[50vh]"><Loader2 className="w-6 h-6 animate-spin text-blue-400" /></div>
@@ -467,6 +525,159 @@ export default function SettingsPage() {
         <p className="text-xs text-cluster-muted mt-3">
           Saved to browser — no server restart needed.
         </p>
+      </div>
+
+      {/* Load Balancer Sources */}
+      <div id="lb-config" className="bg-cluster-card border border-cluster-border rounded-lg p-6">
+        <h2 className="text-lg font-semibold text-cluster-text flex items-center gap-2 mb-1">
+          <Network className="w-5 h-5 text-blue-400" />
+          Load Balancer Sources
+        </h2>
+        <p className="text-xs text-cluster-muted mb-4">
+          Define which load balancers to ingest logs from. Save your config here, then apply the generated
+          <code className="mx-1 bg-cluster-border/50 px-1 rounded">LB_CONFIGS</code>
+          env var to your <strong className="text-cluster-text">collector-lblogs</strong> pod.
+        </p>
+
+        {/* Configured LB table */}
+        {lbConfigs.length > 0 && (
+          <div className="mb-4 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs text-cluster-muted border-b border-cluster-border">
+                  <th className="pb-2 pr-4 font-medium">Name</th>
+                  <th className="pb-2 pr-4 font-medium">Type</th>
+                  <th className="pb-2 pr-4 font-medium">Bucket</th>
+                  <th className="pb-2 pr-4 font-medium">Region</th>
+                  <th className="pb-2 pr-4 font-medium">Status</th>
+                  <th className="pb-2 font-medium"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {lbConfigs.map((lb, i) => (
+                  <tr key={i} className="border-b border-cluster-border/40 last:border-0">
+                    <td className="py-2 pr-4 text-cluster-text font-mono text-xs">{lb.name}</td>
+                    <td className="py-2 pr-4">
+                      <span className="px-1.5 py-0.5 text-xs rounded bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 uppercase font-mono">{lb.type}</span>
+                    </td>
+                    <td className="py-2 pr-4 text-cluster-muted text-xs font-mono truncate max-w-[200px]">{lb.bucket}{lb.prefix ? `/${lb.prefix}` : ''}</td>
+                    <td className="py-2 pr-4 text-cluster-muted text-xs">{lb.region}</td>
+                    <td className="py-2 pr-4">
+                      {activeLBNames.has(lb.name)
+                        ? <span className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400"><CheckCircle className="w-3.5 h-3.5" />Active</span>
+                        : <span className="text-xs text-cluster-muted">Pending</span>}
+                    </td>
+                    <td className="py-2">
+                      <button onClick={() => removeLB(i)} className="text-cluster-muted hover:text-red-500 transition-colors" aria-label="Remove">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Add LB form */}
+        {showAddLB && (
+          <div className="mb-4 p-3 bg-cluster-bg/60 border border-cluster-border rounded-lg">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-2">
+              <input
+                placeholder="Name (e.g. prod-alb)"
+                value={newLB.name}
+                onChange={e => setNewLB(p => ({ ...p, name: e.target.value }))}
+                className="col-span-2 sm:col-span-1 px-2 py-1.5 text-xs bg-cluster-card border border-cluster-border rounded text-cluster-text placeholder:text-cluster-muted"
+              />
+              <select
+                value={newLB.type}
+                onChange={e => setNewLB(p => ({ ...p, type: e.target.value }))}
+                className="px-2 py-1.5 text-xs bg-cluster-card border border-cluster-border rounded text-cluster-text"
+              >
+                <option value="alb">ALB</option>
+                <option value="nlb">NLB</option>
+                <option value="elb">ELB</option>
+              </select>
+              <input
+                placeholder="S3 Bucket"
+                value={newLB.bucket}
+                onChange={e => setNewLB(p => ({ ...p, bucket: e.target.value }))}
+                className="px-2 py-1.5 text-xs bg-cluster-card border border-cluster-border rounded text-cluster-text placeholder:text-cluster-muted"
+              />
+              <input
+                placeholder="Prefix (optional)"
+                value={newLB.prefix ?? ''}
+                onChange={e => setNewLB(p => ({ ...p, prefix: e.target.value }))}
+                className="px-2 py-1.5 text-xs bg-cluster-card border border-cluster-border rounded text-cluster-text placeholder:text-cluster-muted"
+              />
+              <input
+                placeholder="Region (e.g. us-east-1)"
+                value={newLB.region}
+                onChange={e => setNewLB(p => ({ ...p, region: e.target.value }))}
+                className="px-2 py-1.5 text-xs bg-cluster-card border border-cluster-border rounded text-cluster-text placeholder:text-cluster-muted"
+              />
+              <input
+                type="number"
+                placeholder="Poll (secs)"
+                value={newLB.pollIntervalSeconds ?? 60}
+                onChange={e => setNewLB(p => ({ ...p, pollIntervalSeconds: parseInt(e.target.value) || 60 }))}
+                className="px-2 py-1.5 text-xs bg-cluster-card border border-cluster-border rounded text-cluster-text"
+              />
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={addLB}
+                disabled={!newLB.name || !newLB.bucket || !newLB.region}
+                className="px-3 py-1.5 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                Add
+              </button>
+              <button onClick={() => { setShowAddLB(false); setNewLB(BLANK_LB) }} className="px-3 py-1.5 text-xs text-cluster-muted hover:text-cluster-text transition-colors">
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Action bar */}
+        <div className="flex flex-wrap items-center gap-2">
+          {!showAddLB && (
+            <button
+              onClick={() => setShowAddLB(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-cluster-border rounded text-cluster-text hover:bg-cluster-border/40 transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5" /> Add load balancer
+            </button>
+          )}
+          {lbConfigs.length > 0 && (
+            <>
+              <button
+                onClick={saveLBConfig}
+                disabled={lbSaving}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded disabled:opacity-60 transition-colors"
+              >
+                {lbSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : lbSaved ? <CheckCircle className="w-3.5 h-3.5" /> : <Save className="w-3.5 h-3.5" />}
+                {lbSaved ? 'Saved' : 'Save'}
+              </button>
+              <button
+                onClick={copyLBConfigJSON}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-cluster-border rounded text-cluster-text hover:bg-cluster-border/40 transition-colors"
+              >
+                {copied ? <CheckCircle className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
+                {copied ? 'Copied!' : 'Copy LB_CONFIGS JSON'}
+              </button>
+            </>
+          )}
+        </div>
+
+        {lbConfigs.length > 0 && (
+          <p className="mt-3 text-xs text-cluster-muted">
+            Apply with:{' '}
+            <code className="bg-cluster-border/50 px-1.5 py-0.5 rounded text-[11px] font-mono">
+              kubectl set env deployment/collector-lblogs LB_CONFIGS=&apos;&lt;pasted JSON&gt;&apos;
+            </code>
+          </p>
+        )}
       </div>
 
       {/* Cluster Capabilities */}

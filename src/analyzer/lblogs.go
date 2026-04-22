@@ -14,10 +14,22 @@ import (
 // LBLogAggregator collects LB request stats from NATS and serves API queries.
 // In-memory for now; ClickHouse-backed in a later phase.
 type LBLogAggregator struct {
-	mu       sync.RWMutex
-	requests map[string][]lbReqSummary // lbName -> recent requests
-	configs  []lbInfo
-	maxPerLB int
+	mu             sync.RWMutex
+	requests       map[string][]lbReqSummary // lbName -> recent requests
+	configs        []lbInfo                  // observed via NATS ingestion
+	desiredConfigs []lbDesiredConfig         // user-configured (from settings UI)
+	maxPerLB       int
+}
+
+// lbDesiredConfig is a user-supplied load-balancer source definition.
+// It maps to the LB_CONFIGS env-var format consumed by the collector-lblogs service.
+type lbDesiredConfig struct {
+	Name                string `json:"name"`
+	Type                string `json:"type"`   // alb | nlb | elb
+	Bucket              string `json:"bucket"` // S3 bucket name
+	Prefix              string `json:"prefix,omitempty"`
+	Region              string `json:"region"`
+	PollIntervalSeconds int    `json:"pollIntervalSeconds,omitempty"`
 }
 
 type lbReqSummary struct {
@@ -107,6 +119,8 @@ func (a *LBLogAggregator) ingestLocked(lbName, urlPattern, httpMethod, targetGro
 // RegisterRoutes adds LB log API endpoints.
 func (a *LBLogAggregator) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/lb/list", a.handleList)
+	mux.HandleFunc("GET /api/v1/lb/config", a.handleGetConfig)
+	mux.HandleFunc("PUT /api/v1/lb/config", a.handleSetConfig)
 	mux.HandleFunc("GET /api/v1/lb/{name}/stats", a.handleStats)
 	mux.HandleFunc("GET /api/v1/lb/{name}/top-urls", a.handleTopURLs)
 	mux.HandleFunc("GET /api/v1/lb/{name}/timeline", a.handleTimeline)
@@ -115,6 +129,32 @@ func (a *LBLogAggregator) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/lb/{name}/clients", a.handleClients)
 	mux.HandleFunc("GET /api/v1/lb/{name}/search", a.handleSearch)
 	mux.HandleFunc("POST /api/v1/lb/ingest", a.handleIngest)
+}
+
+func (a *LBLogAggregator) handleGetConfig(w http.ResponseWriter, r *http.Request) {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	cfgs := a.desiredConfigs
+	if cfgs == nil {
+		cfgs = []lbDesiredConfig{}
+	}
+	writeJSON(w, map[string]any{"configs": cfgs})
+}
+
+func (a *LBLogAggregator) handleSetConfig(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Configs []lbDesiredConfig `json:"configs"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "invalid body", http.StatusBadRequest)
+		return
+	}
+	a.mu.Lock()
+	a.desiredConfigs = body.Configs
+	a.mu.Unlock()
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	writeJSON(w, map[string]any{"configs": a.desiredConfigs})
 }
 
 func (a *LBLogAggregator) handleList(w http.ResponseWriter, r *http.Request) {

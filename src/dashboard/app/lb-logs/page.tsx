@@ -406,10 +406,18 @@ export default function LBLogsPage() {
         <div className="text-center py-20">
           <Network className="w-12 h-12 text-slate-600 mx-auto mb-4" />
           <p className="text-slate-400 text-lg mb-2">No load balancers configured</p>
-          <p className="text-slate-500 text-sm">
-            Set <code className="bg-slate-800 px-1.5 py-0.5 rounded text-xs">LB_CONFIGS</code> on
-            the collector-lblogs service to start ingesting logs.
+          <p className="text-slate-500 text-sm mb-4">
+            Define your load balancer sources in Settings, then apply the generated{' '}
+            <code className="bg-slate-800 px-1.5 py-0.5 rounded text-xs">LB_CONFIGS</code>{' '}
+            env var to the collector-lblogs service.
           </p>
+          <a
+            href="/settings#lb-config"
+            className="inline-flex items-center gap-1.5 px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+            Configure in Settings
+          </a>
         </div>
       )}
 
