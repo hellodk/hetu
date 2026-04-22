@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { apiFetch } from '@/lib/api'
 import {
@@ -106,16 +107,16 @@ const timeSince = (iso: string) => {
 }
 
 const latencyColor = (ms: number) => {
-  if (ms > 1000) return 'text-red-400 font-semibold'
-  if (ms > 500) return 'text-yellow-400 font-medium'
-  return 'text-slate-300'
+  if (ms > 1000) return 'text-red-600 dark:text-red-400 font-semibold'
+  if (ms > 500) return 'text-yellow-600 dark:text-yellow-400 font-medium'
+  return 'text-cluster-text'
 }
 
 const statusColor = (code: number) => {
-  if (code >= 500) return 'text-red-400'
-  if (code >= 400) return 'text-yellow-400'
-  if (code >= 200 && code < 300) return 'text-green-400'
-  return 'text-slate-300'
+  if (code >= 500) return 'text-red-600 dark:text-red-400'
+  if (code >= 400) return 'text-yellow-600 dark:text-yellow-400'
+  if (code >= 200 && code < 300) return 'text-green-600 dark:text-green-400'
+  return 'text-cluster-text'
 }
 
 const methodBadge = (method: string) => {
@@ -351,14 +352,14 @@ export default function LBLogsPage() {
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <Zap className="w-6 h-6 text-blue-400" />
-          <h1 className="text-2xl font-bold text-white">Load Balancer Analytics</h1>
+          <h1 className="text-2xl font-bold text-cluster-text">Load Balancer Analytics</h1>
         </div>
         <div className="flex items-center gap-3">
           {lbs.length > 0 && (
             <select
               value={selectedLB}
               onChange={e => setSelectedLB(e.target.value)}
-              className="bg-cluster-card border border-cluster-border rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="bg-cluster-card border border-cluster-border rounded-lg px-3 py-1.5 text-sm text-cluster-text focus:outline-none focus:ring-1 focus:ring-blue-500"
             >
               {lbs.map(lb => (
                 <option key={lb.name} value={lb.name}>
@@ -367,7 +368,7 @@ export default function LBLogsPage() {
               ))}
             </select>
           )}
-          <label className="flex items-center gap-2 text-sm text-slate-400 cursor-pointer select-none">
+          <label className="flex items-center gap-2 text-sm text-cluster-muted cursor-pointer select-none">
             <input
               type="checkbox"
               checked={autoRefresh}
@@ -404,12 +405,20 @@ export default function LBLogsPage() {
       {/* ================= EMPTY STATE ================= */}
       {lbs.length === 0 && !loading && (
         <div className="text-center py-20">
-          <Network className="w-12 h-12 text-slate-600 mx-auto mb-4" />
-          <p className="text-slate-400 text-lg mb-2">No load balancers configured</p>
-          <p className="text-slate-500 text-sm">
-            Set <code className="bg-slate-800 px-1.5 py-0.5 rounded text-xs">LB_CONFIGS</code> on
-            the collector-lblogs service to start ingesting logs.
+          <Network className="w-12 h-12 text-cluster-muted mx-auto mb-4" />
+          <p className="text-cluster-muted text-lg mb-2">No load balancers configured</p>
+          <p className="text-cluster-muted text-sm mb-4">
+            Define your load balancer sources in Settings, then apply the generated{' '}
+            <code className="bg-cluster-border/50 px-1.5 py-0.5 rounded text-xs text-cluster-text">LB_CONFIGS</code>{' '}
+            env var to the collector-lblogs service.
           </p>
+          <Link
+            href="/settings#lb-config"
+            className="inline-flex items-center gap-1.5 px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+            Configure in Settings
+          </Link>
         </div>
       )}
 
@@ -445,12 +454,12 @@ export default function LBLogsPage() {
 
           {/* ================= TRAFFIC TIMELINE ================= */}
           <div className="bg-cluster-card border border-cluster-border rounded-lg p-5 mb-6">
-            <h2 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
+            <h2 className="text-sm font-semibold text-cluster-text mb-4 flex items-center gap-2">
               <Activity className="w-4 h-4 text-blue-400" />
               Traffic Timeline (last 60 min)
             </h2>
             {timeline.length === 0 ? (
-              <div className="text-center py-12 text-slate-500 text-sm">No timeline data available</div>
+              <div className="text-center py-12 text-cluster-muted text-sm">No timeline data available</div>
             ) : (
               <ResponsiveContainer width="100%" height={260}>
                 <AreaChart data={timeline}>
@@ -511,12 +520,12 @@ export default function LBLogsPage() {
 
           {/* ================= LATENCY TIMELINE ================= */}
           <div className="bg-cluster-card border border-cluster-border rounded-lg p-5 mb-6">
-            <h2 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
+            <h2 className="text-sm font-semibold text-cluster-text mb-4 flex items-center gap-2">
               <Clock className="w-4 h-4 text-yellow-400" />
               Latency Over Time (last 60 min)
             </h2>
             {timeline.length === 0 ? (
-              <div className="text-center py-12 text-slate-500 text-sm">No latency data available</div>
+              <div className="text-center py-12 text-cluster-muted text-sm">No latency data available</div>
             ) : (
               <ResponsiveContainer width="100%" height={220}>
                 <LineChart data={timeline}>
@@ -616,12 +625,12 @@ export default function LBLogsPage() {
                       {row.httpMethod}
                     </span>
                   </td>
-                  <td className="px-4 py-2.5 font-mono text-xs text-slate-300 max-w-md truncate">{row.urlPattern}</td>
-                  <td className="px-4 py-2.5 text-right text-slate-300">{row.totalCount.toLocaleString()}</td>
-                  <td className={`px-4 py-2.5 text-right ${row.count5xx > 0 ? 'text-red-400 font-medium' : 'text-slate-500'}`}>
+                  <td className="px-4 py-2.5 font-mono text-xs text-cluster-text max-w-md truncate">{row.urlPattern}</td>
+                  <td className="px-4 py-2.5 text-right text-cluster-text">{row.totalCount.toLocaleString()}</td>
+                  <td className={`px-4 py-2.5 text-right ${row.count5xx > 0 ? 'text-red-600 dark:text-red-400 font-medium' : 'text-cluster-muted'}`}>
                     {row.count5xx.toLocaleString()}
                   </td>
-                  <td className={`px-4 py-2.5 text-right ${row.count4xx > 0 ? 'text-yellow-400' : 'text-slate-500'}`}>
+                  <td className={`px-4 py-2.5 text-right ${row.count4xx > 0 ? 'text-yellow-600 dark:text-yellow-400' : 'text-cluster-muted'}`}>
                     {row.count4xx.toLocaleString()}
                   </td>
                   <td className={`px-4 py-2.5 text-right ${latencyColor(row.p95Ms)}`}>{fmtMs(row.p95Ms)}</td>
@@ -640,12 +649,12 @@ export default function LBLogsPage() {
                   <table className="w-full text-sm">
                     <thead className="bg-cluster-card">
                       <tr>
-                        <th className="text-left px-4 py-2.5 text-slate-400 font-medium">Method</th>
-                        <th className="text-left px-4 py-2.5 text-slate-400 font-medium">URL Pattern</th>
-                        <th className="text-right px-4 py-2.5 text-slate-400 font-medium">Total</th>
-                        <th className="text-right px-4 py-2.5 text-slate-400 font-medium">5xx</th>
-                        <th className="text-right px-4 py-2.5 text-slate-400 font-medium">4xx</th>
-                        <th className="text-right px-4 py-2.5 text-slate-400 font-medium">Error Rate</th>
+                        <th className="text-left px-4 py-2.5 text-cluster-muted font-medium">Method</th>
+                        <th className="text-left px-4 py-2.5 text-cluster-muted font-medium">URL Pattern</th>
+                        <th className="text-right px-4 py-2.5 text-cluster-muted font-medium">Total</th>
+                        <th className="text-right px-4 py-2.5 text-cluster-muted font-medium">5xx</th>
+                        <th className="text-right px-4 py-2.5 text-cluster-muted font-medium">4xx</th>
+                        <th className="text-right px-4 py-2.5 text-cluster-muted font-medium">Error Rate</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-cluster-border">
@@ -656,19 +665,19 @@ export default function LBLogsPage() {
                               {row.httpMethod}
                             </span>
                           </td>
-                          <td className="px-4 py-2.5 font-mono text-xs text-slate-300 max-w-md truncate">{row.urlPattern}</td>
-                          <td className="px-4 py-2.5 text-right text-slate-300">{row.total.toLocaleString()}</td>
-                          <td className={`px-4 py-2.5 text-right ${row.count5xx > 0 ? 'text-red-400 font-semibold' : 'text-slate-500'}`}>
+                          <td className="px-4 py-2.5 font-mono text-xs text-cluster-text max-w-md truncate">{row.urlPattern}</td>
+                          <td className="px-4 py-2.5 text-right text-cluster-text">{row.total.toLocaleString()}</td>
+                          <td className={`px-4 py-2.5 text-right ${row.count5xx > 0 ? 'text-red-600 dark:text-red-400 font-semibold' : 'text-cluster-muted'}`}>
                             {row.count5xx.toLocaleString()}
                           </td>
-                          <td className={`px-4 py-2.5 text-right ${row.count4xx > 0 ? 'text-yellow-400' : 'text-slate-500'}`}>
+                          <td className={`px-4 py-2.5 text-right ${row.count4xx > 0 ? 'text-yellow-600 dark:text-yellow-400' : 'text-cluster-muted'}`}>
                             {row.count4xx.toLocaleString()}
                           </td>
                           <td className="px-4 py-2.5 text-right">
                             <span className={`px-2 py-0.5 rounded text-xs font-medium ${
                               row.errorRate > 50 ? 'bg-red-900/30 text-red-300'
                                 : row.errorRate > 10 ? 'bg-yellow-900/30 text-yellow-300'
-                                : 'bg-slate-700 text-slate-300'
+                                : 'bg-cluster-border text-cluster-text'
                             }`}>
                               {row.errorRate.toFixed(1)}%
                             </span>
@@ -692,33 +701,33 @@ export default function LBLogsPage() {
                   <table className="w-full text-sm">
                     <thead className="bg-cluster-card">
                       <tr>
-                        <th className="text-left px-4 py-2.5 text-slate-400 font-medium">Timestamp</th>
-                        <th className="text-left px-4 py-2.5 text-slate-400 font-medium">Method</th>
-                        <th className="text-left px-4 py-2.5 text-slate-400 font-medium">URL Pattern</th>
-                        <th className="text-right px-4 py-2.5 text-slate-400 font-medium">ELB Status</th>
-                        <th className="text-right px-4 py-2.5 text-slate-400 font-medium">Target Status</th>
-                        <th className="text-right px-4 py-2.5 text-slate-400 font-medium">Latency</th>
-                        <th className="text-left px-4 py-2.5 text-slate-400 font-medium">Target Group</th>
-                        <th className="text-left px-4 py-2.5 text-slate-400 font-medium">Client IP</th>
+                        <th className="text-left px-4 py-2.5 text-cluster-muted font-medium">Timestamp</th>
+                        <th className="text-left px-4 py-2.5 text-cluster-muted font-medium">Method</th>
+                        <th className="text-left px-4 py-2.5 text-cluster-muted font-medium">URL Pattern</th>
+                        <th className="text-right px-4 py-2.5 text-cluster-muted font-medium">ELB Status</th>
+                        <th className="text-right px-4 py-2.5 text-cluster-muted font-medium">Target Status</th>
+                        <th className="text-right px-4 py-2.5 text-cluster-muted font-medium">Latency</th>
+                        <th className="text-left px-4 py-2.5 text-cluster-muted font-medium">Target Group</th>
+                        <th className="text-left px-4 py-2.5 text-cluster-muted font-medium">Client IP</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-cluster-border">
                       {slowReqs.map((req, i) => (
                         <tr key={i} className="hover:bg-white/5 transition-colors">
-                          <td className="px-4 py-2.5 text-slate-400 text-xs whitespace-nowrap">{fmtTimestamp(req.ts)}</td>
+                          <td className="px-4 py-2.5 text-cluster-muted text-xs whitespace-nowrap">{fmtTimestamp(req.ts)}</td>
                           <td className="px-4 py-2.5">
                             <span className={`px-2 py-0.5 text-xs rounded font-mono ${methodBadge(req.httpMethod)}`}>
                               {req.httpMethod}
                             </span>
                           </td>
-                          <td className="px-4 py-2.5 font-mono text-xs text-slate-300 max-w-xs truncate">{req.urlPattern}</td>
+                          <td className="px-4 py-2.5 font-mono text-xs text-cluster-text max-w-xs truncate">{req.urlPattern}</td>
                           <td className={`px-4 py-2.5 text-right font-mono ${statusColor(req.elbStatus)}`}>{req.elbStatus}</td>
                           <td className={`px-4 py-2.5 text-right font-mono ${statusColor(req.targetStatus)}`}>{req.targetStatus}</td>
                           <td className={`px-4 py-2.5 text-right font-mono ${latencyColor(req.targetMs)}`}>
                             {fmtMs(req.targetMs)}
                           </td>
-                          <td className="px-4 py-2.5 text-xs text-slate-400 max-w-xs truncate">{req.targetGroup || '-'}</td>
-                          <td className="px-4 py-2.5 font-mono text-xs text-slate-400">{req.clientIp}</td>
+                          <td className="px-4 py-2.5 text-xs text-cluster-muted max-w-xs truncate">{req.targetGroup || '-'}</td>
+                          <td className="px-4 py-2.5 font-mono text-xs text-cluster-muted">{req.clientIp}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -738,21 +747,21 @@ export default function LBLogsPage() {
                   <table className="w-full text-sm">
                     <thead className="bg-cluster-card">
                       <tr>
-                        <th className="text-left px-4 py-2.5 text-slate-400 font-medium">Client IP</th>
-                        <th className="text-right px-4 py-2.5 text-slate-400 font-medium">Request Count</th>
-                        <th className="text-right px-4 py-2.5 text-slate-400 font-medium">5xx Count</th>
-                        <th className="text-left px-4 py-2.5 text-slate-400 font-medium">Last Seen</th>
+                        <th className="text-left px-4 py-2.5 text-cluster-muted font-medium">Client IP</th>
+                        <th className="text-right px-4 py-2.5 text-cluster-muted font-medium">Request Count</th>
+                        <th className="text-right px-4 py-2.5 text-cluster-muted font-medium">5xx Count</th>
+                        <th className="text-left px-4 py-2.5 text-cluster-muted font-medium">Last Seen</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-cluster-border">
                       {clients.map((c, i) => (
                         <tr key={i} className="hover:bg-white/5 transition-colors">
-                          <td className="px-4 py-2.5 font-mono text-sm text-slate-300">{c.ip}</td>
-                          <td className="px-4 py-2.5 text-right text-slate-300">{c.count.toLocaleString()}</td>
-                          <td className={`px-4 py-2.5 text-right ${c.count5xx > 0 ? 'text-red-400 font-semibold' : 'text-slate-500'}`}>
+                          <td className="px-4 py-2.5 font-mono text-sm text-cluster-text">{c.ip}</td>
+                          <td className="px-4 py-2.5 text-right text-cluster-text">{c.count.toLocaleString()}</td>
+                          <td className={`px-4 py-2.5 text-right ${c.count5xx > 0 ? 'text-red-600 dark:text-red-400 font-semibold' : 'text-cluster-muted'}`}>
                             {c.count5xx.toLocaleString()}
                           </td>
-                          <td className="px-4 py-2.5 text-slate-400 text-sm">{timeSince(c.lastSeen)}</td>
+                          <td className="px-4 py-2.5 text-cluster-muted text-sm">{timeSince(c.lastSeen)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -768,11 +777,11 @@ export default function LBLogsPage() {
               {/* Filter bar */}
               <div className="flex flex-wrap items-end gap-3 mb-4 p-4 bg-cluster-card border border-cluster-border rounded-lg">
                 <div className="flex flex-col gap-1">
-                  <label className="text-xs text-slate-400">Status</label>
+                  <label className="text-xs text-cluster-muted">Status</label>
                   <select
                     value={searchStatus}
                     onChange={e => setSearchStatus(e.target.value)}
-                    className="bg-slate-800 border border-slate-600 rounded px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="bg-cluster-bg border border-cluster-border rounded px-3 py-1.5 text-sm text-cluster-text focus:outline-none focus:ring-1 focus:ring-blue-500"
                   >
                     <option value="all">All</option>
                     <option value="2xx">2xx</option>
@@ -781,24 +790,24 @@ export default function LBLogsPage() {
                   </select>
                 </div>
                 <div className="flex flex-col gap-1 flex-1 min-w-[200px]">
-                  <label className="text-xs text-slate-400">URL Pattern</label>
+                  <label className="text-xs text-cluster-muted">URL Pattern</label>
                   <input
                     type="text"
                     value={searchUrl}
                     onChange={e => setSearchUrl(e.target.value)}
                     placeholder="e.g. /api/users"
-                    className="bg-slate-800 border border-slate-600 rounded px-3 py-1.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="bg-cluster-bg border border-cluster-border rounded px-3 py-1.5 text-sm text-cluster-text placeholder:text-cluster-muted focus:outline-none focus:ring-1 focus:ring-blue-500"
                     onKeyDown={e => e.key === 'Enter' && runSearch()}
                   />
                 </div>
                 <div className="flex flex-col gap-1">
-                  <label className="text-xs text-slate-400">Min Latency (ms)</label>
+                  <label className="text-xs text-cluster-muted">Min Latency (ms)</label>
                   <input
                     type="number"
                     value={searchMinLatency}
                     onChange={e => setSearchMinLatency(e.target.value)}
                     placeholder="e.g. 500"
-                    className="bg-slate-800 border border-slate-600 rounded px-3 py-1.5 text-sm text-white placeholder:text-slate-500 w-32 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="bg-cluster-bg border border-cluster-border rounded px-3 py-1.5 text-sm text-cluster-text placeholder:text-cluster-muted w-32 focus:outline-none focus:ring-1 focus:ring-blue-500"
                     onKeyDown={e => e.key === 'Enter' && runSearch()}
                   />
                 </div>
@@ -814,7 +823,7 @@ export default function LBLogsPage() {
 
               {/* Results */}
               {searchResults.length > 0 && (
-                <div className="mb-2 text-sm text-slate-400">
+                <div className="mb-2 text-sm text-cluster-muted">
                   Showing {searchResults.length} of {searchTotal.toLocaleString()} results
                 </div>
               )}
@@ -829,31 +838,31 @@ export default function LBLogsPage() {
                   <table className="w-full text-sm">
                     <thead className="bg-cluster-card">
                       <tr>
-                        <th className="text-left px-4 py-2.5 text-slate-400 font-medium">Timestamp</th>
-                        <th className="text-left px-4 py-2.5 text-slate-400 font-medium">Method</th>
-                        <th className="text-left px-4 py-2.5 text-slate-400 font-medium">URL Pattern</th>
-                        <th className="text-right px-4 py-2.5 text-slate-400 font-medium">ELB</th>
-                        <th className="text-right px-4 py-2.5 text-slate-400 font-medium">Target</th>
-                        <th className="text-right px-4 py-2.5 text-slate-400 font-medium">Latency</th>
-                        <th className="text-left px-4 py-2.5 text-slate-400 font-medium">Target Group</th>
-                        <th className="text-left px-4 py-2.5 text-slate-400 font-medium">Client IP</th>
+                        <th className="text-left px-4 py-2.5 text-cluster-muted font-medium">Timestamp</th>
+                        <th className="text-left px-4 py-2.5 text-cluster-muted font-medium">Method</th>
+                        <th className="text-left px-4 py-2.5 text-cluster-muted font-medium">URL Pattern</th>
+                        <th className="text-right px-4 py-2.5 text-cluster-muted font-medium">ELB</th>
+                        <th className="text-right px-4 py-2.5 text-cluster-muted font-medium">Target</th>
+                        <th className="text-right px-4 py-2.5 text-cluster-muted font-medium">Latency</th>
+                        <th className="text-left px-4 py-2.5 text-cluster-muted font-medium">Target Group</th>
+                        <th className="text-left px-4 py-2.5 text-cluster-muted font-medium">Client IP</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-cluster-border">
                       {searchResults.map((req, i) => (
                         <tr key={i} className="hover:bg-white/5 transition-colors">
-                          <td className="px-4 py-2.5 text-slate-400 text-xs whitespace-nowrap">{fmtTimestamp(req.ts)}</td>
+                          <td className="px-4 py-2.5 text-cluster-muted text-xs whitespace-nowrap">{fmtTimestamp(req.ts)}</td>
                           <td className="px-4 py-2.5">
                             <span className={`px-2 py-0.5 text-xs rounded font-mono ${methodBadge(req.httpMethod)}`}>
                               {req.httpMethod}
                             </span>
                           </td>
-                          <td className="px-4 py-2.5 font-mono text-xs text-slate-300 max-w-xs truncate">{req.urlPattern}</td>
+                          <td className="px-4 py-2.5 font-mono text-xs text-cluster-text max-w-xs truncate">{req.urlPattern}</td>
                           <td className={`px-4 py-2.5 text-right font-mono ${statusColor(req.elbStatus)}`}>{req.elbStatus}</td>
                           <td className={`px-4 py-2.5 text-right font-mono ${statusColor(req.targetStatus)}`}>{req.targetStatus}</td>
                           <td className={`px-4 py-2.5 text-right font-mono ${latencyColor(req.targetMs)}`}>{fmtMs(req.targetMs)}</td>
-                          <td className="px-4 py-2.5 text-xs text-slate-400 max-w-xs truncate">{req.targetGroup || '-'}</td>
-                          <td className="px-4 py-2.5 font-mono text-xs text-slate-400">{req.clientIp}</td>
+                          <td className="px-4 py-2.5 text-xs text-cluster-muted max-w-xs truncate">{req.targetGroup || '-'}</td>
+                          <td className="px-4 py-2.5 font-mono text-xs text-cluster-muted">{req.clientIp}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -875,14 +884,14 @@ export default function LBLogsPage() {
               <table className="w-full text-sm">
                 <thead className="bg-cluster-card">
                   <tr>
-                    <th className="text-left px-4 py-2.5 text-slate-400 font-medium w-8"></th>
-                    <th className="text-left px-4 py-2.5 text-slate-400 font-medium">Namespace</th>
-                    <th className="text-left px-4 py-2.5 text-slate-400 font-medium">Name</th>
-                    <th className="text-left px-4 py-2.5 text-slate-400 font-medium">Class</th>
-                    <th className="text-left px-4 py-2.5 text-slate-400 font-medium">Hosts</th>
-                    <th className="text-center px-4 py-2.5 text-slate-400 font-medium">TLS</th>
-                    <th className="text-left px-4 py-2.5 text-slate-400 font-medium">Load Balancer</th>
-                    <th className="text-left px-4 py-2.5 text-slate-400 font-medium">Created</th>
+                    <th className="text-left px-4 py-2.5 text-cluster-muted font-medium w-8"></th>
+                    <th className="text-left px-4 py-2.5 text-cluster-muted font-medium">Namespace</th>
+                    <th className="text-left px-4 py-2.5 text-cluster-muted font-medium">Name</th>
+                    <th className="text-left px-4 py-2.5 text-cluster-muted font-medium">Class</th>
+                    <th className="text-left px-4 py-2.5 text-cluster-muted font-medium">Hosts</th>
+                    <th className="text-center px-4 py-2.5 text-cluster-muted font-medium">TLS</th>
+                    <th className="text-left px-4 py-2.5 text-cluster-muted font-medium">Load Balancer</th>
+                    <th className="text-left px-4 py-2.5 text-cluster-muted font-medium">Created</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-cluster-border">
@@ -922,19 +931,19 @@ function OverviewCard({
     <div className={`p-4 rounded-lg border ${
       alert ? 'bg-red-900/10 border-red-700/50' : 'bg-cluster-card border-cluster-border'
     }`}>
-      <div className="flex items-center gap-1.5 text-xs text-slate-400 mb-1">{icon}{label}</div>
-      <div className={`text-lg font-bold text-white truncate ${mono ? 'font-mono text-sm' : ''}`}>
+      <div className="flex items-center gap-1.5 text-xs text-cluster-muted mb-1">{icon}{label}</div>
+      <div className={`text-lg font-bold text-cluster-text truncate ${mono ? 'font-mono text-sm' : ''}`}>
         {value}
       </div>
-      {sub && <div className="text-xs text-slate-500 mt-1">{sub}</div>}
+      {sub && <div className="text-xs text-cluster-muted mt-1">{sub}</div>}
     </div>
   )
 }
 
 function EmptyState({ message }: { message: string }) {
   return (
-    <div className="text-center py-16 text-slate-500">
-      <Filter className="w-8 h-8 mx-auto mb-3 text-slate-600" />
+    <div className="text-center py-16 text-cluster-muted">
+      <Filter className="w-8 h-8 mx-auto mb-3 text-cluster-muted" />
       <p>{message}</p>
     </div>
   )
@@ -961,7 +970,7 @@ function SortableTable<T extends Record<string, any>>({
             {columns.map(col => (
               <th
                 key={col.key}
-                className={`${col.align === 'right' ? 'text-right' : 'text-left'} px-4 py-2.5 text-slate-400 font-medium ${
+                className={`${col.align === 'right' ? 'text-right' : 'text-left'} px-4 py-2.5 text-cluster-muted font-medium ${
                   col.sortable ? 'cursor-pointer hover:text-cluster-text select-none' : ''
                 }`}
                 onClick={() => col.sortable && onSort(col.key)}
@@ -1000,7 +1009,7 @@ function IngressRowGroup({
         className="hover:bg-white/5 transition-colors cursor-pointer"
         onClick={onToggle}
       >
-        <td className="px-4 py-2.5 text-slate-400">
+        <td className="px-4 py-2.5 text-cluster-muted">
           {isExpanded
             ? <ChevronDown className="w-4 h-4" />
             : <ExternalLink className="w-4 h-4" />
@@ -1011,12 +1020,12 @@ function IngressRowGroup({
             {ingress.namespace}
           </span>
         </td>
-        <td className="px-4 py-2.5 text-white font-medium">{ingress.name}</td>
-        <td className="px-4 py-2.5 text-slate-400 text-xs">{ingress.ingressClass || '-'}</td>
+        <td className="px-4 py-2.5 text-cluster-text font-medium">{ingress.name}</td>
+        <td className="px-4 py-2.5 text-cluster-muted text-xs">{ingress.ingressClass || '-'}</td>
         <td className="px-4 py-2.5">
           <div className="flex flex-wrap gap-1">
             {(ingress.hosts || []).map((h, j) => (
-              <span key={j} className="px-2 py-0.5 text-xs rounded bg-slate-700 text-slate-300">
+              <span key={j} className="px-2 py-0.5 text-xs rounded bg-cluster-border text-cluster-text">
                 {h}
               </span>
             ))}
@@ -1024,35 +1033,35 @@ function IngressRowGroup({
         </td>
         <td className="px-4 py-2.5 text-center">
           {ingress.tls
-            ? <Lock className="w-4 h-4 text-green-400 inline-block" />
-            : <Unlock className="w-4 h-4 text-slate-500 inline-block" />
+            ? <Lock className="w-4 h-4 text-green-600 dark:text-green-400 inline-block" />
+            : <Unlock className="w-4 h-4 text-cluster-muted inline-block" />
           }
         </td>
-        <td className="px-4 py-2.5 font-mono text-xs text-slate-400 max-w-xs truncate">{ingress.loadBalancer || '-'}</td>
-        <td className="px-4 py-2.5 text-slate-400 text-xs whitespace-nowrap">{timeSince(ingress.createdAt)}</td>
+        <td className="px-4 py-2.5 font-mono text-xs text-cluster-muted max-w-xs truncate">{ingress.loadBalancer || '-'}</td>
+        <td className="px-4 py-2.5 text-cluster-muted text-xs whitespace-nowrap">{timeSince(ingress.createdAt)}</td>
       </tr>
       {isExpanded && ingress.rules && ingress.rules.length > 0 && (
         <tr>
           <td colSpan={8} className="px-4 py-0">
             <div className="ml-8 my-2 rounded-lg border border-cluster-border overflow-hidden">
               <table className="w-full text-xs">
-                <thead className="bg-slate-800/50">
+                <thead className="bg-cluster-bg">
                   <tr>
-                    <th className="text-left px-3 py-2 text-slate-400 font-medium">Host</th>
-                    <th className="text-left px-3 py-2 text-slate-400 font-medium">Path</th>
-                    <th className="text-left px-3 py-2 text-slate-400 font-medium">Path Type</th>
-                    <th className="text-left px-3 py-2 text-slate-400 font-medium">Service</th>
-                    <th className="text-left px-3 py-2 text-slate-400 font-medium">Port</th>
+                    <th className="text-left px-3 py-2 text-cluster-muted font-medium">Host</th>
+                    <th className="text-left px-3 py-2 text-cluster-muted font-medium">Path</th>
+                    <th className="text-left px-3 py-2 text-cluster-muted font-medium">Path Type</th>
+                    <th className="text-left px-3 py-2 text-cluster-muted font-medium">Service</th>
+                    <th className="text-left px-3 py-2 text-cluster-muted font-medium">Port</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-cluster-border">
                   {ingress.rules.map((rule, k) => (
                     <tr key={k} className="hover:bg-white/5">
-                      <td className="px-3 py-2 text-slate-300">{rule.host || '*'}</td>
-                      <td className="px-3 py-2 font-mono text-slate-300">{rule.path || '/'}</td>
-                      <td className="px-3 py-2 text-slate-400">{rule.pathType || '-'}</td>
-                      <td className="px-3 py-2 text-blue-300">{rule.serviceName}</td>
-                      <td className="px-3 py-2 text-slate-400">{rule.servicePort}</td>
+                      <td className="px-3 py-2 text-cluster-text">{rule.host || '*'}</td>
+                      <td className="px-3 py-2 font-mono text-cluster-text">{rule.path || '/'}</td>
+                      <td className="px-3 py-2 text-cluster-muted">{rule.pathType || '-'}</td>
+                      <td className="px-3 py-2 text-blue-600 dark:text-blue-300">{rule.serviceName}</td>
+                      <td className="px-3 py-2 text-cluster-muted">{rule.servicePort}</td>
                     </tr>
                   ))}
                 </tbody>

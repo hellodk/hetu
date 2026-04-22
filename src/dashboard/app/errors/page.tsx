@@ -124,29 +124,31 @@ function timeSince(iso: string): string {
 }
 
 function statusColor(status: string) {
-  if (status === 'open') return 'bg-red-900/30 text-red-300 border-red-700/50'
-  if (status === 'resolved') return 'bg-green-900/30 text-green-300 border-green-700/50'
-  return 'bg-gray-700/50 text-gray-400 border-gray-600/50'
+  if (status === 'open')
+    return 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 border-red-200 dark:border-red-700/50'
+  if (status === 'resolved')
+    return 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 border-green-200 dark:border-green-700/50'
+  return 'bg-gray-100 dark:bg-gray-700/50 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-600/50'
 }
 
 /* ---------- Phase 1.2: severity chip ---------- */
 
-const SEVERITY_STYLE: Record<string, { bg: string; text: string; label: string; rank: number }> = {
-  fatal: { bg: 'bg-red-900/40',    text: 'text-red-300',    label: 'FATAL', rank: 5 },
-  panic: { bg: 'bg-red-900/40',    text: 'text-red-300',    label: 'PANIC', rank: 5 },
-  error: { bg: 'bg-red-800/30',    text: 'text-red-200',    label: 'ERROR', rank: 4 },
-  warn:  { bg: 'bg-amber-900/30',  text: 'text-amber-300',  label: 'WARN',  rank: 3 },
-  warning: { bg: 'bg-amber-900/30', text: 'text-amber-300', label: 'WARN',  rank: 3 },
-  info:  { bg: 'bg-blue-900/30',   text: 'text-blue-300',   label: 'INFO',  rank: 2 },
-  debug: { bg: 'bg-gray-700/40',   text: 'text-gray-300',   label: 'DEBUG', rank: 1 },
-  trace: { bg: 'bg-gray-700/40',   text: 'text-gray-400',   label: 'TRACE', rank: 1 },
+const SEVERITY_STYLE: Record<string, { cls: string; label: string; rank: number }> = {
+  fatal:   { cls: 'bg-red-100    dark:bg-red-900/40    text-red-700    dark:text-red-300',    label: 'FATAL', rank: 5 },
+  panic:   { cls: 'bg-red-100    dark:bg-red-900/40    text-red-700    dark:text-red-300',    label: 'PANIC', rank: 5 },
+  error:   { cls: 'bg-red-50     dark:bg-red-800/30    text-red-600    dark:text-red-200',    label: 'ERROR', rank: 4 },
+  warn:    { cls: 'bg-amber-100  dark:bg-amber-900/30  text-amber-700  dark:text-amber-300',  label: 'WARN',  rank: 3 },
+  warning: { cls: 'bg-amber-100  dark:bg-amber-900/30  text-amber-700  dark:text-amber-300',  label: 'WARN',  rank: 3 },
+  info:    { cls: 'bg-blue-100   dark:bg-blue-900/30   text-blue-700   dark:text-blue-300',   label: 'INFO',  rank: 2 },
+  debug:   { cls: 'bg-gray-100   dark:bg-gray-700/40   text-gray-600   dark:text-gray-300',   label: 'DEBUG', rank: 1 },
+  trace:   { cls: 'bg-gray-100   dark:bg-gray-700/40   text-gray-500   dark:text-gray-400',   label: 'TRACE', rank: 1 },
 }
 
 function SeverityChip({ level }: { level: string }) {
-  const s = SEVERITY_STYLE[level?.toLowerCase()] || { bg: 'bg-gray-700/40', text: 'text-gray-400', label: (level || '—').toUpperCase(), rank: 0 }
+  const s = SEVERITY_STYLE[level?.toLowerCase()] || { cls: 'bg-gray-100 dark:bg-gray-700/40 text-gray-500 dark:text-gray-400', label: (level || '—').toUpperCase(), rank: 0 }
   return (
     <span
-      className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold tabular-nums ${s.bg} ${s.text} min-w-[56px]`}
+      className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold tabular-nums ${s.cls} min-w-[56px]`}
       title={`Level: ${level || 'unknown'}`}
     >
       {s.label}
@@ -204,7 +206,7 @@ function isSpike(r?: ErrorRate): boolean {
 function SpikeBadge() {
   return (
     <span
-      className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-semibold font-mono bg-amber-500/20 text-amber-300 border border-amber-500/40 rounded"
+      className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-semibold font-mono bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-500/40 rounded"
       title="Recent rate >2× hourly average"
     >
       <Activity className="w-2.5 h-2.5" />
@@ -450,12 +452,12 @@ export default function ErrorsPage() {
             value={summary.openCount}
             accent="red"
           />
-          <div className="p-4 bg-gray-800/50 border border-gray-700/50 rounded-lg">
-            <div className="flex items-center gap-1.5 text-xs text-gray-400 mb-1">
+          <div className="p-4 bg-cluster-card border border-cluster-border rounded-lg">
+            <div className="flex items-center gap-1.5 text-xs text-cluster-muted mb-1">
               <Activity className="w-4 h-4 text-purple-400" />
               Most Common Reason
             </div>
-            <div className="text-lg font-bold text-white font-mono truncate" title={topReason}>
+            <div className="text-lg font-bold text-cluster-text font-mono truncate" title={topReason}>
               {topReason}
             </div>
           </div>
@@ -474,14 +476,14 @@ export default function ErrorsPage() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                 <XAxis
                   dataKey="reason"
-                  tick={{ fill: '#9ca3af', fontSize: 11 }}
+                  tick={{ fill: 'rgb(var(--cluster-muted))', fontSize: 11 }}
                   interval={0}
                   angle={-30}
                   textAnchor="end"
                   height={60}
                 />
                 <YAxis
-                  tick={{ fill: '#9ca3af', fontSize: 11 }}
+                  tick={{ fill: 'rgb(var(--cluster-muted))', fontSize: 11 }}
                   allowDecimals={false}
                 />
                 <Tooltip content={<ReasonTooltip />} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
@@ -659,7 +661,7 @@ export default function ErrorsPage() {
                         {isSpike(g.rate) && <SpikeBadge />}
                       </div>
                       <div className="flex items-center gap-2 flex-wrap text-xs">
-                        <span className="px-1.5 py-0.5 bg-blue-900/30 text-blue-300 rounded border border-blue-700/30">
+                        <span className="px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded border border-blue-200 dark:border-blue-700/30">
                           {g.service}
                         </span>
                         <span className="px-1.5 py-0.5 bg-gray-700/50 text-gray-400 rounded">
@@ -687,11 +689,11 @@ export default function ErrorsPage() {
                               className="text-gray-400 font-mono tabular-nums"
                               title={`${g.rate.count1m} / min · ${g.rate.count5m} in 5m · ${g.rate.count1h} in 1h · ${g.rate.count24h} in 24h${g.rate.truncated ? ' (≥ — ring buffer full)' : ''}`}
                             >
-                              <span className="text-amber-300">{g.rate.count5m}</span>
-                              <span className="text-gray-600">/5m</span>
-                              <span className="mx-1 text-gray-600">·</span>
-                              <span className="text-amber-200">{g.rate.count1h}</span>
-                              <span className="text-gray-600">/1h</span>
+                              <span className="text-amber-600 dark:text-amber-300">{g.rate.count5m}</span>
+                              <span className="text-cluster-muted">/5m</span>
+                              <span className="mx-1 text-cluster-muted">·</span>
+                              <span className="text-amber-500 dark:text-amber-200">{g.rate.count1h}</span>
+                              <span className="text-cluster-muted">/1h</span>
                             </span>
                           </>
                         )}
@@ -707,7 +709,7 @@ export default function ErrorsPage() {
 
                     {/* Count badge (prominent) */}
                     <div className="shrink-0 flex flex-col items-end gap-1.5">
-                      <span className="px-2.5 py-1 text-sm font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-lg tabular-nums">
+                      <span className="px-2.5 py-1 text-sm font-bold bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-500/30 rounded-lg tabular-nums">
                         {g.count.toLocaleString()}
                       </span>
                     </div>
@@ -849,7 +851,7 @@ export default function ErrorsPage() {
                       )}
                       <Link
                         href={`/errors/${g.id}`}
-                        className="inline-block mt-2 text-xs text-blue-400 hover:text-blue-300 hover:underline"
+                        className="inline-block mt-2 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-500 dark:hover:text-blue-300 hover:underline"
                         onClick={e => e.stopPropagation()}
                       >
                         View full detail &rarr;
@@ -870,17 +872,17 @@ export default function ErrorsPage() {
           <button
             onClick={() => setOffset(Math.max(0, offset - pageSize))}
             disabled={offset === 0}
-            className="px-3 py-1.5 text-sm bg-gray-800 border border-gray-700 rounded-lg text-gray-300 hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            className="px-3 py-1.5 text-sm bg-cluster-card border border-cluster-border rounded-lg text-cluster-text hover:bg-cluster-border/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             ← Previous
           </button>
-          <span className="text-sm text-gray-500 tabular-nums font-mono">
+          <span className="text-sm text-cluster-muted tabular-nums font-mono">
             Page {Math.floor(offset / pageSize) + 1} of {Math.max(1, Math.ceil(totalCount / pageSize))}
           </span>
           <button
             onClick={() => setOffset(offset + pageSize)}
             disabled={offset + pageSize >= totalCount}
-            className="px-3 py-1.5 text-sm bg-gray-800 border border-gray-700 rounded-lg text-gray-300 hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            className="px-3 py-1.5 text-sm bg-cluster-card border border-cluster-border rounded-lg text-cluster-text hover:bg-cluster-border/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             Next →
           </button>
@@ -913,20 +915,20 @@ function SummaryCard({
   accent: 'blue' | 'amber' | 'red' | 'green'
 }) {
   const accentMap = {
-    blue: 'border-blue-700/30 bg-blue-900/10',
-    amber: 'border-amber-700/30 bg-amber-900/10',
-    red: 'border-red-700/30 bg-red-900/10',
-    green: 'border-green-700/30 bg-green-900/10',
+    blue:  'border-blue-200  dark:border-blue-700/30  bg-blue-50   dark:bg-blue-900/10',
+    amber: 'border-amber-200 dark:border-amber-700/30 bg-amber-50  dark:bg-amber-900/10',
+    red:   'border-red-200   dark:border-red-700/30   bg-red-50    dark:bg-red-900/10',
+    green: 'border-green-200 dark:border-green-700/30 bg-green-50  dark:bg-green-900/10',
   }
   const textMap = {
-    blue: 'text-blue-300',
-    amber: 'text-amber-300',
-    red: 'text-red-300',
-    green: 'text-green-300',
+    blue:  'text-blue-700  dark:text-blue-300',
+    amber: 'text-amber-700 dark:text-amber-300',
+    red:   'text-red-700   dark:text-red-300',
+    green: 'text-green-700 dark:text-green-300',
   }
   return (
     <div className={`p-4 rounded-lg border ${accentMap[accent]}`}>
-      <div className="flex items-center gap-1.5 text-xs text-gray-400 mb-1">
+      <div className="flex items-center gap-1.5 text-xs text-cluster-muted mb-1">
         {icon}
         {label}
       </div>

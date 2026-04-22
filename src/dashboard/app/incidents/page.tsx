@@ -42,12 +42,12 @@ export default function IncidentsPage() {
 
   const statusBadge = (s: string) => {
     const styles: Record<string, string> = {
-      open: 'bg-red-900/30 text-red-300',
-      investigating: 'bg-blue-900/30 text-blue-300',
-      resolved: 'bg-green-900/30 text-green-300',
-      dismissed: 'bg-gray-700 text-gray-400',
+      open:          'bg-red-100   dark:bg-red-900/30   text-red-700   dark:text-red-300',
+      investigating: 'bg-blue-100  dark:bg-blue-900/30  text-blue-700  dark:text-blue-300',
+      resolved:      'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300',
+      dismissed:     'bg-gray-100  dark:bg-gray-700     text-gray-600  dark:text-gray-400',
     }
-    return <span className={`px-1.5 py-0.5 text-xs rounded ${styles[s] || styles.open}`}>{s}</span>
+    return <span className={`px-1.5 py-0.5 text-xs rounded ${styles[s] ?? styles.open}`}>{s}</span>
   }
 
   const timeSince = (iso: string) => {
@@ -88,7 +88,7 @@ export default function IncidentsPage() {
         <div className="space-y-2">
           {incidents.map(inc => (
             <Link key={inc.id} href={`/incidents/${inc.id}`}
-              className="block p-4 bg-gray-800/50 border border-gray-700/50 rounded-lg hover:bg-gray-800 transition-colors">
+              className="block p-4 bg-cluster-card border border-cluster-border rounded-lg hover:bg-cluster-border/30 transition-colors">
               <div className="flex items-start gap-3">
                 {sevIcon(inc.severity)}
                 <div className="flex-1 min-w-0">

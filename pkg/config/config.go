@@ -17,14 +17,14 @@ import "time"
 
 // Config is the root configuration object.
 type Config struct {
-	Cluster ClusterConfig `yaml:"cluster"`
-	Server  ServerConfig  `yaml:"server"`
+	Cluster  ClusterConfig  `yaml:"cluster"`
+	Server   ServerConfig   `yaml:"server"`
 	Analyzer AnalyzerConfig `yaml:"analyzer"`
-	Kube    KubeConfig    `yaml:"kube"`
-	Stores  StoresConfig  `yaml:"stores"`
-	Bus     BusConfig     `yaml:"bus"`
-	LLM     LLMConfig     `yaml:"llm"`
-	Logging LoggingConfig `yaml:"logging"`
+	Kube     KubeConfig     `yaml:"kube"`
+	Stores   StoresConfig   `yaml:"stores"`
+	Bus      BusConfig      `yaml:"bus"`
+	LLM      LLMConfig      `yaml:"llm"`
+	Logging  LoggingConfig  `yaml:"logging"`
 }
 
 // ClusterConfig identifies the cluster this instance reports on.
@@ -43,13 +43,13 @@ type ServerConfig struct {
 // AnalyzerConfig captures analyzer-specific runtime config that isn't shared
 // across all binaries.
 type AnalyzerConfig struct {
-	CollectorURL        string        `yaml:"collectorUrl"`
-	PrometheusURL       string        `yaml:"prometheusUrl"`
-	CORSAllowedOrigins  []string      `yaml:"corsAllowedOrigins"`
-	AnalysisInterval    time.Duration `yaml:"analysisInterval"`
-	ScanSecurityInterval time.Duration `yaml:"scanSecurityInterval"`
+	CollectorURL          string        `yaml:"collectorUrl"`
+	PrometheusURL         string        `yaml:"prometheusUrl"`
+	CORSAllowedOrigins    []string      `yaml:"corsAllowedOrigins"`
+	AnalysisInterval      time.Duration `yaml:"analysisInterval"`
+	ScanSecurityInterval  time.Duration `yaml:"scanSecurityInterval"`
 	ScanPodHealthInterval time.Duration `yaml:"scanPodHealthInterval"`
-	ScanAnomalyInterval time.Duration `yaml:"scanAnomalyInterval"`
+	ScanAnomalyInterval   time.Duration `yaml:"scanAnomalyInterval"`
 	ScanOptimizerInterval time.Duration `yaml:"scanOptimizerInterval"`
 }
 
@@ -190,13 +190,13 @@ func Default() Config {
 			BindAddress: "0.0.0.0",
 		},
 		Analyzer: AnalyzerConfig{
-			CollectorURL:         "",
-			PrometheusURL:        "",
-			CORSAllowedOrigins:   []string{"*"},
-			AnalysisInterval:     5 * time.Minute,
-			ScanSecurityInterval: 5 * time.Minute,
+			CollectorURL:          "",
+			PrometheusURL:         "",
+			CORSAllowedOrigins:    []string{"*"},
+			AnalysisInterval:      5 * time.Minute,
+			ScanSecurityInterval:  5 * time.Minute,
 			ScanPodHealthInterval: 2 * time.Minute,
-			ScanAnomalyInterval:  3 * time.Minute,
+			ScanAnomalyInterval:   3 * time.Minute,
 			ScanOptimizerInterval: 10 * time.Minute,
 		},
 		Kube: KubeConfig{
@@ -246,7 +246,7 @@ func Default() Config {
 			Provider:         "ollama",
 			Endpoint:         "http://localhost:11434",
 			Model:            "llama3",
-			MaxTokens:        2048,
+			MaxTokens:        4096,
 			Temperature:      0.2,
 			Timeout:          90 * time.Second,
 			MaxRetries:       3,

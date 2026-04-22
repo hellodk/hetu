@@ -500,13 +500,13 @@ body {
    light-paper backgrounds they render at ~2-3:1 contrast (WCAG fail).
    Remap them to --cluster-muted which is pre-calibrated per theme and
    reaches ≥4.5:1 on both graphite and prism backgrounds.
-   Dark themes (calm-signal, aurora, md-dark, md-light) are unaffected.    */
-:is([data-theme="graphite"], [data-theme="prism"]) .text-slate-400,
-:is([data-theme="graphite"], [data-theme="prism"]) .text-gray-400 {
+   Dark themes (calm-signal, aurora, md-dark) are unaffected.    */
+:is([data-theme="graphite"], [data-theme="prism"], [data-theme="md-light"]) .text-slate-400,
+:is([data-theme="graphite"], [data-theme="prism"], [data-theme="md-light"]) .text-gray-400 {
   color: rgb(var(--cluster-muted));
 }
-:is([data-theme="graphite"], [data-theme="prism"]) .text-slate-500,
-:is([data-theme="graphite"], [data-theme="prism"]) .text-gray-500 {
+:is([data-theme="graphite"], [data-theme="prism"], [data-theme="md-light"]) .text-slate-500,
+:is([data-theme="graphite"], [data-theme="prism"], [data-theme="md-light"]) .text-gray-500 {
   color: rgb(var(--cluster-muted) / 0.8);
 }
 
@@ -1020,4 +1020,75 @@ body {
 [data-theme="graphite"] h1 {
   font-family: var(--font-display);
   letter-spacing: -0.02em;
+}
+
+/* ============================================================================
+   LIGHT-THEME REMEDIATION: anchor/button elements + semantic palette text
+   Extends the LIGHT-THEME DARK-PANEL REMEDIATION block above to cover three
+   gaps left by the original selector set:
+
+   1. <a>/<Link> elements used as cards (e.g. incident list rows) — the original
+      block only targeted div / section / aside / thead / tr.
+   2. <button> elements with a static hardcoded dark bg (e.g. pagination).
+   3. Semantic palette text classes that render near-invisible on cream/white:
+        text-{red,amber,yellow,orange,green,blue,cyan}-3xx / -4xx
+      Mapped to the --sev-* tokens, which are pre-calibrated per light theme
+      for WCAG AA contrast against --cluster-bg.
+   ============================================================================ */
+
+/* Anchor / Link card containers -------------------------------------------- */
+:is([data-theme="graphite"], [data-theme="prism"], [data-theme="md-light"]) a[class*="bg-gray-9"] {
+  background-color: rgb(var(--cluster-bg)) !important;
+}
+:is([data-theme="graphite"], [data-theme="prism"], [data-theme="md-light"]) a[class*="bg-gray-8"] {
+  background-color: rgb(var(--cluster-card)) !important;
+}
+:is([data-theme="graphite"], [data-theme="prism"], [data-theme="md-light"]) a[class*="bg-gray-7"] {
+  background-color: rgb(var(--cluster-border) / 0.4) !important;
+}
+:is([data-theme="graphite"], [data-theme="prism"], [data-theme="md-light"]) a[class*="hover:bg-gray-"]:hover {
+  background-color: rgb(var(--cluster-border) / 0.3) !important;
+}
+/* Gray text inside <a> cards remaps the same as in divs -------------------- */
+:is([data-theme="graphite"], [data-theme="prism"], [data-theme="md-light"]) a [class*="text-gray-3"],
+:is([data-theme="graphite"], [data-theme="prism"], [data-theme="md-light"]) a [class*="text-gray-4"] {
+  color: rgb(var(--cluster-text)) !important;
+}
+:is([data-theme="graphite"], [data-theme="prism"], [data-theme="md-light"]) a [class*="text-gray-5"],
+:is([data-theme="graphite"], [data-theme="prism"], [data-theme="md-light"]) a [class*="text-gray-6"] {
+  color: rgb(var(--cluster-muted)) !important;
+}
+
+/* Button elements with a static dark bg (not just :hover) ------------------ */
+:is([data-theme="graphite"], [data-theme="prism"], [data-theme="md-light"])
+button[class*="bg-gray-8"]:not([class*="bg-blue"]):not([class*="bg-red"]):not([class*="bg-green"]):not([class*="bg-purple"]) {
+  background-color: rgb(var(--cluster-card)) !important;
+  color:            rgb(var(--cluster-text)) !important;
+  border-color:     rgb(var(--cluster-border)) !important;
+}
+
+/* Semantic palette text: light shades → sev tokens ------------------------- */
+:is([data-theme="graphite"], [data-theme="prism"], [data-theme="md-light"]) [class*="text-red-3"],
+:is([data-theme="graphite"], [data-theme="prism"], [data-theme="md-light"]) [class*="text-red-4"] {
+  color: rgb(var(--sev-crit)) !important;
+}
+:is([data-theme="graphite"], [data-theme="prism"], [data-theme="md-light"]) [class*="text-amber-3"],
+:is([data-theme="graphite"], [data-theme="prism"], [data-theme="md-light"]) [class*="text-amber-4"],
+:is([data-theme="graphite"], [data-theme="prism"], [data-theme="md-light"]) [class*="text-yellow-3"],
+:is([data-theme="graphite"], [data-theme="prism"], [data-theme="md-light"]) [class*="text-yellow-4"] {
+  color: rgb(var(--sev-warn)) !important;
+}
+:is([data-theme="graphite"], [data-theme="prism"], [data-theme="md-light"]) [class*="text-orange-3"],
+:is([data-theme="graphite"], [data-theme="prism"], [data-theme="md-light"]) [class*="text-orange-4"] {
+  color: rgb(var(--sev-high)) !important;
+}
+:is([data-theme="graphite"], [data-theme="prism"], [data-theme="md-light"]) [class*="text-green-3"],
+:is([data-theme="graphite"], [data-theme="prism"], [data-theme="md-light"]) [class*="text-green-4"] {
+  color: rgb(var(--sev-ok)) !important;
+}
+:is([data-theme="graphite"], [data-theme="prism"], [data-theme="md-light"]) [class*="text-blue-3"],
+:is([data-theme="graphite"], [data-theme="prism"], [data-theme="md-light"]) [class*="text-blue-4"],
+:is([data-theme="graphite"], [data-theme="prism"], [data-theme="md-light"]) [class*="text-cyan-3"],
+:is([data-theme="graphite"], [data-theme="prism"], [data-theme="md-light"]) [class*="text-cyan-4"] {
+  color: rgb(var(--sev-info)) !important;
 }

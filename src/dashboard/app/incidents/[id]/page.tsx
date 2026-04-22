@@ -92,15 +92,15 @@ function MarkdownCode({ className, children }: { className?: string; children?: 
   const inBlock = useContext(InCodeBlock)
   const lang = className?.replace('language-', '') ?? ''
   const colorClass =
-    lang === 'bash' || lang === 'sh' || lang === 'shell' ? 'text-yellow-300' :
-    lang === 'json' ? 'text-cyan-300' :
-    lang === 'yaml' || lang === 'yml' ? 'text-orange-300' :
-    lang === 'go' ? 'text-blue-300' :
-    'text-green-300'
+    lang === 'bash' || lang === 'sh' || lang === 'shell' ? 'text-yellow-700 dark:text-yellow-300' :
+    lang === 'json' ? 'text-cyan-700 dark:text-cyan-300' :
+    lang === 'yaml' || lang === 'yml' ? 'text-orange-700 dark:text-orange-300' :
+    lang === 'go' ? 'text-blue-700 dark:text-blue-300' :
+    'text-green-700 dark:text-green-300'
   return inBlock ? (
     <code className={`text-xs ${colorClass} font-mono ${className ?? ''}`}>{children}</code>
   ) : (
-    <code className="bg-gray-900 text-green-300 px-1 py-0.5 rounded text-xs font-mono">{children}</code>
+    <code className="bg-cluster-border/50 text-cluster-text px-1 py-0.5 rounded text-xs font-mono">{children}</code>
   )
 }
 
@@ -144,9 +144,9 @@ const markdownComponents = {
   p: ({ children }: { children?: React.ReactNode }) => <p className="mb-1 last:mb-0">{children}</p>,
   ul: ({ children }: { children?: React.ReactNode }) => <ul className="list-disc list-inside space-y-0.5 mb-1">{children}</ul>,
   ol: ({ children }: { children?: React.ReactNode }) => <ol className="list-decimal list-inside space-y-0.5 mb-1">{children}</ol>,
-  li: ({ children }: { children?: React.ReactNode }) => <li className="text-gray-300">{children}</li>,
-  strong: ({ children }: { children?: React.ReactNode }) => <strong className="text-white font-semibold">{children}</strong>,
-  h3: ({ children }: { children?: React.ReactNode }) => <h3 className="text-white font-semibold text-sm mt-2 mb-1">{children}</h3>,
+  li: ({ children }: { children?: React.ReactNode }) => <li className="text-cluster-text">{children}</li>,
+  strong: ({ children }: { children?: React.ReactNode }) => <strong className="text-cluster-text font-semibold">{children}</strong>,
+  h3: ({ children }: { children?: React.ReactNode }) => <h3 className="text-cluster-text font-semibold text-sm mt-2 mb-1">{children}</h3>,
 }
 
 export default function IncidentDetailPage() {
@@ -275,11 +275,11 @@ export default function IncidentDetailPage() {
           <div className="flex items-center gap-3 mb-2">
             <h1 className="text-2xl font-bold text-white">INC-{incident.id}</h1>
             <span className={`px-2 py-0.5 text-xs rounded ${
-              incident.severity === 'critical' ? 'bg-red-900/30 text-red-300' :
-              incident.severity === 'high' ? 'bg-orange-900/30 text-orange-300' :
-              'bg-yellow-900/30 text-yellow-300'
+              incident.severity === 'critical' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300' :
+              incident.severity === 'high' ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300' :
+              'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300'
             }`}>{incident.severity}</span>
-            <span className="px-2 py-0.5 text-xs bg-gray-700 text-gray-300 rounded">{incident.status}</span>
+            <span className="px-2 py-0.5 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded">{incident.status}</span>
           </div>
           <p className="text-sm text-gray-400">{incident.summary}</p>
         </div>
@@ -418,9 +418,9 @@ export default function IncidentDetailPage() {
       )}
 
       {/* Ask AI — multi-turn chat */}
-      <div className="mt-8 pt-6 border-t border-gray-700">
+      <div className="mt-8 pt-6 border-t border-cluster-border">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-medium text-gray-400 flex items-center gap-2">
+          <h3 className="text-sm font-medium text-cluster-muted flex items-center gap-2">
             <Bot className="w-4 h-4 text-blue-400" /> Ask AI
           </h3>
           {chatHistory.length > 0 && !confirmClear && (
@@ -459,8 +459,8 @@ export default function IncidentDetailPage() {
                 </span>
                 <div className={`flex-1 min-w-0 rounded-lg px-3 py-2.5 text-sm ${
                   msg.role === 'user'
-                    ? 'bg-blue-600/20 border border-blue-700/30 text-blue-100'
-                    : 'bg-gray-800/60 border border-gray-700/50 text-gray-200'
+                    ? 'bg-blue-100 dark:bg-blue-600/20 border border-blue-200 dark:border-blue-700/30 text-blue-800 dark:text-blue-100'
+                    : 'bg-cluster-card border border-cluster-border text-cluster-text'
                 }`}>
                   {msg.role === 'assistant' ? (
                     <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>

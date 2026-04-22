@@ -1,6 +1,6 @@
 'use client'
 
-import { AlertTriangle } from 'lucide-react'
+import { AlertTriangle, CheckCircle } from 'lucide-react'
 import { scoreLevel } from '@/lib/scoreLevel'
 
 interface HealthScores {
@@ -12,8 +12,9 @@ interface HealthScores {
 }
 
 interface CriticalBannerProps {
-  scores:       HealthScores
-  onViewIssues: () => void
+  scores:        HealthScores
+  findingsCount: number
+  onViewIssues:  () => void
 }
 
 const DIM_LABEL: Record<keyof HealthScores, string> = {
@@ -24,7 +25,7 @@ const DIM_LABEL: Record<keyof HealthScores, string> = {
   architecture: 'Architecture',
 }
 
-export function CriticalBanner({ scores, onViewIssues }: CriticalBannerProps) {
+export function CriticalBanner({ scores, findingsCount, onViewIssues }: CriticalBannerProps) {
   const criticalDims = (Object.keys(scores) as (keyof HealthScores)[])
     .filter(k => scoreLevel(scores[k]) === 'critical')
 
@@ -34,11 +35,31 @@ export function CriticalBanner({ scores, onViewIssues }: CriticalBannerProps) {
     .map(d => `${DIM_LABEL[d]}: ${scores[d]}/100`)
     .join(' · ')
 
+  const hasFindings = findingsCount > 0
+
+  if (!hasFindings) {
+    return (
+      <div
+        className="bg-green-600 text-white px-4 sm:px-6 py-2.5 flex items-center gap-3 text-sm font-medium"
+        role="status"
+        aria-label="Low health scores but no active findings"
+        data-testid="critical-banner"
+      >
+        <CheckCircle className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
+        <strong className="font-bold tracking-wide">LOW SCORES</strong>
+        <span className="hidden sm:inline text-green-200">—</span>
+        <span className="text-green-100">{summary} · No active findings</span>
+      </div>
+    )
+  }
+
   return (
     <div
       className="bg-red-600 text-white px-4 sm:px-6 py-2.5 flex items-center gap-3 text-sm font-medium"
       role="alert"
       aria-live="assertive"
+      aria-label="Critical health alert"
+      data-testid="critical-banner"
     >
       <AlertTriangle className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
       <strong className="font-bold tracking-wide">CRITICAL</strong>

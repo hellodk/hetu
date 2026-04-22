@@ -1,10 +1,11 @@
 'use client'
 
 import { useEffect, useState, useCallback, useRef } from 'react'
+import Link from 'next/link'
 import { apiFetch } from '@/lib/api'
 import {
   RefreshCw, Loader2, Shield, AlertCircle, AlertTriangle,
-  Info, Play, ChevronDown, ChevronRight, CheckCircle, Clock
+  Info, Play, ChevronDown, ChevronRight, CheckCircle, Clock, XCircle
 } from 'lucide-react'
 
 interface Finding {
@@ -27,6 +28,47 @@ interface SecuritySummary {
 }
 
 const PAGE_SIZE = 50
+
+// All 22 CIS Kubernetes Benchmark controls implemented in security.go.
+// Ordered to match the backend check order; used for the pass/fail panel.
+const CIS_CONTROLS: Array<{
+  id: string; title: string; category: string
+  sev: 'critical' | 'high' | 'medium' | 'low'
+}> = [
+  // RBAC — 5.1.x / 5.7.1
+  { id: '5.1.1',  title: 'Limit cluster-admin role usage',                      category: 'rbac',         sev: 'high'     },
+  { id: '5.1.3',  title: 'Minimize wildcard use in Roles & ClusterRoles',        category: 'rbac',         sev: 'high'     },
+  { id: '5.1.5',  title: 'Default ServiceAccounts must not be actively used',    category: 'rbac',         sev: 'medium'   },
+  { id: '5.1.6',  title: 'Disable automountServiceAccountToken where unneeded',  category: 'rbac',         sev: 'medium'   },
+  { id: '5.7.1',  title: 'Avoid system:masters group for authorization',         category: 'rbac',         sev: 'high'     },
+  // Pod Security — 5.2.x / 5.5.1 / 5.7.2
+  { id: '5.2.1',  title: 'No privileged containers',                             category: 'pod-security', sev: 'critical' },
+  { id: '5.2.2',  title: 'Block allowPrivilegeEscalation',                       category: 'pod-security', sev: 'high'     },
+  { id: '5.2.3',  title: 'Containers must not run as root',                      category: 'pod-security', sev: 'high'     },
+  { id: '5.2.4',  title: 'Block hostPID and hostIPC sharing',                    category: 'pod-security', sev: 'high'     },
+  { id: '5.2.5',  title: 'Block hostNetwork access',                             category: 'pod-security', sev: 'medium'   },
+  { id: '5.2.7',  title: 'No HostPath volume mounts',                            category: 'pod-security', sev: 'high'     },
+  { id: '5.2.9',  title: 'Drop NET_RAW capability',                              category: 'pod-security', sev: 'medium'   },
+  { id: '5.2.11', title: 'Require read-only root filesystem',                    category: 'pod-security', sev: 'medium'   },
+  { id: '5.2.12', title: 'Drop all capabilities by default',                     category: 'pod-security', sev: 'medium'   },
+  { id: '5.5.1',  title: 'Use specific image tags — not :latest or missing',     category: 'pod-security', sev: 'low'      },
+  { id: '5.7.2',  title: 'Set resource limits and security context',             category: 'pod-security', sev: 'medium'   },
+  // Network — 5.3.x
+  { id: '5.3.1',  title: 'All namespaces must define a NetworkPolicy',           category: 'network',      sev: 'medium'   },
+  { id: '5.3.2',  title: 'Default-deny NetworkPolicy in every namespace',        category: 'network',      sev: 'medium'   },
+  // Secrets — 5.4.x
+  { id: '5.4.1',  title: 'Prefer secrets as files, not env vars',               category: 'secrets',      sev: 'medium'   },
+  { id: '5.4.2',  title: 'No hardcoded credentials in environment variables',    category: 'secrets',      sev: 'high'     },
+  // General — 5.7.3 / 5.7.4
+  { id: '5.7.3',  title: 'Apply ResourceQuota and LimitRange per namespace',     category: 'general',      sev: 'low'      },
+  { id: '5.7.4',  title: 'Avoid deploying workloads to the default namespace',   category: 'general',      sev: 'low'      },
+]
+
+const CIS_SECTION_ORDER = ['rbac', 'pod-security', 'network', 'secrets', 'general']
+const CIS_SECTION_LABEL: Record<string, string> = {
+  rbac: 'RBAC', 'pod-security': 'Pod Security',
+  network: 'Network', secrets: 'Secrets', general: 'General',
+}
 
 // Keys must match the backend category strings from security.go
 const CATEGORY_TABS = [
@@ -51,6 +93,8 @@ export default function SecurityPage() {
   const [scanMsg, setScanMsg]             = useState<string | null>(null)
   const [expandedIds, setExpandedIds]     = useState<Set<number>>(new Set())
   const [visibleCount, setVisibleCount]   = useState(PAGE_SIZE)
+  const [cisFilter, setCisFilter]         = useState('')
+  const [cisPanelOpen, setCisPanelOpen]   = useState(false)
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const fetchData = useCallback(async (silent = false) => {
@@ -124,11 +168,12 @@ export default function SecurityPage() {
     .filter(f => {
       if (categoryFilter && f.category !== categoryFilter) return false
       if (severityFilter && f.severity !== severityFilter) return false
+      if (cisFilter && f.cisControl !== cisFilter) return false
       return true
     })
     .sort((a, b) => (SEV_ORDER[b.severity] ?? 0) - (SEV_ORDER[a.severity] ?? 0))
 
-  useEffect(() => { setVisibleCount(PAGE_SIZE) }, [categoryFilter, severityFilter])
+  useEffect(() => { setVisibleCount(PAGE_SIZE) }, [categoryFilter, severityFilter, cisFilter])
 
   const visible = filtered.slice(0, visibleCount)
 
@@ -154,10 +199,11 @@ export default function SecurityPage() {
   }
 
   const bySev = summary?.bySeverity ?? {}
+  const byCISControl = summary?.byCISControl ?? {}
 
   // CIS score: 22 unique controls are implemented in security.go
   const CIS_TOTAL = 22
-  const cisFailingControls = Object.keys(summary?.byCISControl ?? {}).length
+  const cisFailingControls = Object.keys(byCISControl).length
   const cisPassed = Math.max(0, CIS_TOTAL - cisFailingControls)
   const cisScore = summary ? Math.round(cisPassed / CIS_TOTAL * 100) : null
   const cisColor = cisScore === null ? 'text-cluster-muted'
@@ -260,6 +306,94 @@ export default function SecurityPage() {
           </div>
         )}
 
+        {/* ── CIS Controls pass/fail panel ── */}
+        {summary && (
+          <div className="rounded-xl border border-cluster-border bg-cluster-card overflow-hidden">
+            <button
+              onClick={() => setCisPanelOpen(o => !o)}
+              className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-cluster-border/20 transition-colors"
+            >
+              <div className="flex items-center gap-2.5">
+                <Shield className="w-4 h-4 text-orange-500" />
+                <span className="text-sm font-semibold text-cluster-text">CIS Controls Breakdown</span>
+                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                  cisFailingControls === 0
+                    ? 'bg-green-500/10 text-green-600 dark:text-green-400'
+                    : 'bg-red-500/10 text-red-600 dark:text-red-400'
+                }`}>
+                  {cisPassed}/{CIS_TOTAL} passing
+                </span>
+                {cisFilter && (
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+                    filtered: CIS {cisFilter}
+                  </span>
+                )}
+              </div>
+              {cisPanelOpen
+                ? <ChevronDown className="w-4 h-4 text-cluster-muted" />
+                : <ChevronRight className="w-4 h-4 text-cluster-muted" />}
+            </button>
+
+            {cisPanelOpen && (
+              <div className="border-t border-cluster-border/60 divide-y divide-cluster-border/40">
+                {CIS_SECTION_ORDER.map(section => {
+                  const controls = CIS_CONTROLS.filter(c => c.category === section)
+                  const sectionPassed = controls.filter(c => !byCISControl[c.id]).length
+                  return (
+                    <div key={section}>
+                      <div className="px-5 py-2 bg-cluster-bg/40 flex items-center gap-2">
+                        <span className="text-xs font-bold uppercase tracking-widest text-cluster-muted">
+                          {CIS_SECTION_LABEL[section]}
+                        </span>
+                        <span className="text-xs text-cluster-muted">
+                          ({sectionPassed}/{controls.length} passing)
+                        </span>
+                      </div>
+                      {controls.map(c => {
+                        const failCount = byCISControl[c.id] ?? 0
+                        const passing = failCount === 0
+                        const active = cisFilter === c.id
+                        return (
+                          <div
+                            key={c.id}
+                            onClick={!passing ? () => setCisFilter(prev => prev === c.id ? '' : c.id) : undefined}
+                            className={`flex items-center gap-3 px-5 py-2.5 text-sm transition-colors ${
+                              !passing ? 'cursor-pointer' : ''
+                            } ${
+                              active
+                                ? 'bg-blue-500/10'
+                                : !passing
+                                  ? 'hover:bg-red-500/5'
+                                  : ''
+                            }`}
+                          >
+                            {passing
+                              ? <CheckCircle className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
+                              : <XCircle className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />}
+                            <span className="font-mono text-[11px] text-cluster-muted w-10 flex-shrink-0">{c.id}</span>
+                            <span className={`flex-1 text-xs ${passing ? 'text-cluster-muted' : 'text-cluster-text'}`}>
+                              {c.title}
+                            </span>
+                            {!passing && (
+                              <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${
+                                active
+                                  ? 'bg-blue-500/20 text-blue-600 dark:text-blue-400'
+                                  : 'bg-red-500/10 text-red-500 dark:text-red-400'
+                              }`}>
+                                {failCount} {failCount === 1 ? 'finding' : 'findings'}
+                              </span>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* ── Trivy vulnerability report ── */}
         <div className="p-4 rounded-xl border border-cluster-border bg-cluster-card">
           <div className="flex items-center gap-2 mb-2">
@@ -326,6 +460,14 @@ export default function SecurityPage() {
             <option value="medium">Medium</option>
             <option value="low">Low</option>
           </select>
+          {cisFilter && (
+            <button
+              onClick={() => setCisFilter('')}
+              className="flex items-center gap-1 px-2.5 py-1.5 text-xs bg-blue-500/10 border border-blue-500/20 text-blue-600 dark:text-blue-400 rounded-lg hover:bg-blue-500/20 transition-colors"
+            >
+              CIS {cisFilter} <span className="ml-0.5 opacity-70">×</span>
+            </button>
+          )}
           <span className="text-sm text-cluster-muted">{filtered.length} findings</span>
         </div>
 
@@ -379,9 +521,17 @@ export default function SecurityPage() {
                         <span className="text-sm font-medium text-cluster-text">{f.title}</span>
                         {sevBadge(f.severity)}
                         {f.cisControl && (
-                          <span className="px-1.5 py-0.5 text-[10px] font-mono bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded border border-blue-500/20">
+                          <button
+                            onClick={e => { e.stopPropagation(); setCisFilter(prev => prev === f.cisControl ? '' : f.cisControl) }}
+                            className={`px-1.5 py-0.5 text-[10px] font-mono rounded border transition-colors ${
+                              cisFilter === f.cisControl
+                                ? 'bg-blue-500/25 text-blue-600 dark:text-blue-400 border-blue-500/40'
+                                : 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20 hover:bg-blue-500/20'
+                            }`}
+                            title={`Filter by CIS ${f.cisControl}`}
+                          >
                             CIS {f.cisControl}
-                          </span>
+                          </button>
                         )}
                         <span className="px-1.5 py-0.5 text-[10px] bg-cluster-border/60 text-cluster-muted rounded">
                           {f.category}
@@ -404,11 +554,32 @@ export default function SecurityPage() {
                         <div>
                           <p className="text-xs font-semibold text-cluster-muted uppercase tracking-wide mb-2">Affected Resources</p>
                           <div className="flex flex-wrap gap-1.5">
-                            {f.affectedResources.map((r, i) => (
-                              <span key={i} className="px-2 py-0.5 text-xs font-mono bg-cluster-border/60 text-cluster-text rounded">
-                                {r}
-                              </span>
-                            ))}
+                            {f.affectedResources.map((r, i) => {
+                              const parts = r.split('/')
+                              const ns = parts.length >= 2 ? parts[0] : null
+                              let href: string | null = null
+                              if (ns) {
+                                if (f.category === 'pod-security' || f.category === 'secrets' || f.category === 'general') {
+                                  href = `/workloads/pods?group=core&version=v1&ns=${ns}`
+                                }
+                              }
+                              const cls = 'px-2 py-0.5 text-xs font-mono rounded transition-colors'
+                              return href ? (
+                                <Link
+                                  key={i}
+                                  href={href}
+                                  onClick={e => e.stopPropagation()}
+                                  className={`${cls} bg-orange-500/10 text-orange-700 dark:text-orange-300 border border-orange-500/20 hover:bg-orange-500/20`}
+                                  title={`View pods in namespace ${ns}`}
+                                >
+                                  {r} →
+                                </Link>
+                              ) : (
+                                <span key={i} className={`${cls} bg-cluster-border/60 text-cluster-text`}>
+                                  {r}
+                                </span>
+                              )
+                            })}
                           </div>
                         </div>
                       )}
