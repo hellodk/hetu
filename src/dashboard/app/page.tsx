@@ -604,6 +604,7 @@ export default function Dashboard() {
         {displayReport.scores && (
           <CriticalBanner
             scores={displayReport.scores}
+            findingsCount={displayReport.topIssues.length}
             onViewIssues={() => setActiveTab('issues')}
           />
         )}
