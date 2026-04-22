@@ -4,6 +4,8 @@ import {
   mockErrorGroups,
   mockIncidents,
   mockIncidentDetail,
+  mockLBList,
+  mockSettings,
 } from './fixtures/api'
 
 const NOW = new Date().toISOString()
@@ -193,32 +195,25 @@ test.describe('Light-theme › Incident detail', () => {
 // ────────────────────────────────────────────────────────────────────────────
 test.describe('Light-theme › LB Logs empty state', () => {
   test.beforeEach(async ({ page }) => {
-    // Mock lb list to return empty (triggers empty state)
-    await page.route('**/api/v1/lb/list', route =>
-      route.fulfill({ json: { loadBalancers: [] } })
-    )
+    await setGraphiteTheme(page)
+    await mockLBList(page, [])
     await page.goto('/lb-logs')
-    // Switch to graphite (light) theme
-    await page.evaluate(() => {
-      document.documentElement.setAttribute('data-theme', 'graphite')
-      document.documentElement.classList.remove('dark')
-    })
+    // useEffect fires after paint — wait for the loading state to clear
+    // before any test in this describe block runs.
+    await page.waitForSelector('p:has-text("No load balancers configured")', { timeout: 10_000 })
   })
 
   test('empty state text is dark on light background', async ({ page }) => {
-    const heading = page.locator('text=No load balancers configured')
+    const heading = page.locator('p', { hasText: 'No load balancers configured' })
     await expect(heading).toBeVisible()
-    const color = await heading.evaluate(el =>
-      (getComputedStyle(el) as unknown as Record<string, string>)['color'] ?? ''
-    )
-    // Should be dark (not the near-white slate-400 = rgb(148, 163, 184))
-    const [r, g, b] = color.match(/\d+/g)!.map(Number)
-    expect(r + g + b).toBeLessThan(400) // dark text
+    const sum = await rgbSum(page, heading, 'color')
+    // slate-400 on light bg = rgb(148,163,184) → sum 495; dark readable < 400
+    expect(sum).toBeLessThan(400)
   })
 
   test('Configure in Settings link is visible', async ({ page }) => {
-    const link = page.getByRole('link', { name: /configure in settings/i })
-    await expect(link).toBeVisible()
+    // Locate by href — more stable than accessible name when SVG is present
+    await expect(page.locator('a[href="/settings#lb-config"]')).toBeVisible()
   })
 })
 
@@ -227,41 +222,22 @@ test.describe('Light-theme › LB Logs empty state', () => {
 // ────────────────────────────────────────────────────────────────────────────
 test.describe('Light-theme › Settings LB config section', () => {
   test.beforeEach(async ({ page }) => {
-    await page.route('**/api/v1/lb/config', route =>
-      route.fulfill({ json: { configs: [] } })
-    )
-    await page.route('**/api/v1/lb/list', route =>
-      route.fulfill({ json: { loadBalancers: [] } })
-    )
-    // Mock other settings endpoints to avoid 404s
-    await page.route('**/api/v1/config', route =>
-      route.fulfill({ json: { llmProvider: 'ollama', ollamaHost: '', ollamaModel: '', anthropicModel: '' } })
-    )
-    await page.route('**/api/v1/profile', route =>
-      route.fulfill({ json: { profile: 'live' } })
-    )
-    await page.route('**/api/v1/capabilities', route =>
-      route.fulfill({ json: { exec: false, writeActions: false } })
-    )
-    await page.goto('/settings#lb-config')
-    await page.evaluate(() => {
-      document.documentElement.setAttribute('data-theme', 'graphite')
-      document.documentElement.classList.remove('dark')
-    })
+    await setGraphiteTheme(page)
+    await mockSettings(page)
+    await mockLBList(page, [])
+    await page.goto('/settings')
+    // Wait for #lb-config div to mount (settings page has a loading gate)
+    await page.waitForSelector('#lb-config', { timeout: 15_000 })
   })
 
-  test('LB section heading is visible and dark', async ({ page }) => {
-    const heading = page.locator('text=Load Balancer Sources')
+  test('LB section heading is dark on light background', async ({ page }) => {
+    const heading = page.locator('#lb-config h2').first()
     await expect(heading).toBeVisible()
-    const color = await heading.evaluate(el =>
-      (getComputedStyle(el) as unknown as Record<string, string>)['color'] ?? ''
-    )
-    const [r, g, b] = color.match(/\d+/g)!.map(Number)
-    expect(r + g + b).toBeLessThan(400)
+    const sum = await rgbSum(page, heading, 'color')
+    expect(sum).toBeLessThan(400)
   })
 
   test('Add load balancer button is visible', async ({ page }) => {
-    const btn = page.getByRole('button', { name: /add load balancer/i })
-    await expect(btn).toBeVisible()
+    await expect(page.getByRole('button', { name: /add load balancer/i })).toBeVisible()
   })
 })
