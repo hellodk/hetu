@@ -188,6 +188,7 @@ export default function SettingsPage() {
     try {
       const body: any = { ...form }
       if (apiKey) body.apiKey = apiKey
+      else if (!form.apiKeySet) body.apiKey = 'dummy'
       const res = await fetch(`${getApiUrl()}/api/v1/llm/config`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -374,7 +375,7 @@ export default function SettingsPage() {
                   value={apiKey}
                   onChange={e => setApiKey(e.target.value)}
                   className="w-full bg-cluster-bg border border-cluster-border rounded-lg px-3 py-2.5 text-cluster-text text-sm font-mono"
-                  placeholder={form.apiKeySet ? '••••••••••••••• (already set)' : 'Enter API key'}
+                  placeholder={form.apiKeySet ? '••••••••••••••• (already set)' : 'dummy'}
                 />
                 {form.apiKeySet && !apiKey && (
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-green-500">configured</span>
