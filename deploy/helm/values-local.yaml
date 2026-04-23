@@ -1,25 +1,36 @@
-# values-local.yaml — single-node home cluster (cylon, 100.89.50.27)
-# Usage:
+# values-local.yaml — operator overrides for a single-node home-lab cluster.
+#
+# Copy and fill in every REQUIRED value before deploying:
 #   helm upgrade --install cluster-intel deploy/helm/cluster-intel/ \
 #     --namespace cluster-intel --create-namespace \
 #     -f deploy/helm/values-local.yaml --wait
+#
+# Helm will refuse to install if any REQUIRED value is left blank.
 
+# ── Cluster identity (REQUIRED) ───────────────────────────────────────────────
 cluster:
-  id: cylon
-  displayName: "Home Lab"
+  id: ""            # REQUIRED  e.g. "homelab" | "prod-eu-1"
+  displayName: ""   # Optional; defaults to cluster.id
 
-# ── LLM ──────────────────────────────────────────────────────────────────────
+# ── LLM (all three REQUIRED for self-hosted) ──────────────────────────────────
 llm:
-  provider: ollama
-  endpoint: "http://100.89.50.27:11434"
-  model: "Qwen2.5-Coder:14B-Instruct"
+  provider: ollama  # ollama | anthropic | openai
+  endpoint: ""      # REQUIRED for ollama/openai  e.g. "http://192.168.1.10:11434"
+  model: ""         # REQUIRED  e.g. "llama3.2" | "Qwen2.5-Coder:14B-Instruct"
   maxTokens: 4096
-  temperature: 0.2
   dailyTokenBudget: 1000000
   apiKeySecret:
-    name: ""          # Ollama does not need a secret; dummy is sent at runtime
+    name: ""        # Leave blank for Ollama; create a Secret for Anthropic/OpenAI
 
-# ── Images ───────────────────────────────────────────────────────────────────
+# ── Dashboard access ──────────────────────────────────────────────────────────
+dashboard:
+  image:
+    tag: "7.0.0"
+  service:
+    type: NodePort
+    nodePort: null  # REQUIRED when type=NodePort  e.g. 30303
+
+# ── Images ────────────────────────────────────────────────────────────────────
 collector:
   image:
     tag: "7.0.0"
@@ -28,45 +39,37 @@ analyzer:
   image:
     tag: "7.0.0"
 
-dashboard:
-  image:
-    tag: "7.0.0"
-  service:
-    type: NodePort
-    nodePort: 30303    # http://100.89.50.27:30303
-
-# ── NATS — disable nats-box debug sidecar ────────────────────────────────────
+# ── NATS — disable debug sidecar not needed in production ─────────────────────
 nats:
   natsBox:
     enabled: false
 
 # ── Monitoring — reuse existing kube-prometheus-stack ────────────────────────
 monitoring:
-  enabled: false      # stack already deployed as 'monitoring' Helm release
+  enabled: false
 
-# ── Stores — lightweight official images instead of Bitnami sub-charts ───────
+# ── Stores — official images; NFS default StorageClass used for PVCs ─────────
 stores:
   postgres:
     bundled: false
-    standalone: true          # deploys postgres:16-alpine StatefulSet
+    standalone: true
     image:
       repository: postgres
       tag: "16-alpine"
     external:
       db: cluster_intel
       user: cluster_intel
-      password: ""   # auto-generated on first install; preserved by lookup on upgrade
+      password: ""   # auto-generated on first install; preserved on upgrade
 
   redis:
     bundled: false
-    standalone: true          # deploys redis:7-alpine StatefulSet
+    standalone: true
     image:
       repository: redis
       tag: "7-alpine"
 
-# ── Storage — NFS is default; no overrides needed ────────────────────────────
-# nfs-client is the default StorageClass; postgres and redis PVCs bind automatically.
-
-# ── Ingress — no IngressClass in cluster; use NodePort above ─────────────────
+# ── Ingress — fill in if an IngressClass is available ────────────────────────
 ingress:
   enabled: false
+  # className: nginx
+  # host: cluster-intel.example.com

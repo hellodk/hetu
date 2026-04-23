@@ -1,3 +1,4 @@
+{{- include "cluster-intel.validate" . -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -9,7 +10,7 @@ data:
   config.yaml: |
     cluster:
       id: {{ .Values.cluster.id | quote }}
-      displayName: {{ .Values.cluster.displayName | quote }}
+      displayName: {{ include "cluster-intel.displayName" . | quote }}
 
     analyzer:
       collectorUrl: {{ .Values.analyzer.collectorUrl | quote }}

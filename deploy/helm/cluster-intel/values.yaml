@@ -18,8 +18,8 @@ global:
 
 # -- Cluster identity ---------------------------------------------------------
 cluster:
-  id: "default"
-  displayName: "default"
+  id: ""          # REQUIRED — unique identifier for this cluster (e.g. "prod-eu-1")
+  displayName: "" # Optional — human-readable label; defaults to cluster.id if empty
 
 # =============================================================================
 # Default container securityContext
@@ -237,11 +237,11 @@ bus:
 # LLM configuration
 # =============================================================================
 llm:
-  provider: anthropic
-  endpoint: ""
-  model: claude-sonnet-4-6
+  provider: ollama              # REQUIRED — ollama | anthropic | openai
+  endpoint: ""                  # REQUIRED for ollama/openai — e.g. "http://10.0.0.1:11434"
+  model: ""                     # REQUIRED — e.g. "llama3.2" | "claude-sonnet-4-6"
   apiKeySecret:
-    name: ""
+    name: ""                    # Secret name for API key (anthropic/openai); leave blank for ollama
     key: api-key
   maxTokens: 4096
   temperature: 0.2

@@ -1,4 +1,40 @@
 {{/*
+Required-value validation. Called from configmap.yaml so it runs on every
+helm install / upgrade / template. Uses fail/required so the command exits
+with a clear message before any resources are applied.
+*/}}
+{{- define "cluster-intel.validate" -}}
+
+{{- /* cluster.id ------------------------------------------------------- */}}
+{{- if not .Values.cluster.id -}}
+{{- fail "\n\n[cluster-intel] cluster.id is required.\n  --set cluster.id=<unique-name>   (e.g. prod-eu-1, homelab)\n" -}}
+{{- end -}}
+
+{{- /* llm.model --------------------------------------------------------- */}}
+{{- if not .Values.llm.model -}}
+{{- fail "\n\n[cluster-intel] llm.model is required.\n  --set llm.model=<model>   (e.g. llama3.2, Qwen2.5-Coder:14B-Instruct, claude-sonnet-4-6)\n" -}}
+{{- end -}}
+
+{{- /* llm.endpoint — required for self-hosted providers --------------- */}}
+{{- if and (not (eq .Values.llm.provider "anthropic")) (not .Values.llm.endpoint) -}}
+{{- fail (printf "\n\n[cluster-intel] llm.endpoint is required when provider=%q.\n  --set llm.endpoint=http://<host>:<port>\n" .Values.llm.provider) -}}
+{{- end -}}
+
+{{- /* dashboard NodePort value ----------------------------------------- */}}
+{{- if and (eq (.Values.dashboard.service.type | default "ClusterIP") "NodePort") (not .Values.dashboard.service.nodePort) -}}
+{{- fail "\n\n[cluster-intel] dashboard.service.nodePort is required when dashboard.service.type=NodePort.\n  --set dashboard.service.nodePort=<30000-32767>\n" -}}
+{{- end -}}
+
+{{- end -}}
+
+{{/*
+Cluster display name — falls back to cluster.id when displayName is empty.
+*/}}
+{{- define "cluster-intel.displayName" -}}
+{{- .Values.cluster.displayName | default .Values.cluster.id -}}
+{{- end -}}
+
+{{/*
 Expand the name of the chart.
 */}}
 {{- define "cluster-intel.name" -}}
