@@ -5,6 +5,7 @@ use (
 	./pkg/config
 	./pkg/kube
 	./pkg/llm
+	./pkg/logger
 	./pkg/middleware
 	./pkg/store
 	./pkg/types
