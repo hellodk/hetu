@@ -21,11 +21,11 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"gopkg.in/yaml.v3"
 
 	ucconfig "github.com/hellodk/hetu/pkg/config"
+	"github.com/hellodk/hetu/pkg/logger"
 	mw "github.com/hellodk/hetu/pkg/middleware"
 	types "github.com/hellodk/hetu/pkg/types"
 
@@ -1850,7 +1850,7 @@ func (a *Analyzer) serveAPI() {
 	rateLimitMiddleware := mw.RateLimit(limiter)
 
 	// Chain middleware: rate limit -> CORS -> mux
-	handler := rateLimitMiddleware(corsMiddleware(mux))
+	handler := rateLimitMiddleware(corsMiddleware(logger.RequestLogger(mux)))
 
 	a.apiServer = &http.Server{
 		Addr:              fmt.Sprintf("%s:%d", a.config.BindAddress, a.config.APIPort),
@@ -2889,8 +2889,7 @@ func (a *Analyzer) Stop() {
 
 func main() {
 	// Configure logging
-	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
-	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
+	logger.Init(os.Getenv("LOG_LEVEL"), os.Getenv("LOG_FORMAT"))
 
 	// v7: Load layered unified config (base + runtime override) in relaxed mode
 	// so the service can start even if config files are missing/invalid.
