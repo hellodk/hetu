@@ -7,11 +7,11 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.27.0
 	github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs v1.68.0
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.58.0
-	github.com/prometheus/client_golang v1.19.0
-	github.com/rs/zerolog v1.32.0
 	github.com/hellodk/hetu/pkg/bus v0.0.0
 	github.com/hellodk/hetu/pkg/config v0.0.0
 	github.com/hellodk/hetu/pkg/types v0.0.0
+	github.com/prometheus/client_golang v1.19.0
+	github.com/rs/zerolog v1.35.0
 	k8s.io/api v0.29.2
 	k8s.io/apimachinery v0.29.2
 	k8s.io/client-go v0.29.2
@@ -21,6 +21,7 @@ require (
 replace (
 	github.com/hellodk/hetu/pkg/bus => ../../pkg/bus
 	github.com/hellodk/hetu/pkg/config => ../../pkg/config
+	github.com/hellodk/hetu/pkg/logger => ../../pkg/logger
 	github.com/hellodk/hetu/pkg/middleware => ../../pkg/middleware
 	github.com/hellodk/hetu/pkg/types => ../../pkg/types
 )
@@ -54,14 +55,14 @@ require (
 	github.com/google/gnostic-models v0.6.8 // indirect
 	github.com/google/go-cmp v0.6.0 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
-	github.com/google/uuid v1.3.0 // indirect
+	github.com/google/uuid v1.6.0 // indirect
 	github.com/imdario/mergo v0.3.6 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/compress v1.18.5 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
-	github.com/mattn/go-colorable v0.1.13 // indirect
-	github.com/mattn/go-isatty v0.0.19 // indirect
+	github.com/mattn/go-colorable v0.1.14 // indirect
+	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect

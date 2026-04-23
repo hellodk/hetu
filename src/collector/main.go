@@ -15,10 +15,10 @@ import (
 	"time"
 
 	ucconfig "github.com/hellodk/hetu/pkg/config"
+	"github.com/hellodk/hetu/pkg/logger"
 	types "github.com/hellodk/hetu/pkg/types"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -668,7 +668,7 @@ func (c *Collector) serveHealth() {
 
 	c.healthServer = &http.Server{
 		Addr:              fmt.Sprintf("%s:%d", c.config.BindAddress, c.config.HealthPort),
-		Handler:           mux,
+		Handler:           logger.RequestLogger(mux),
 		ReadHeaderTimeout: 30 * time.Second,
 	}
 
@@ -698,8 +698,7 @@ func (c *Collector) Stop() {
 }
 
 func main() {
-	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
-	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
+	logger.Init(os.Getenv("LOG_LEVEL"), os.Getenv("LOG_FORMAT"))
 
 	// v7: Try loading unified config file (CI_CONFIG env or /etc/hetu/config.yaml).
 	// If available, its values seed the Config below; env vars still override as before.
