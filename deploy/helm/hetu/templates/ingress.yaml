@@ -2,10 +2,10 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: {{ include "cluster-intel.fullname" . }}
+  name: {{ include "hetu.fullname" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "cluster-intel.labels" . | nindent 4 }}
+    {{- include "hetu.labels" . | nindent 4 }}
   {{- with .Values.ingress.annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
@@ -26,14 +26,14 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: {{ include "cluster-intel.fullname" . }}-analyzer
+                name: {{ include "hetu.fullname" . }}-analyzer
                 port:
                   number: 8081
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: {{ include "cluster-intel.fullname" . }}-dashboard
+                name: {{ include "hetu.fullname" . }}-dashboard
                 port:
                   number: 3000
 {{- end }}

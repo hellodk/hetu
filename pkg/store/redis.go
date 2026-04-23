@@ -8,7 +8,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
-	"github.com/your-org/cluster-intel/pkg/config"
+	"github.com/hellodk/hetu/pkg/config"
 )
 
 // OpenRedis opens a Redis client using the supplied configuration and verifies

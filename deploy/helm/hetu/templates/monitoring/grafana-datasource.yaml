@@ -6,7 +6,7 @@ labeled `grafana_datasource: "1"`.
 Ported from manifests/monitoring/tempo/grafana-datasource.yaml; the
 prometheus/loki datasource UIDs are configurable.
 */}}
-{{- $ns := include "cluster-intel.monitoringNamespace" . }}
+{{- $ns := include "hetu.monitoringNamespace" . }}
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -14,7 +14,7 @@ metadata:
   name: grafana-datasource-tempo
   namespace: {{ $ns }}
   labels:
-    {{- include "cluster-intel.labels" . | nindent 4 }}
+    {{- include "hetu.labels" . | nindent 4 }}
     grafana_datasource: "1"
     app: tempo
 data:

@@ -131,7 +131,7 @@ interface Toast {
 
 // API URL: read from runtime config injected by server layout, or fall back to build-time env
 const API_URL = typeof window !== 'undefined'
-  ? ((window as any).__CLUSTER_INTEL_API__ || '')
+  ? ((window as any).__HETU_API__ || '')
   : (process.env.NEXT_PUBLIC_API_URL || '')
 
 // Tab configuration
@@ -733,7 +733,7 @@ export default function Dashboard() {
       <footer className="border-t border-cluster-border mt-auto py-4">
         <div className="max-w-[1800px] mx-auto px-4 sm:px-6 text-center text-cluster-muted text-sm">
           <p>
-            K8s AI Cluster Intelligence Engine v{packageJson.version}
+            Hetu v{packageJson.version}
             <span className="hidden sm:inline"> | </span>
             <br className="sm:hidden" />
             Last analysis: {new Date(displayReport.timestamp).toLocaleString()}

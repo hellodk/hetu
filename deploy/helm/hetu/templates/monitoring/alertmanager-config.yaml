@@ -7,7 +7,7 @@ AlertManager Slack routing template. Requires that the Slack webhook URL
 secret already exists in the monitoring namespace — we mount it, we
 don't create it.
 */}}
-{{- $ns := include "cluster-intel.monitoringNamespace" . }}
+{{- $ns := include "hetu.monitoringNamespace" . }}
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -15,7 +15,7 @@ metadata:
   name: alertmanager-config-template
   namespace: {{ $ns }}
   labels:
-    {{- include "cluster-intel.labels" . | nindent 4 }}
+    {{- include "hetu.labels" . | nindent 4 }}
     app: alertmanager
 data:
   alertmanager.yaml: |

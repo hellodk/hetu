@@ -20,8 +20,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/rs/zerolog/log"
 
-	"github.com/your-org/cluster-intel/pkg/bus"
-	ucconfig "github.com/your-org/cluster-intel/pkg/config"
+	"github.com/hellodk/hetu/pkg/bus"
+	ucconfig "github.com/hellodk/hetu/pkg/config"
 )
 
 // LBConfig describes a single load balancer log source (S3).
@@ -94,7 +94,7 @@ type URLStats struct {
 // It reads env vars for AWS/delivery configuration, starts S3 and CloudWatch
 // sources, and blocks until ctx is cancelled.
 func startLBLogs(ctx context.Context, cfg Config) {
-	ucfg, _ := ucconfig.LoadFromEnv("/etc/cluster-intel/config.yaml")
+	ucfg, _ := ucconfig.LoadFromEnv("/etc/hetu/config.yaml")
 
 	deliveryMode := cfg.LBDeliveryMode
 	if deliveryMode == "" {

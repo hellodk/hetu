@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ─────────────────────────────────────────────────────────────────────────────
-# run-local.sh — interactive dev runner for cluster-intel
+# run-local.sh — interactive dev runner for hetu
 # ─────────────────────────────────────────────────────────────────────────────
 # Pattern lifted from /home/dk/Documents/git/nginx-manager-cursor/scripts/avk
 # every config item is loaded from env/<ENVIRONMENT>.env, shown to the
@@ -54,7 +54,7 @@ fatal()   { error "$*"; exit 1; }
 PROMPT_RESULT=""
 YES=0                    # --yes accepts every default silently
 NON_INTERACTIVE=0        # --non-interactive: a required prompt aborts
-LOG_DIR="${LOG_DIR:-/tmp/cluster-intel-logs}"
+LOG_DIR="${LOG_DIR:-/tmp/hetu-logs}"
 mkdir -p "$LOG_DIR"
 
 ANALYZER_PIDFILE="$LOG_DIR/analyzer.pid"
@@ -968,7 +968,7 @@ cmd_publish() {
     local name="${NAMES[$i]}"
     local ctx="${CONTEXTS[$i]}"
     local dfile="${DOCKERFILES[$i]}"
-    local image="$REGISTRY/cluster-intel-$name"
+    local image="$REGISTRY/hetu-$name"
 
     info "[$((i+1))/${#NAMES[@]}] Building $image:$tag …"
     if ! docker build \
@@ -1168,8 +1168,8 @@ EOF
 cmd_version() {
   local sha; sha="$(git -C "$REPO_ROOT" rev-parse --short HEAD 2>/dev/null || echo unknown)"
   local chart_ver
-  chart_ver="$(awk -F': ' '/^version:/{print $2; exit}' "$REPO_ROOT/deploy/helm/cluster-intel/Chart.yaml" 2>/dev/null || echo unknown)"
-  echo "cluster-intel: git $sha · chart $chart_ver" >&2
+  chart_ver="$(awk -F': ' '/^version:/{print $2; exit}' "$REPO_ROOT/deploy/helm/hetu/Chart.yaml" 2>/dev/null || echo unknown)"
+  echo "hetu: git $sha · chart $chart_ver" >&2
 }
 
 usage() {

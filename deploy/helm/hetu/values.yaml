@@ -12,7 +12,7 @@
 
 # -- Global settings -----------------------------------------------------------
 global:
-  namespace: cluster-intel
+  namespace: hetu
   createNamespace: true
   imagePullSecrets: []
 
@@ -69,7 +69,7 @@ affinity:
             matchExpressions:
               - key: app.kubernetes.io/name
                 operator: In
-                values: [cluster-intel]
+                values: [hetu]
 
 topologySpreadConstraints:
   - maxSkew: 1
@@ -77,14 +77,14 @@ topologySpreadConstraints:
     whenUnsatisfiable: ScheduleAnyway
     labelSelector:
       matchLabels:
-        app.kubernetes.io/name: cluster-intel
+        app.kubernetes.io/name: hetu
 
 # =============================================================================
 # Collector (Go binary — reads Kubernetes API + Prometheus)
 # =============================================================================
 collector:
   image:
-    repository: hellodk/cluster-intel-collector
+    repository: hellodk/hetu-collector
     tag: "7.0.0"
     pullPolicy: IfNotPresent
   replicas: 1
@@ -125,7 +125,7 @@ collector:
 # =============================================================================
 analyzer:
   image:
-    repository: hellodk/cluster-intel-analyzer
+    repository: hellodk/hetu-analyzer
     tag: "7.0.0"
     pullPolicy: IfNotPresent
   replicas: 1
@@ -145,7 +145,7 @@ analyzer:
     minAvailable: 1
   # Runtime config defaults that land in the unified config ConfigMap.
   # The UI can override these at runtime via the override ConfigMap layer.
-  collectorUrl: "http://cluster-intel-collector:8080"
+  collectorUrl: "http://hetu-collector:8080"
   corsAllowedOrigins:
     - "*"
 
@@ -154,7 +154,7 @@ analyzer:
 # =============================================================================
 dashboard:
   image:
-    repository: hellodk/cluster-intel-dashboard
+    repository: hellodk/hetu-dashboard
     tag: "7.0.0"
     pullPolicy: IfNotPresent
   replicas: 1
@@ -267,7 +267,7 @@ protectedNamespaces:
 ingress:
   enabled: false
   className: ""
-  host: cluster-intel.example.com
+  host: hetu.example.com
   annotations: {}
   tls: []
   # - secretName: cluster-intel-tls

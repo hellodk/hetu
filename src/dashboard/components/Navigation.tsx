@@ -131,7 +131,7 @@ export function Navigation() {
 
   // Fetch open incident count for nav badge
   useEffect(() => {
-    const apiUrl = typeof window !== 'undefined' ? ((window as any).__CLUSTER_INTEL_API__ || '') : ''
+    const apiUrl = typeof window !== 'undefined' ? ((window as any).__HETU_API__ || '') : ''
     fetch(`${apiUrl}/api/v1/incidents`)
       .then(r => r.ok ? r.json() : null)
       .then(data => {
@@ -331,7 +331,7 @@ export function Navigation() {
         }`}
       >
         <div className="h-14 flex items-center px-4 border-b border-cluster-border">
-          <span className="text-sm font-semibold text-cluster-text">Cluster Intel</span>
+          <span className="text-sm font-semibold text-cluster-text">Hetu</span>
         </div>
         {nav}
       </aside>

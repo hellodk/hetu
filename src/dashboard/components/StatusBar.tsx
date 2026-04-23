@@ -40,7 +40,7 @@ export function StatusBar({
       {/* Brand */}
       <h1 className="flex items-center gap-2 font-sans font-bold text-white text-sm mr-1 flex-shrink-0">
         <Activity className="w-4 h-4 text-blue-400" aria-hidden="true" />
-        <span className="hidden sm:inline">K8s Cluster Intelligence</span>
+        <span className="hidden sm:inline">Hetu</span>
         <span className="sm:hidden">K8s Intel</span>
       </h1>
 

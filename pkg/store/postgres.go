@@ -10,7 +10,7 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib" // pgx as database/sql driver
 
-	"github.com/your-org/cluster-intel/pkg/config"
+	"github.com/hellodk/hetu/pkg/config"
 )
 
 // OpenPostgres opens a *sql.DB against the configured Postgres endpoint and

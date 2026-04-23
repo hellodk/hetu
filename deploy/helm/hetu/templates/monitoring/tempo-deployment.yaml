@@ -5,7 +5,7 @@ Tempo — single-binary distributed tracing backend.
 Ported from manifests/monitoring/tempo/tempo-deployment.yaml with the image
 tag, retention, resources, and storage made configurable.
 */}}
-{{- $ns := include "cluster-intel.monitoringNamespace" . }}
+{{- $ns := include "hetu.monitoringNamespace" . }}
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -13,7 +13,7 @@ metadata:
   name: tempo-config
   namespace: {{ $ns }}
   labels:
-    {{- include "cluster-intel.labels" . | nindent 4 }}
+    {{- include "hetu.labels" . | nindent 4 }}
     app: tempo
 data:
   tempo.yaml: |
@@ -76,7 +76,7 @@ metadata:
   name: tempo
   namespace: {{ $ns }}
   labels:
-    {{- include "cluster-intel.labels" . | nindent 4 }}
+    {{- include "hetu.labels" . | nindent 4 }}
     app: tempo
 spec:
   replicas: 1
@@ -135,7 +135,7 @@ metadata:
   name: tempo
   namespace: {{ $ns }}
   labels:
-    {{- include "cluster-intel.labels" . | nindent 4 }}
+    {{- include "hetu.labels" . | nindent 4 }}
     app: tempo
 spec:
   type: ClusterIP
@@ -157,7 +157,7 @@ metadata:
   name: tempo-data
   namespace: {{ $ns }}
   labels:
-    {{- include "cluster-intel.labels" . | nindent 4 }}
+    {{- include "hetu.labels" . | nindent 4 }}
     app: tempo
 spec:
   accessModes: [ReadWriteOnce]

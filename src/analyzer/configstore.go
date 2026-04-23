@@ -66,10 +66,10 @@ func DefaultRuntimeOverridePath() string {
 		return p
 	}
 	if xdg := os.Getenv("XDG_CONFIG_HOME"); strings.TrimSpace(xdg) != "" {
-		return filepath.Join(xdg, "cluster-intel", "runtime.yaml")
+		return filepath.Join(xdg, "hetu", "runtime.yaml")
 	}
 	if home := os.Getenv("HOME"); strings.TrimSpace(home) != "" {
-		return filepath.Join(home, ".config", "cluster-intel", "runtime.yaml")
+		return filepath.Join(home, ".config", "hetu", "runtime.yaml")
 	}
 	return "./.runtime-config.yaml"
 }
@@ -123,7 +123,7 @@ func (s *K8sConfigMapStore) Put(ctx context.Context, yaml string) error {
 				Name:      s.Name,
 				Namespace: s.Namespace,
 				Labels: map[string]string{
-					"app.kubernetes.io/name":      "cluster-intel",
+					"app.kubernetes.io/name":      "hetu",
 					"app.kubernetes.io/component": "analyzer",
 					"cluster-intel.io/managed":    "runtime-overrides",
 				},

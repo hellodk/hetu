@@ -2,15 +2,15 @@
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: {{ include "cluster-intel.fullname" . }}-collector
+  name: {{ include "hetu.fullname" . }}-collector
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "cluster-intel.labels" . | nindent 4 }}
+    {{- include "hetu.labels" . | nindent 4 }}
     app.kubernetes.io/component: collector
 spec:
   selector:
     matchLabels:
-      {{- include "cluster-intel.selectorLabels" . | nindent 6 }}
+      {{- include "hetu.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: collector
   endpoints:
     - port: metrics
@@ -20,15 +20,15 @@ spec:
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: {{ include "cluster-intel.fullname" . }}-analyzer
+  name: {{ include "hetu.fullname" . }}-analyzer
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "cluster-intel.labels" . | nindent 4 }}
+    {{- include "hetu.labels" . | nindent 4 }}
     app.kubernetes.io/component: analyzer
 spec:
   selector:
     matchLabels:
-      {{- include "cluster-intel.selectorLabels" . | nindent 6 }}
+      {{- include "hetu.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: analyzer
   endpoints:
     - port: metrics

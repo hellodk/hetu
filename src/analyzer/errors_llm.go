@@ -12,7 +12,7 @@ import (
 
 	"github.com/rs/zerolog/log"
 
-	types "github.com/your-org/cluster-intel/pkg/types"
+	types "github.com/hellodk/hetu/pkg/types"
 )
 
 // runErrorGroupAnalysis is the analyzer-side LLM closure wired into the

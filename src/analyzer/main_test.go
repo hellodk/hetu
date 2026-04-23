@@ -11,7 +11,7 @@ import (
 	"text/template"
 	"time"
 
-	types "github.com/your-org/cluster-intel/pkg/types"
+	types "github.com/hellodk/hetu/pkg/types"
 )
 
 // newTestAnalyzer creates a minimal Analyzer suitable for unit tests.

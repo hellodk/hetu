@@ -3,7 +3,7 @@ package kube
 import (
 	"fmt"
 
-	"github.com/your-org/cluster-intel/pkg/config"
+	"github.com/hellodk/hetu/pkg/config"
 
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"

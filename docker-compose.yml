@@ -3,7 +3,7 @@ services:
   # ── Vector store ──────────────────────────────────────────────────────────
   qdrant:
     image: qdrant/qdrant:v1.9.0
-    container_name: cluster-intel-qdrant
+    container_name: hetu-qdrant
     ports:
       - "${QDRANT_PORT:-6333}:6333"   # REST API
       - "${QDRANT_GRPC_PORT:-6334}:6334" # gRPC
@@ -22,7 +22,7 @@ services:
     build:
       context: .
       dockerfile: src/collector/Dockerfile
-    container_name: cluster-intel-collector
+    container_name: hetu-collector
     ports:
       - "${COLLECTOR_PORT:-18080}:8080"
       - "${COLLECTOR_METRICS_PORT:-19090}:9090"
@@ -48,7 +48,7 @@ services:
     build:
       context: .
       dockerfile: src/analyzer/Dockerfile
-    container_name: cluster-intel-analyzer
+    container_name: hetu-analyzer
     ports:
       - "${ANALYZER_PORT:-18081}:8081"
       - "${ANALYZER_METRICS_PORT:-19091}:9091"
@@ -79,7 +79,7 @@ services:
     build:
       context: src/dashboard
       dockerfile: Dockerfile
-    container_name: cluster-intel-dashboard
+    container_name: hetu-dashboard
     ports:
       - "${DASHBOARD_PORT:-3003}:3000"
     environment:
@@ -92,4 +92,4 @@ services:
 
 volumes:
   qdrant_storage:
-    name: cluster-intel-qdrant-storage
+    name: hetu-qdrant-storage

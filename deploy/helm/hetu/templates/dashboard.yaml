@@ -1,25 +1,25 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "cluster-intel.fullname" . }}-dashboard
+  name: {{ include "hetu.fullname" . }}-dashboard
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "cluster-intel.labels" . | nindent 4 }}
+    {{- include "hetu.labels" . | nindent 4 }}
     app.kubernetes.io/component: dashboard
 spec:
   replicas: {{ .Values.dashboard.replicas }}
   selector:
     matchLabels:
-      {{- include "cluster-intel.selectorLabels" . | nindent 6 }}
+      {{- include "hetu.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: dashboard
   template:
     metadata:
       labels:
-        {{- include "cluster-intel.selectorLabels" . | nindent 8 }}
+        {{- include "hetu.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: dashboard
     spec:
       securityContext:
-        {{- include "cluster-intel.podSecurityContext" (dict "top" .Values.podSecurityContext "override" (default dict .Values.dashboard.podSecurityContext)) | nindent 8 }}
+        {{- include "hetu.podSecurityContext" (dict "top" .Values.podSecurityContext "override" (default dict .Values.dashboard.podSecurityContext)) | nindent 8 }}
       {{- with .Values.global.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
@@ -37,10 +37,10 @@ spec:
           image: "{{ .Values.dashboard.image.repository }}:{{ .Values.dashboard.image.tag }}"
           imagePullPolicy: {{ .Values.dashboard.image.pullPolicy }}
           securityContext:
-            {{- include "cluster-intel.securityContext" (dict "top" .Values.securityContext "override" .Values.dashboard.securityContext) | nindent 12 }}
+            {{- include "hetu.securityContext" (dict "top" .Values.securityContext "override" .Values.dashboard.securityContext) | nindent 12 }}
           env:
             - name: NEXT_PUBLIC_API_URL
-              value: "http://{{ include "cluster-intel.fullname" . }}-analyzer:8081"
+              value: "http://{{ include "hetu.fullname" . }}-analyzer:8081"
             {{- with .Values.dashboard.env }}
             {{- toYaml . | nindent 12 }}
             {{- end }}

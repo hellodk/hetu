@@ -9,7 +9,7 @@ import (
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 
-	"github.com/your-org/cluster-intel/pkg/config"
+	"github.com/hellodk/hetu/pkg/config"
 )
 
 // OpenClickHouse opens a *sql.DB against the configured ClickHouse endpoint

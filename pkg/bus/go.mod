@@ -1,10 +1,10 @@
-module github.com/your-org/cluster-intel/pkg/bus
+module github.com/hellodk/hetu/pkg/bus
 
 go 1.25.0
 
 require (
 	github.com/nats-io/nats.go v1.50.0
-	github.com/your-org/cluster-intel/pkg/config v0.0.0
+	github.com/hellodk/hetu/pkg/config v0.0.0
 )
 
 require (
@@ -16,4 +16,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/your-org/cluster-intel/pkg/config => ../config
+replace github.com/hellodk/hetu/pkg/config => ../config

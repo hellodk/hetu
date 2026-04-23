@@ -1,16 +1,16 @@
-{{- include "cluster-intel.validate" . -}}
+{{- include "hetu.validate" . -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: cluster-intel-config
+  name: hetu-config
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "cluster-intel.labels" . | nindent 4 }}
+    {{- include "hetu.labels" . | nindent 4 }}
 data:
   config.yaml: |
     cluster:
       id: {{ .Values.cluster.id | quote }}
-      displayName: {{ include "cluster-intel.displayName" . | quote }}
+      displayName: {{ include "hetu.displayName" . | quote }}
 
     analyzer:
       collectorUrl: {{ .Values.analyzer.collectorUrl | quote }}
@@ -20,22 +20,22 @@ data:
     stores:
       postgres:
         enabled: true
-        host: {{ include "cluster-intel.postgres.host" . | quote }}
-        port: {{ include "cluster-intel.postgres.port" . }}
+        host: {{ include "hetu.postgres.host" . | quote }}
+        port: {{ include "hetu.postgres.port" . }}
         database: {{ .Values.stores.postgres.external.db | quote }}
         user: {{ .Values.stores.postgres.external.user | quote }}
         sslMode: {{ .Values.stores.postgres.sslMode | quote }}
-        passwordFile: /etc/cluster-intel/secrets/postgres/password
+        passwordFile: /etc/hetu/secrets/postgres/password
 
       redis:
         enabled: true
-        addr: {{ include "cluster-intel.redis.addr" . | quote }}
-        passwordFile: /etc/cluster-intel/secrets/redis/password
+        addr: {{ include "hetu.redis.addr" . | quote }}
+        passwordFile: /etc/hetu/secrets/redis/password
 
     bus:
       nats:
         enabled: true
-        url: {{ include "cluster-intel.nats.url" . | quote }}
+        url: {{ include "hetu.nats.url" . | quote }}
 
     llm:
       provider: {{ .Values.llm.provider | quote }}
@@ -44,7 +44,7 @@ data:
       {{- end }}
       model: {{ .Values.llm.model | quote }}
       {{- if .Values.llm.apiKeySecret.name }}
-      apiKeyFile: /etc/cluster-intel/secrets/llm/api-key
+      apiKeyFile: /etc/hetu/secrets/llm/api-key
       {{- end }}
       maxTokens: {{ .Values.llm.maxTokens }}
       temperature: {{ .Values.llm.temperature }}

@@ -1,12 +1,12 @@
 apiVersion: v2
-name: cluster-intel
+name: hetu
 description: Kubernetes Cluster Intelligence Engine — Go collector, Go analyzer, Next.js dashboard
 type: application
 version: 0.2.0
 appVersion: "7.0.0"
 
 maintainers:
-  - name: cluster-intel team
+  - name: hetu team
 
 dependencies:
   - name: postgresql

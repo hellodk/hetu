@@ -1,9 +1,9 @@
-module github.com/your-org/cluster-intel/pkg/kube
+module github.com/hellodk/hetu/pkg/kube
 
 go 1.25.0
 
 require (
-	github.com/your-org/cluster-intel/pkg/config v0.0.0
+	github.com/hellodk/hetu/pkg/config v0.0.0
 	k8s.io/client-go v0.35.3
 )
 
@@ -48,4 +48,4 @@ require (
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
 
-replace github.com/your-org/cluster-intel/pkg/config => ../config
+replace github.com/hellodk/hetu/pkg/config => ../config

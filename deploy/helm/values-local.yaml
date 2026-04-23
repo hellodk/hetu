@@ -1,8 +1,8 @@
 # values-local.yaml — operator overrides for a single-node home-lab cluster.
 #
 # Copy and fill in every REQUIRED value before deploying:
-#   helm upgrade --install cluster-intel deploy/helm/cluster-intel/ \
-#     --namespace cluster-intel --create-namespace \
+#   helm upgrade --install hetu deploy/helm/hetu/ \
+#     --namespace hetu --create-namespace \
 #     -f deploy/helm/values-local.yaml --wait
 #
 # Helm will refuse to install if any REQUIRED value is left blank.

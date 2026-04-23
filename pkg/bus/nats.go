@@ -9,7 +9,7 @@ import (
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 
-	"github.com/your-org/cluster-intel/pkg/config"
+	"github.com/hellodk/hetu/pkg/config"
 )
 
 // Bus wraps a NATS JetStream connection and provides typed Publish/Subscribe
@@ -28,7 +28,7 @@ func Connect(ctx context.Context, cfg config.NATSConfig) (*Bus, error) {
 	}
 
 	opts := []nats.Option{
-		nats.Name("cluster-intel"),
+		nats.Name("hetu"),
 		nats.MaxReconnects(-1),
 		nats.ReconnectWait(2 * time.Second),
 	}
@@ -104,11 +104,11 @@ func (b *Bus) Subscribe(ctx context.Context, consumer string, subjects []string)
 	}
 
 	cons, err := b.js.CreateOrUpdateConsumer(ctx, streamName, jetstream.ConsumerConfig{
-		Durable:       consumer,
+		Durable:        consumer,
 		FilterSubjects: fqn,
-		AckPolicy:     jetstream.AckExplicitPolicy,
-		MaxDeliver:    5,
-		AckWait:       30 * time.Second,
+		AckPolicy:      jetstream.AckExplicitPolicy,
+		MaxDeliver:     5,
+		AckWait:        30 * time.Second,
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("bus: create consumer %q: %w", consumer, err)

@@ -1,4 +1,4 @@
-module github.com/your-org/cluster-intel/pkg/config
+module github.com/hellodk/hetu/pkg/config
 
 go 1.24.0
 

@@ -88,7 +88,7 @@ export function SettingsModal({
     useEffect(() => {
         if (!isOpen) return
         // Load current runtime override YAML so operators can GitOps it if needed.
-        const apiBase = typeof window !== 'undefined' ? ((window as any).__CLUSTER_INTEL_API__ || '') : ''
+        const apiBase = typeof window !== 'undefined' ? ((window as any).__HETU_API__ || '') : ''
         setOverrideLoadError('')
         fetch(`${apiBase}/api/v1/config`)
             .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
@@ -234,7 +234,7 @@ export function SettingsModal({
                                 }`}
                             disabled={!overrideYamlLoaded || savingOverride}
                             onClick={async () => {
-                                const apiBase = typeof window !== 'undefined' ? ((window as any).__CLUSTER_INTEL_API__ || '') : ''
+                                const apiBase = typeof window !== 'undefined' ? ((window as any).__HETU_API__ || '') : ''
                                 setSavingOverride(true)
                                 setOverrideLoadError('')
                                 try {
@@ -262,7 +262,7 @@ export function SettingsModal({
                     <input
                         type="text"
                         className="w-full bg-cluster-card border border-cluster-border rounded-lg p-2 text-cluster-text font-mono text-xs focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-                        defaultValue={typeof window !== 'undefined' ? ((window as any).__CLUSTER_INTEL_API__ || '(relative)') : '(server)'}
+                        defaultValue={typeof window !== 'undefined' ? ((window as any).__HETU_API__ || '(relative)') : '(server)'}
                         readOnly
                     />
                     <p className="text-xs text-cluster-muted mt-1">Injected at runtime by the Next.js server layout</p>

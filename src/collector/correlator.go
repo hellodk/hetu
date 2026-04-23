@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
+	types "github.com/hellodk/hetu/pkg/types"
 	"github.com/rs/zerolog/log"
-	types "github.com/your-org/cluster-intel/pkg/types"
 	corev1 "k8s.io/api/core/v1"
 )
 

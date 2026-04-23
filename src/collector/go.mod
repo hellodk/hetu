@@ -1,4 +1,4 @@
-module github.com/your-org/cluster-intel-collector
+module github.com/hellodk/hetu/src/collector
 
 go 1.25.0
 
@@ -9,9 +9,9 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.58.0
 	github.com/prometheus/client_golang v1.19.0
 	github.com/rs/zerolog v1.32.0
-	github.com/your-org/cluster-intel/pkg/bus v0.0.0
-	github.com/your-org/cluster-intel/pkg/config v0.0.0
-	github.com/your-org/cluster-intel/pkg/types v0.0.0
+	github.com/hellodk/hetu/pkg/bus v0.0.0
+	github.com/hellodk/hetu/pkg/config v0.0.0
+	github.com/hellodk/hetu/pkg/types v0.0.0
 	k8s.io/api v0.29.2
 	k8s.io/apimachinery v0.29.2
 	k8s.io/client-go v0.29.2
@@ -19,10 +19,10 @@ require (
 )
 
 replace (
-	github.com/your-org/cluster-intel/pkg/bus => ../../pkg/bus
-	github.com/your-org/cluster-intel/pkg/config => ../../pkg/config
-	github.com/your-org/cluster-intel/pkg/middleware => ../../pkg/middleware
-	github.com/your-org/cluster-intel/pkg/types => ../../pkg/types
+	github.com/hellodk/hetu/pkg/bus => ../../pkg/bus
+	github.com/hellodk/hetu/pkg/config => ../../pkg/config
+	github.com/hellodk/hetu/pkg/middleware => ../../pkg/middleware
+	github.com/hellodk/hetu/pkg/types => ../../pkg/types
 )
 
 require (

@@ -13,12 +13,12 @@ function getAnalyzerUrl(): string {
   if (process.env.NEXT_PUBLIC_ANALYZER_URL) return process.env.NEXT_PUBLIC_ANALYZER_URL
   // K8s service discovery env vars (injected by the scheduler when the
   // dashboard pod and the cluster-intel-analyzer Service are in the same ns)
-  const host = process.env.CLUSTER_INTEL_ANALYZER_SERVICE_HOST
-  const port = process.env.CLUSTER_INTEL_ANALYZER_SERVICE_PORT_HTTP || process.env.CLUSTER_INTEL_ANALYZER_SERVICE_PORT || '8081'
+  const host = process.env.HETU_ANALYZER_SERVICE_HOST
+  const port = process.env.HETU_ANALYZER_SERVICE_PORT_HTTP || process.env.HETU_ANALYZER_SERVICE_PORT || '8081'
   if (host) return `http://${host}:${port}`
   // Last resort: K8s DNS by service name (works inside the cluster,
   // fails locally — which is why the explicit env vars exist).
-  return 'http://cluster-intel-analyzer:8081'
+  return 'http://hetu-analyzer:8081'
 }
 
 // Next.js 15+ changed route handler params to be async (Promise-based).

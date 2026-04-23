@@ -10,9 +10,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hellodk/hetu/pkg/bus"
+	ucconfig "github.com/hellodk/hetu/pkg/config"
 	"github.com/rs/zerolog/log"
-	"github.com/your-org/cluster-intel/pkg/bus"
-	ucconfig "github.com/your-org/cluster-intel/pkg/config"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -82,7 +82,7 @@ func startPodLogs(ctx context.Context, cfg Config) {
 		return
 	}
 
-	ucfg, _ := ucconfig.LoadFromEnv("/etc/cluster-intel/config.yaml")
+	ucfg, _ := ucconfig.LoadFromEnv("/etc/hetu/config.yaml")
 
 	var eventBus *bus.Bus
 	if ucfg.Bus.NATS.Enabled {

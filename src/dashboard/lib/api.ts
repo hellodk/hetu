@@ -4,7 +4,7 @@
 //
 // WebSocket connections CANNOT be proxied by Next.js route handlers, so they
 // connect directly to the analyzer. The analyzer URL is injected at runtime
-// by the server layout into window.__CLUSTER_INTEL_API__.
+// by the server layout into window.__HETU_API__.
 
 export function getApiUrl(): string {
   // For REST calls, use relative URLs (proxied by Next.js)
@@ -15,7 +15,7 @@ export function getApiUrl(): string {
 // WebSocket can't go through the Next.js proxy, so we need the direct URL.
 export function getWsUrl(): string {
   if (typeof window === 'undefined') return ''
-  const api = (window as any).__CLUSTER_INTEL_API__ || ''
+  const api = (window as any).__HETU_API__ || ''
   if (api) {
     return api.replace(/^http/, 'ws')
   }

@@ -15,16 +15,16 @@ which is why this is opt-in and typically paired with replicas >= 2.
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: {{ include "cluster-intel.fullname" $ }}-{{ $component }}
+  name: {{ include "hetu.fullname" $ }}-{{ $component }}
   namespace: {{ $.Release.Namespace }}
   labels:
-    {{- include "cluster-intel.labels" $ | nindent 4 }}
+    {{- include "hetu.labels" $ | nindent 4 }}
     app.kubernetes.io/component: {{ $component }}
 spec:
   minAvailable: {{ $cfg.pdb.minAvailable }}
   selector:
     matchLabels:
-      {{- include "cluster-intel.selectorLabels" $ | nindent 6 }}
+      {{- include "hetu.selectorLabels" $ | nindent 6 }}
       app.kubernetes.io/component: {{ $component }}
 {{- end }}
 {{- end }}

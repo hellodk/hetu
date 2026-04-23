@@ -215,8 +215,8 @@ func Default() Config {
 				MaxOpenConns:    25,
 				MaxIdleConns:    5,
 				ConnMaxLifetime: 30 * time.Minute,
-				MigrationsPath:  "/etc/cluster-intel/migrations/postgres",
-				AppName:         "cluster-intel",
+				MigrationsPath:  "/etc/hetu/migrations/postgres",
+				AppName:         "hetu",
 			},
 			ClickHouse: ClickHouseConfig{
 				Enabled:        false,
@@ -226,7 +226,7 @@ func Default() Config {
 				User:           "default",
 				DialTimeout:    10 * time.Second,
 				MaxOpenConns:   10,
-				MigrationsPath: "/etc/cluster-intel/migrations/clickhouse",
+				MigrationsPath: "/etc/hetu/migrations/clickhouse",
 			},
 			Redis: RedisConfig{
 				Enabled:     false,

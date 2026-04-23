@@ -20,7 +20,7 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
-	types "github.com/your-org/cluster-intel/pkg/types"
+	types "github.com/hellodk/hetu/pkg/types"
 )
 
 // LLMMetrics holds all LLM-related Prometheus metrics

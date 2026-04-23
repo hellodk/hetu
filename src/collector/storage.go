@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
+	types "github.com/hellodk/hetu/pkg/types"
 	"github.com/rs/zerolog/log"
-	types "github.com/your-org/cluster-intel/pkg/types"
 )
 
 // collectPVCMetrics queries prometheus for PVC metrics and adds to the metrics buffer

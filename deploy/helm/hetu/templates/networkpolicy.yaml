@@ -13,10 +13,10 @@ effect.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: {{ include "cluster-intel.fullname" . }}-default-deny
+  name: {{ include "hetu.fullname" . }}-default-deny
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "cluster-intel.labels" . | nindent 4 }}
+    {{- include "hetu.labels" . | nindent 4 }}
 spec:
   podSelector: {}
   policyTypes:
@@ -27,15 +27,15 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: {{ include "cluster-intel.fullname" . }}-collector-egress
+  name: {{ include "hetu.fullname" . }}-collector-egress
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "cluster-intel.labels" . | nindent 4 }}
+    {{- include "hetu.labels" . | nindent 4 }}
     app.kubernetes.io/component: collector
 spec:
   podSelector:
     matchLabels:
-      {{- include "cluster-intel.selectorLabels" . | nindent 6 }}
+      {{- include "hetu.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: collector
   policyTypes: [Egress]
   egress:
@@ -64,22 +64,22 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: {{ include "cluster-intel.fullname" . }}-collector-ingress
+  name: {{ include "hetu.fullname" . }}-collector-ingress
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "cluster-intel.labels" . | nindent 4 }}
+    {{- include "hetu.labels" . | nindent 4 }}
     app.kubernetes.io/component: collector
 spec:
   podSelector:
     matchLabels:
-      {{- include "cluster-intel.selectorLabels" . | nindent 6 }}
+      {{- include "hetu.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: collector
   policyTypes: [Ingress]
   ingress:
     - from:
         - podSelector:
             matchLabels:
-              {{- include "cluster-intel.selectorLabels" . | nindent 14 }}
+              {{- include "hetu.selectorLabels" . | nindent 14 }}
               app.kubernetes.io/component: analyzer
       ports:
         - { protocol: TCP, port: 8080 }
@@ -94,22 +94,22 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: {{ include "cluster-intel.fullname" . }}-analyzer-egress
+  name: {{ include "hetu.fullname" . }}-analyzer-egress
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "cluster-intel.labels" . | nindent 4 }}
+    {{- include "hetu.labels" . | nindent 4 }}
     app.kubernetes.io/component: analyzer
 spec:
   podSelector:
     matchLabels:
-      {{- include "cluster-intel.selectorLabels" . | nindent 6 }}
+      {{- include "hetu.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: analyzer
   policyTypes: [Egress]
   egress:
     - to:
         - podSelector:
             matchLabels:
-              {{- include "cluster-intel.selectorLabels" . | nindent 14 }}
+              {{- include "hetu.selectorLabels" . | nindent 14 }}
               app.kubernetes.io/component: collector
       ports:
         - { protocol: TCP, port: 8080 }
@@ -144,22 +144,22 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: {{ include "cluster-intel.fullname" . }}-analyzer-ingress
+  name: {{ include "hetu.fullname" . }}-analyzer-ingress
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "cluster-intel.labels" . | nindent 4 }}
+    {{- include "hetu.labels" . | nindent 4 }}
     app.kubernetes.io/component: analyzer
 spec:
   podSelector:
     matchLabels:
-      {{- include "cluster-intel.selectorLabels" . | nindent 6 }}
+      {{- include "hetu.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: analyzer
   policyTypes: [Ingress]
   ingress:
     - from:
         - podSelector:
             matchLabels:
-              {{- include "cluster-intel.selectorLabels" . | nindent 14 }}
+              {{- include "hetu.selectorLabels" . | nindent 14 }}
               app.kubernetes.io/component: dashboard
       ports:
         - { protocol: TCP, port: 8081 }
@@ -180,22 +180,22 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: {{ include "cluster-intel.fullname" . }}-dashboard-egress
+  name: {{ include "hetu.fullname" . }}-dashboard-egress
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "cluster-intel.labels" . | nindent 4 }}
+    {{- include "hetu.labels" . | nindent 4 }}
     app.kubernetes.io/component: dashboard
 spec:
   podSelector:
     matchLabels:
-      {{- include "cluster-intel.selectorLabels" . | nindent 6 }}
+      {{- include "hetu.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: dashboard
   policyTypes: [Egress]
   egress:
     - to:
         - podSelector:
             matchLabels:
-              {{- include "cluster-intel.selectorLabels" . | nindent 14 }}
+              {{- include "hetu.selectorLabels" . | nindent 14 }}
               app.kubernetes.io/component: analyzer
       ports:
         - { protocol: TCP, port: 8081 }
@@ -212,15 +212,15 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: {{ include "cluster-intel.fullname" . }}-dashboard-ingress
+  name: {{ include "hetu.fullname" . }}-dashboard-ingress
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "cluster-intel.labels" . | nindent 4 }}
+    {{- include "hetu.labels" . | nindent 4 }}
     app.kubernetes.io/component: dashboard
 spec:
   podSelector:
     matchLabels:
-      {{- include "cluster-intel.selectorLabels" . | nindent 6 }}
+      {{- include "hetu.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: dashboard
   policyTypes: [Ingress]
   ingress:

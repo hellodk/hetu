@@ -1,4 +1,4 @@
-module github.com/your-org/cluster-intel-analyzer
+module github.com/hellodk/hetu/src/analyzer
 
 go 1.25.0
 
@@ -6,10 +6,10 @@ require (
 	github.com/gorilla/websocket v1.5.0
 	github.com/prometheus/client_golang v1.23.2
 	github.com/rs/zerolog v1.35.0
-	github.com/your-org/cluster-intel/pkg/config v0.0.0
-	github.com/your-org/cluster-intel/pkg/llm v0.0.0
-	github.com/your-org/cluster-intel/pkg/middleware v0.0.0
-	github.com/your-org/cluster-intel/pkg/types v0.0.0
+	github.com/hellodk/hetu/pkg/config v0.0.0
+	github.com/hellodk/hetu/pkg/llm v0.0.0
+	github.com/hellodk/hetu/pkg/middleware v0.0.0
+	github.com/hellodk/hetu/pkg/types v0.0.0
 	go.opentelemetry.io/otel v1.43.0
 	go.opentelemetry.io/otel/trace v1.43.0
 	k8s.io/api v0.29.2
@@ -19,10 +19,10 @@ require (
 )
 
 replace (
-	github.com/your-org/cluster-intel/pkg/config => ../../pkg/config
-	github.com/your-org/cluster-intel/pkg/llm => ../../pkg/llm
-	github.com/your-org/cluster-intel/pkg/middleware => ../../pkg/middleware
-	github.com/your-org/cluster-intel/pkg/types => ../../pkg/types
+	github.com/hellodk/hetu/pkg/config => ../../pkg/config
+	github.com/hellodk/hetu/pkg/llm => ../../pkg/llm
+	github.com/hellodk/hetu/pkg/middleware => ../../pkg/middleware
+	github.com/hellodk/hetu/pkg/types => ../../pkg/types
 )
 
 require (

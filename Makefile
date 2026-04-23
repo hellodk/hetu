@@ -6,7 +6,7 @@ VERSION    ?= 7.0.0
 SERVICES   := collector analyzer
 DASHBOARD  := dashboard
 ENV        ?= dev
-NAMESPACE  ?= cluster-intel
+NAMESPACE  ?= hetu
 VALUES     ?= values-$(ENV).yaml
 
 # --- Go builds ---
@@ -37,56 +37,56 @@ tidy:
 # --- Docker images ---
 # Full build: includes LB log (AWS SDK) support
 docker-build:
-	@echo "Building docker image cluster-intel-collector:$(VERSION) (full — includes lblogs)..."
-	docker build -t $(REGISTRY)/cluster-intel-collector:$(VERSION) \
-		-t $(REGISTRY)/cluster-intel-collector:latest \
+	@echo "Building docker image hetu-collector:$(VERSION) (full — includes lblogs)..."
+	docker build -t $(REGISTRY)/hetu-collector:$(VERSION) \
+		-t $(REGISTRY)/hetu-collector:latest \
 		-f src/collector/Dockerfile .
-	@echo "Building docker image cluster-intel-analyzer:$(VERSION)..."
-	docker build -t $(REGISTRY)/cluster-intel-analyzer:$(VERSION) \
-		-t $(REGISTRY)/cluster-intel-analyzer:latest \
+	@echo "Building docker image hetu-analyzer:$(VERSION)..."
+	docker build -t $(REGISTRY)/hetu-analyzer:$(VERSION) \
+		-t $(REGISTRY)/hetu-analyzer:latest \
 		-f src/analyzer/Dockerfile .
-	@echo "Building docker image cluster-intel-$(DASHBOARD):$(VERSION)..."
-	docker build -t $(REGISTRY)/cluster-intel-$(DASHBOARD):$(VERSION) \
-		-t $(REGISTRY)/cluster-intel-$(DASHBOARD):latest \
+	@echo "Building docker image hetu-$(DASHBOARD):$(VERSION)..."
+	docker build -t $(REGISTRY)/hetu-$(DASHBOARD):$(VERSION) \
+		-t $(REGISTRY)/hetu-$(DASHBOARD):latest \
 		-f src/$(DASHBOARD)/Dockerfile src/$(DASHBOARD)/
 
 # Lean build: excludes AWS SDK via nolblogs tag (~7 MB smaller collector image)
 docker-build-lean:
-	@echo "Building docker image cluster-intel-collector:$(VERSION)-lean (no lblogs)..."
-	docker build -t $(REGISTRY)/cluster-intel-collector:$(VERSION)-lean \
+	@echo "Building docker image hetu-collector:$(VERSION)-lean (no lblogs)..."
+	docker build -t $(REGISTRY)/hetu-collector:$(VERSION)-lean \
 		--build-arg BUILD_TAGS=nolblogs \
 		-f src/collector/Dockerfile .
-	@echo "Building docker image cluster-intel-analyzer:$(VERSION)..."
-	docker build -t $(REGISTRY)/cluster-intel-analyzer:$(VERSION) \
-		-t $(REGISTRY)/cluster-intel-analyzer:latest \
+	@echo "Building docker image hetu-analyzer:$(VERSION)..."
+	docker build -t $(REGISTRY)/hetu-analyzer:$(VERSION) \
+		-t $(REGISTRY)/hetu-analyzer:latest \
 		-f src/analyzer/Dockerfile .
-	@echo "Building docker image cluster-intel-$(DASHBOARD):$(VERSION)..."
-	docker build -t $(REGISTRY)/cluster-intel-$(DASHBOARD):$(VERSION) \
-		-t $(REGISTRY)/cluster-intel-$(DASHBOARD):latest \
+	@echo "Building docker image hetu-$(DASHBOARD):$(VERSION)..."
+	docker build -t $(REGISTRY)/hetu-$(DASHBOARD):$(VERSION) \
+		-t $(REGISTRY)/hetu-$(DASHBOARD):latest \
 		-f src/$(DASHBOARD)/Dockerfile src/$(DASHBOARD)/
 
 docker-push:
 	@for svc in $(SERVICES) $(DASHBOARD); do \
-		docker push $(REGISTRY)/cluster-intel-$$svc:$(VERSION); \
-		docker push $(REGISTRY)/cluster-intel-$$svc:latest; \
+		docker push $(REGISTRY)/hetu-$$svc:$(VERSION); \
+		docker push $(REGISTRY)/hetu-$$svc:latest; \
 	done
 
 # --- Helm ---
 helm-deps:
-	helm dependency build deploy/helm/cluster-intel/
+	helm dependency build deploy/helm/hetu/
 
 helm-template:
-	helm template cluster-intel deploy/helm/cluster-intel/ --namespace $(NAMESPACE)
+	helm template hetu deploy/helm/hetu/ --namespace $(NAMESPACE)
 
 helm-deploy:
-	helm upgrade --install cluster-intel deploy/helm/cluster-intel/ \
+	helm upgrade --install hetu deploy/helm/hetu/ \
 		--namespace $(NAMESPACE) --create-namespace \
 		$(if $(wildcard $(VALUES)),-f $(VALUES),) \
-		--set collector.image.repository=$(REGISTRY)/cluster-intel-collector \
+		--set collector.image.repository=$(REGISTRY)/hetu-collector \
 		--set collector.image.tag=$(VERSION) \
-		--set analyzer.image.repository=$(REGISTRY)/cluster-intel-analyzer \
+		--set analyzer.image.repository=$(REGISTRY)/hetu-analyzer \
 		--set analyzer.image.tag=$(VERSION) \
-		--set dashboard.image.repository=$(REGISTRY)/cluster-intel-dashboard \
+		--set dashboard.image.repository=$(REGISTRY)/hetu-dashboard \
 		--set dashboard.image.tag=$(VERSION) \
 		--wait --timeout 5m
 

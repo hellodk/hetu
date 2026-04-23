@@ -1,28 +1,28 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "cluster-intel.fullname" . }}-analyzer
+  name: {{ include "hetu.fullname" . }}-analyzer
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "cluster-intel.labels" . | nindent 4 }}
+    {{- include "hetu.labels" . | nindent 4 }}
     app.kubernetes.io/component: analyzer
 spec:
   replicas: {{ .Values.analyzer.replicas }}
   selector:
     matchLabels:
-      {{- include "cluster-intel.selectorLabels" . | nindent 6 }}
+      {{- include "hetu.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: analyzer
   template:
     metadata:
       annotations:
         checksum/config: {{ include (print .Template.BasePath "/configmap.yaml") . | sha256sum }}
       labels:
-        {{- include "cluster-intel.selectorLabels" . | nindent 8 }}
+        {{- include "hetu.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: analyzer
     spec:
-      serviceAccountName: cluster-intel
+      serviceAccountName: hetu
       securityContext:
-        {{- include "cluster-intel.podSecurityContext" (dict "top" .Values.podSecurityContext "override" (default dict .Values.analyzer.podSecurityContext)) | nindent 8 }}
+        {{- include "hetu.podSecurityContext" (dict "top" .Values.podSecurityContext "override" (default dict .Values.analyzer.podSecurityContext)) | nindent 8 }}
       {{- with .Values.global.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
@@ -40,12 +40,12 @@ spec:
           image: "{{ .Values.analyzer.image.repository }}:{{ .Values.analyzer.image.tag }}"
           imagePullPolicy: {{ .Values.analyzer.image.pullPolicy }}
           securityContext:
-            {{- include "cluster-intel.securityContext" (dict "top" .Values.securityContext "override" .Values.analyzer.securityContext) | nindent 12 }}
+            {{- include "hetu.securityContext" (dict "top" .Values.securityContext "override" .Values.analyzer.securityContext) | nindent 12 }}
           env:
             - name: CI_CONFIG
-              value: /etc/cluster-intel/config.yaml
+              value: /etc/hetu/config.yaml
             - name: CI_CONFIG_OVERRIDE
-              value: /etc/cluster-intel/runtime.yaml
+              value: /etc/hetu-runtime/runtime.yaml
             {{- with .Values.analyzer.env }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -72,34 +72,33 @@ spec:
             {{- toYaml .Values.analyzer.resources | nindent 12 }}
           volumeMounts:
             - name: config
-              mountPath: /etc/cluster-intel
+              mountPath: /etc/hetu
               readOnly: true
             - name: runtime-config
-              mountPath: /etc/cluster-intel/runtime.yaml
-              subPath: runtime.yaml
+              mountPath: /etc/hetu-runtime
               readOnly: true
             {{- if .Values.stores.postgres.external.existingSecret }}
             - name: postgres-secret
-              mountPath: /etc/cluster-intel/secrets/postgres
+              mountPath: /etc/hetu/secrets/postgres
               readOnly: true
             {{- end }}
             {{- if .Values.stores.redis.external.existingSecret }}
             - name: redis-secret
-              mountPath: /etc/cluster-intel/secrets/redis
+              mountPath: /etc/hetu/secrets/redis
               readOnly: true
             {{- end }}
             {{- if .Values.llm.apiKeySecret.name }}
             - name: llm-secret
-              mountPath: /etc/cluster-intel/secrets/llm
+              mountPath: /etc/hetu/secrets/llm
               readOnly: true
             {{- end }}
       volumes:
         - name: config
           configMap:
-            name: cluster-intel-config
+            name: hetu-config
         - name: runtime-config
           configMap:
-            name: cluster-intel-runtime
+            name: hetu-runtime
             optional: true
         {{- if .Values.stores.postgres.external.existingSecret }}
         - name: postgres-secret

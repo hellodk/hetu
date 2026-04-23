@@ -6,21 +6,21 @@ provision ConfigMaps with `grafana_dashboard: "1"`.
 The JSON blobs are loaded from files bundled with the chart at
 dashboards/*.json. Each one is gated by its own toggle.
 */}}
-{{- $ns := include "cluster-intel.monitoringNamespace" . }}
+{{- $ns := include "hetu.monitoringNamespace" . }}
 
 {{- if .Values.monitoring.grafana.dashboards.clusterIntel }}
 ---
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: grafana-dashboard-cluster-intel
+  name: grafana-dashboard-hetu
   namespace: {{ $ns }}
   labels:
-    {{- include "cluster-intel.labels" . | nindent 4 }}
+    {{- include "hetu.labels" . | nindent 4 }}
     grafana_dashboard: "1"
 data:
-  cluster-intel.json: |-
-    {{- .Files.Get "dashboards/cluster-intel.json" | nindent 4 }}
+  hetu.json: |-
+    {{- .Files.Get "dashboards/hetu.json" | nindent 4 }}
 {{- end }}
 
 {{- if .Values.monitoring.grafana.dashboards.ollama }}
@@ -31,7 +31,7 @@ metadata:
   name: grafana-dashboard-ollama
   namespace: {{ $ns }}
   labels:
-    {{- include "cluster-intel.labels" . | nindent 4 }}
+    {{- include "hetu.labels" . | nindent 4 }}
     grafana_dashboard: "1"
 data:
   ollama.json: |-
@@ -46,7 +46,7 @@ metadata:
   name: grafana-dashboard-llm-traces
   namespace: {{ $ns }}
   labels:
-    {{- include "cluster-intel.labels" . | nindent 4 }}
+    {{- include "hetu.labels" . | nindent 4 }}
     grafana_dashboard: "1"
 data:
   llm-traces.json: |-

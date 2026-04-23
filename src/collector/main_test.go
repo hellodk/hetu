@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	types "github.com/your-org/cluster-intel/pkg/types"
+	types "github.com/hellodk/hetu/pkg/types"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )

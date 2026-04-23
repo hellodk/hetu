@@ -2,7 +2,7 @@
 # Reuses external Postgres from the avika namespace, bundles Redis + NATS.
 #
 # Usage:
-#   helm upgrade --install cluster-intel deploy/helm/cluster-intel/ \
+#   helm upgrade --install cluster-intel deploy/helm/hetu/ \
 #     --namespace cluster-intel --create-namespace \
 #     -f values-deploy.yaml
 
@@ -13,20 +13,20 @@ cluster:
 # --- Images on Docker Hub ---
 collector:
   image:
-    repository: docker.io/hellodk/cluster-intel-collector
+    repository: docker.io/hellodk/hetu-collector
     tag: "7.0.0"
     pullPolicy: Always
   prometheusUrl: "http://monitoring-prometheus.monitoring.svc.cluster.local:9090"
 
 analyzer:
   image:
-    repository: docker.io/hellodk/cluster-intel-analyzer
+    repository: docker.io/hellodk/hetu-analyzer
     tag: "7.0.0"
     pullPolicy: Always
 
 dashboard:
   image:
-    repository: docker.io/hellodk/cluster-intel-dashboard
+    repository: docker.io/hellodk/hetu-dashboard
     tag: "7.0.0"
     pullPolicy: Always
 

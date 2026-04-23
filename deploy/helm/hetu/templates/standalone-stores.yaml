@@ -9,10 +9,10 @@ These replace the Bitnami sub-charts (set bundled=false when using standalone).
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "cluster-intel.fullname" . }}-postgresql
+  name: {{ include "hetu.fullname" . }}-postgresql
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "cluster-intel.labels" . | nindent 4 }}
+    {{- include "hetu.labels" . | nindent 4 }}
     app.kubernetes.io/component: postgresql
 spec:
   type: ClusterIP
@@ -21,28 +21,28 @@ spec:
       targetPort: 5432
       name: postgres
   selector:
-    {{- include "cluster-intel.selectorLabels" . | nindent 4 }}
+    {{- include "hetu.selectorLabels" . | nindent 4 }}
     app.kubernetes.io/component: postgresql
 ---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: {{ include "cluster-intel.fullname" . }}-postgresql
+  name: {{ include "hetu.fullname" . }}-postgresql
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "cluster-intel.labels" . | nindent 4 }}
+    {{- include "hetu.labels" . | nindent 4 }}
     app.kubernetes.io/component: postgresql
 spec:
-  serviceName: {{ include "cluster-intel.fullname" . }}-postgresql
+  serviceName: {{ include "hetu.fullname" . }}-postgresql
   replicas: 1
   selector:
     matchLabels:
-      {{- include "cluster-intel.selectorLabels" . | nindent 6 }}
+      {{- include "hetu.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: postgresql
   template:
     metadata:
       labels:
-        {{- include "cluster-intel.selectorLabels" . | nindent 8 }}
+        {{- include "hetu.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: postgresql
     spec:
       securityContext:
@@ -59,7 +59,7 @@ spec:
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "cluster-intel.fullname" . }}-postgres-secret
+                  name: {{ include "hetu.fullname" . }}-postgres-secret
                   key: password
             - name: PGDATA
               value: /var/lib/postgresql/data/pgdata
@@ -91,7 +91,7 @@ spec:
         resources:
           requests:
             storage: {{ .Values.stores.postgres.storage | default "5Gi" }}
-{{- $secretName := printf "%s-postgres-secret" (include "cluster-intel.fullname" .) }}
+{{- $secretName := printf "%s-postgres-secret" (include "hetu.fullname" .) }}
 {{- $existing := lookup "v1" "Secret" .Release.Namespace $secretName }}
 {{- $password := "" }}
 {{- if $existing }}
@@ -108,7 +108,7 @@ metadata:
   name: {{ $secretName }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "cluster-intel.labels" . | nindent 4 }}
+    {{- include "hetu.labels" . | nindent 4 }}
 type: Opaque
 stringData:
   password: {{ $password | quote }}
@@ -120,10 +120,10 @@ stringData:
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "cluster-intel.fullname" . }}-redis
+  name: {{ include "hetu.fullname" . }}-redis
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "cluster-intel.labels" . | nindent 4 }}
+    {{- include "hetu.labels" . | nindent 4 }}
     app.kubernetes.io/component: redis
 spec:
   type: ClusterIP
@@ -132,28 +132,28 @@ spec:
       targetPort: 6379
       name: redis
   selector:
-    {{- include "cluster-intel.selectorLabels" . | nindent 4 }}
+    {{- include "hetu.selectorLabels" . | nindent 4 }}
     app.kubernetes.io/component: redis
 ---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: {{ include "cluster-intel.fullname" . }}-redis
+  name: {{ include "hetu.fullname" . }}-redis
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "cluster-intel.labels" . | nindent 4 }}
+    {{- include "hetu.labels" . | nindent 4 }}
     app.kubernetes.io/component: redis
 spec:
-  serviceName: {{ include "cluster-intel.fullname" . }}-redis
+  serviceName: {{ include "hetu.fullname" . }}-redis
   replicas: 1
   selector:
     matchLabels:
-      {{- include "cluster-intel.selectorLabels" . | nindent 6 }}
+      {{- include "hetu.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: redis
   template:
     metadata:
       labels:
-        {{- include "cluster-intel.selectorLabels" . | nindent 8 }}
+        {{- include "hetu.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: redis
     spec:
       securityContext:

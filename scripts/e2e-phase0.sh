@@ -15,8 +15,8 @@
 set -euo pipefail
 
 CLUSTER_NAME="ci-e2e"
-NAMESPACE="cluster-intel"
-CHART_DIR="deploy/helm/cluster-intel"
+NAMESPACE="hetu"
+CHART_DIR="deploy/helm/hetu"
 TIMEOUT="180s"
 
 log()  { echo ">>> $*"; }
@@ -44,7 +44,7 @@ if [ -d "${CHART_DIR}" ]; then
     helm dependency build "${CHART_DIR}" 2>/dev/null || true
 
     log "Installing chart"
-    helm upgrade --install cluster-intel "${CHART_DIR}" \
+    helm upgrade --install hetu "${CHART_DIR}" \
         --namespace "${NAMESPACE}" --create-namespace \
         --set global.createNamespace=false \
         --set collector.image.tag=latest \
@@ -89,8 +89,8 @@ check_pods
 
 # Only check endpoints if pods are actually running
 if kubectl get pods -n "${NAMESPACE}" --no-headers 2>/dev/null | grep -q 'Running'; then
-    check_endpoint "cluster-intel-collector" 8080 "/healthz"
-    check_endpoint "cluster-intel-analyzer" 8081 "/healthz"
+    check_endpoint "hetu-collector" 8080 "/healthz"
+    check_endpoint "hetu-analyzer" 8081 "/healthz"
 fi
 
 # --- summary ---

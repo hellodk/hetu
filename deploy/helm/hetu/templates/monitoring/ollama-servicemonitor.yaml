@@ -8,7 +8,7 @@ Ollama. Ported from manifests/monitoring/ollama/servicemonitor.yaml with
 the IP and port parameterised.
 */}}
 {{- $ns := .Values.monitoring.ollama.namespace }}
-{{- $monNs := include "cluster-intel.monitoringNamespace" . }}
+{{- $monNs := include "hetu.monitoringNamespace" . }}
 ---
 apiVersion: v1
 kind: Namespace
@@ -16,7 +16,7 @@ metadata:
   name: {{ $ns }}
   labels:
     kubernetes.io/metadata.name: {{ $ns }}
-    {{- include "cluster-intel.labels" . | nindent 4 }}
+    {{- include "hetu.labels" . | nindent 4 }}
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
@@ -24,7 +24,7 @@ metadata:
   name: ollama
   namespace: {{ $monNs }}
   labels:
-    {{- include "cluster-intel.labels" . | nindent 4 }}
+    {{- include "hetu.labels" . | nindent 4 }}
     app: ollama
     component: llm
 spec:
@@ -46,7 +46,7 @@ metadata:
   name: ollama
   namespace: {{ $ns }}
   labels:
-    {{- include "cluster-intel.labels" . | nindent 4 }}
+    {{- include "hetu.labels" . | nindent 4 }}
     app: ollama
 subsets:
   - addresses:
@@ -62,7 +62,7 @@ metadata:
   name: ollama
   namespace: {{ $ns }}
   labels:
-    {{- include "cluster-intel.labels" . | nindent 4 }}
+    {{- include "hetu.labels" . | nindent 4 }}
     app: ollama
 spec:
   ports:

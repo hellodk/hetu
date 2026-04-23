@@ -18,7 +18,7 @@ import (
 
 	"github.com/rs/zerolog/log"
 
-	types "github.com/your-org/cluster-intel/pkg/types"
+	types "github.com/hellodk/hetu/pkg/types"
 )
 
 // mockSource generates synthetic ClusterHealthReport objects and

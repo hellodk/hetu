@@ -1,28 +1,28 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "cluster-intel.fullname" . }}-collector
+  name: {{ include "hetu.fullname" . }}-collector
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "cluster-intel.labels" . | nindent 4 }}
+    {{- include "hetu.labels" . | nindent 4 }}
     app.kubernetes.io/component: collector
 spec:
   replicas: {{ .Values.collector.replicas }}
   selector:
     matchLabels:
-      {{- include "cluster-intel.selectorLabels" . | nindent 6 }}
+      {{- include "hetu.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: collector
   template:
     metadata:
       annotations:
         checksum/config: {{ include (print .Template.BasePath "/configmap.yaml") . | sha256sum }}
       labels:
-        {{- include "cluster-intel.selectorLabels" . | nindent 8 }}
+        {{- include "hetu.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: collector
     spec:
-      serviceAccountName: cluster-intel
+      serviceAccountName: hetu
       securityContext:
-        {{- include "cluster-intel.podSecurityContext" (dict "top" .Values.podSecurityContext "override" (default dict .Values.collector.podSecurityContext)) | nindent 8 }}
+        {{- include "hetu.podSecurityContext" (dict "top" .Values.podSecurityContext "override" (default dict .Values.collector.podSecurityContext)) | nindent 8 }}
       {{- with .Values.global.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
@@ -40,10 +40,10 @@ spec:
           image: "{{ .Values.collector.image.repository }}:{{ .Values.collector.image.tag }}"
           imagePullPolicy: {{ .Values.collector.image.pullPolicy }}
           securityContext:
-            {{- include "cluster-intel.securityContext" (dict "top" .Values.securityContext "override" .Values.collector.securityContext) | nindent 12 }}
+            {{- include "hetu.securityContext" (dict "top" .Values.securityContext "override" .Values.collector.securityContext) | nindent 12 }}
           env:
             - name: CI_CONFIG
-              value: /etc/cluster-intel/config.yaml
+              value: /etc/hetu/config.yaml
             - name: CI_COLLECTOR_PROMETHEUS_URL
               value: {{ .Values.collector.prometheusUrl | quote }}
             - name: ENABLE_PODLOGS
@@ -67,7 +67,7 @@ spec:
               value: {{ .Values.collector.lblogs.lbConfigs | quote }}
             {{- end }}
             - name: ANALYZER_URL
-              value: "http://{{ include "cluster-intel.fullname" . }}-analyzer:8081"
+              value: "http://{{ include "hetu.fullname" . }}-analyzer:8081"
             {{- with .Values.collector.env }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -94,9 +94,9 @@ spec:
             {{- toYaml .Values.collector.resources | nindent 12 }}
           volumeMounts:
             - name: config
-              mountPath: /etc/cluster-intel
+              mountPath: /etc/hetu
               readOnly: true
       volumes:
         - name: config
           configMap:
-            name: cluster-intel-config
+            name: hetu-config

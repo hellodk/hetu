@@ -1,12 +1,12 @@
-module github.com/your-org/cluster-intel/pkg/llm
+module github.com/hellodk/hetu/pkg/llm
 
 go 1.25.0
 
 require (
 	github.com/prometheus/client_golang v1.23.2
 	github.com/rs/zerolog v1.35.0
-	github.com/your-org/cluster-intel/pkg/config v0.0.0
-	github.com/your-org/cluster-intel/pkg/types v0.0.0
+	github.com/hellodk/hetu/pkg/config v0.0.0
+	github.com/hellodk/hetu/pkg/types v0.0.0
 	go.opentelemetry.io/otel v1.43.0
 	go.opentelemetry.io/otel/trace v1.43.0
 )
@@ -31,6 +31,6 @@ require (
 )
 
 replace (
-	github.com/your-org/cluster-intel/pkg/config => ../config
-	github.com/your-org/cluster-intel/pkg/types => ../types
+	github.com/hellodk/hetu/pkg/config => ../config
+	github.com/hellodk/hetu/pkg/types => ../types
 )

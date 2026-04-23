@@ -25,9 +25,9 @@ import (
 	"github.com/rs/zerolog/log"
 	"gopkg.in/yaml.v3"
 
-	ucconfig "github.com/your-org/cluster-intel/pkg/config"
-	mw "github.com/your-org/cluster-intel/pkg/middleware"
-	types "github.com/your-org/cluster-intel/pkg/types"
+	ucconfig "github.com/hellodk/hetu/pkg/config"
+	mw "github.com/hellodk/hetu/pkg/middleware"
+	types "github.com/hellodk/hetu/pkg/types"
 
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
@@ -2731,7 +2731,7 @@ func (a *Analyzer) handleConfig(w http.ResponseWriter, r *http.Request) {
 		a.applyRuntimeOverrideBestEffort(overrideYaml)
 
 		// Refresh unified config cache/diagnostics from layered loader (relaxed).
-		basePath, overridePath := ucconfig.ResolvePathsFromEnv("/etc/cluster-intel/config.yaml", "/etc/cluster-intel/runtime.yaml")
+		basePath, overridePath := ucconfig.ResolvePathsFromEnv("/etc/hetu/config.yaml", "/etc/hetu/runtime.yaml")
 		ucfg, udiag := ucconfig.LoadLayeredRelaxed(basePath, overridePath)
 		a.unifiedDiagMu.Lock()
 		a.unifiedCfg = ucfg
@@ -2894,7 +2894,7 @@ func main() {
 
 	// v7: Load layered unified config (base + runtime override) in relaxed mode
 	// so the service can start even if config files are missing/invalid.
-	basePath, overridePath := ucconfig.ResolvePathsFromEnv("/etc/cluster-intel/config.yaml", "/etc/cluster-intel/runtime.yaml")
+	basePath, overridePath := ucconfig.ResolvePathsFromEnv("/etc/hetu/config.yaml", "/etc/hetu/runtime.yaml")
 	ucfg, udiag := ucconfig.LoadLayeredRelaxed(basePath, overridePath)
 	if len(udiag.Errors) > 0 || len(udiag.Warnings) > 0 {
 		log.Warn().

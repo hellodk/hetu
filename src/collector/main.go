@@ -14,12 +14,12 @@ import (
 	"syscall"
 	"time"
 
+	ucconfig "github.com/hellodk/hetu/pkg/config"
+	types "github.com/hellodk/hetu/pkg/types"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-	ucconfig "github.com/your-org/cluster-intel/pkg/config"
-	types "github.com/your-org/cluster-intel/pkg/types"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/informers"
@@ -701,9 +701,9 @@ func main() {
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
 
-	// v7: Try loading unified config file (CI_CONFIG env or /etc/cluster-intel/config.yaml).
+	// v7: Try loading unified config file (CI_CONFIG env or /etc/hetu/config.yaml).
 	// If available, its values seed the Config below; env vars still override as before.
-	ucfg, ucfgErr := ucconfig.LoadFromEnv("/etc/cluster-intel/config.yaml")
+	ucfg, ucfgErr := ucconfig.LoadFromEnv("/etc/hetu/config.yaml")
 	if ucfgErr != nil {
 		log.Debug().Err(ucfgErr).Msg("No unified config loaded, using legacy env vars")
 	} else {

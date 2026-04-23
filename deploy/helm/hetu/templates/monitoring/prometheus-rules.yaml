@@ -4,7 +4,7 @@ PrometheusRule — Ollama + LLM application alerts. Ported verbatim from
 manifests/monitoring/alerts/ollama-alerts.yaml. Operators can append extra
 rules via monitoring.alerts.extraRules (rendered as an additional group).
 */}}
-{{- $ns := include "cluster-intel.monitoringNamespace" . }}
+{{- $ns := include "hetu.monitoringNamespace" . }}
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
@@ -12,7 +12,7 @@ metadata:
   name: ollama-alerts
   namespace: {{ $ns }}
   labels:
-    {{- include "cluster-intel.labels" . | nindent 4 }}
+    {{- include "hetu.labels" . | nindent 4 }}
     app: ollama
     prometheus: kube-prometheus
 spec:
@@ -131,7 +131,7 @@ spec:
             summary: "No LLM requests in the last 30 minutes"
             description: "The cluster intelligence system hasn't made any LLM requests."
     {{- with .Values.monitoring.alerts.extraRules }}
-    - name: cluster-intel-extra.rules
+    - name: hetu-extra.rules
       rules:
         {{- toYaml . | nindent 8 }}
     {{- end }}

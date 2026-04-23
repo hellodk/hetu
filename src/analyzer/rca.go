@@ -19,9 +19,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
-	"github.com/your-org/cluster-intel/pkg/config"
-	llmclient "github.com/your-org/cluster-intel/pkg/llm"
-	types "github.com/your-org/cluster-intel/pkg/types"
+	"github.com/hellodk/hetu/pkg/config"
+	llmclient "github.com/hellodk/hetu/pkg/llm"
+	types "github.com/hellodk/hetu/pkg/types"
 )
 
 // RCAReport holds a structured root cause analysis for an incident.

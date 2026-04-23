@@ -7,7 +7,7 @@ import clsx from 'clsx'
 // API URL: read from runtime config injected by server layout, or fall back to build-time env
 const getApiUrl = () =>
     typeof window !== 'undefined'
-        ? ((window as any).__CLUSTER_INTEL_API__ || '')
+        ? ((window as any).__HETU_API__ || '')
         : (process.env.NEXT_PUBLIC_API_URL || '')
 
 // Matches the analyzer's DNSHealth response shape

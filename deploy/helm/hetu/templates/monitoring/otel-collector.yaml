@@ -3,7 +3,7 @@
 OpenTelemetry Collector — routes OTLP traces to Tempo, re-exposes metrics
 for Prometheus. Mirrors manifests/monitoring/tempo/otel-collector.yaml.
 */}}
-{{- $ns := include "cluster-intel.monitoringNamespace" . }}
+{{- $ns := include "hetu.monitoringNamespace" . }}
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -11,7 +11,7 @@ metadata:
   name: otel-collector-config
   namespace: {{ $ns }}
   labels:
-    {{- include "cluster-intel.labels" . | nindent 4 }}
+    {{- include "hetu.labels" . | nindent 4 }}
     app: otel-collector
 data:
   config.yaml: |
@@ -39,7 +39,7 @@ data:
       resource:
         attributes:
           - { key: environment,       value: production,     action: upsert }
-          - { key: service.namespace, value: cluster-intel,  action: upsert }
+          - { key: service.namespace, value: hetu,  action: upsert }
       filter:
         spans:
           exclude:
@@ -81,7 +81,7 @@ metadata:
   name: otel-collector
   namespace: {{ $ns }}
   labels:
-    {{- include "cluster-intel.labels" . | nindent 4 }}
+    {{- include "hetu.labels" . | nindent 4 }}
     app: otel-collector
 spec:
   replicas: 1
@@ -130,7 +130,7 @@ metadata:
   name: otel-collector
   namespace: {{ $ns }}
   labels:
-    {{- include "cluster-intel.labels" . | nindent 4 }}
+    {{- include "hetu.labels" . | nindent 4 }}
     app: otel-collector
 spec:
   type: ClusterIP

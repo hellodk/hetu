@@ -1,10 +1,10 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "cluster-intel.fullname" . }}-collector
+  name: {{ include "hetu.fullname" . }}-collector
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "cluster-intel.labels" . | nindent 4 }}
+    {{- include "hetu.labels" . | nindent 4 }}
     app.kubernetes.io/component: collector
 spec:
   type: ClusterIP
@@ -18,16 +18,16 @@ spec:
       protocol: TCP
       name: metrics
   selector:
-    {{- include "cluster-intel.selectorLabels" . | nindent 4 }}
+    {{- include "hetu.selectorLabels" . | nindent 4 }}
     app.kubernetes.io/component: collector
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "cluster-intel.fullname" . }}-analyzer
+  name: {{ include "hetu.fullname" . }}-analyzer
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "cluster-intel.labels" . | nindent 4 }}
+    {{- include "hetu.labels" . | nindent 4 }}
     app.kubernetes.io/component: analyzer
 spec:
   type: ClusterIP
@@ -41,16 +41,16 @@ spec:
       protocol: TCP
       name: metrics
   selector:
-    {{- include "cluster-intel.selectorLabels" . | nindent 4 }}
+    {{- include "hetu.selectorLabels" . | nindent 4 }}
     app.kubernetes.io/component: analyzer
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "cluster-intel.fullname" . }}-dashboard
+  name: {{ include "hetu.fullname" . }}-dashboard
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "cluster-intel.labels" . | nindent 4 }}
+    {{- include "hetu.labels" . | nindent 4 }}
     app.kubernetes.io/component: dashboard
 spec:
   type: {{ .Values.dashboard.service.type | default "ClusterIP" }}
@@ -63,5 +63,5 @@ spec:
       nodePort: {{ .Values.dashboard.service.nodePort }}
       {{- end }}
   selector:
-    {{- include "cluster-intel.selectorLabels" . | nindent 4 }}
+    {{- include "hetu.selectorLabels" . | nindent 4 }}
     app.kubernetes.io/component: dashboard

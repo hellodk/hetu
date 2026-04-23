@@ -22,8 +22,8 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/your-org/cluster-intel/pkg/config"
-	types "github.com/your-org/cluster-intel/pkg/types"
+	"github.com/hellodk/hetu/pkg/config"
+	types "github.com/hellodk/hetu/pkg/types"
 )
 
 // Metrics holds all LLM-related Prometheus metrics.
@@ -289,7 +289,7 @@ func (c *Client) completeOllama(ctx context.Context, task string, messages []typ
 	}, nil
 }
 
-func (c *Client) completeOpenAI(ctx context.Context, task string, messages []types.LLMMessage) (*CompletionResult, error) {
+func (c *Client) completeOpenAI(ctx context.Context, _ string, messages []types.LLMMessage) (*CompletionResult, error) {
 	reqBody := types.LLMRequest{
 		Model: c.cfg.Model, Messages: messages,
 		MaxTokens: c.cfg.MaxTokens, Temperature: c.cfg.Temperature,
@@ -338,11 +338,11 @@ func (c *Client) completeOpenAI(ctx context.Context, task string, messages []typ
 // Uses /v1/messages with x-api-key header and anthropic-version header.
 
 type anthropicRequest struct {
-	Model       string             `json:"model"`
-	Messages    []anthropicMsg     `json:"messages"`
-	MaxTokens   int                `json:"max_tokens"`
-	Temperature float64            `json:"temperature,omitempty"`
-	System      string             `json:"system,omitempty"`
+	Model       string         `json:"model"`
+	Messages    []anthropicMsg `json:"messages"`
+	MaxTokens   int            `json:"max_tokens"`
+	Temperature float64        `json:"temperature,omitempty"`
+	System      string         `json:"system,omitempty"`
 }
 
 type anthropicMsg struct {
@@ -437,18 +437,18 @@ func (c *Client) completeAnthropic(ctx context.Context, task string, messages []
 // falling back to /completion for older setups.
 
 type llamaCppRequest struct {
-	Prompt      string  `json:"prompt"`
-	NPredict    int     `json:"n_predict"`
-	Temperature float64 `json:"temperature"`
+	Prompt      string   `json:"prompt"`
+	NPredict    int      `json:"n_predict"`
+	Temperature float64  `json:"temperature"`
 	Stop        []string `json:"stop,omitempty"`
 }
 
 type llamaCppResponse struct {
-	Content          string `json:"content"`
-	Stop             bool   `json:"stop"`
-	TokensEvaluated  int    `json:"tokens_evaluated"`
-	TokensPredicted  int    `json:"tokens_predicted"`
-	Timings          struct {
+	Content         string `json:"content"`
+	Stop            bool   `json:"stop"`
+	TokensEvaluated int    `json:"tokens_evaluated"`
+	TokensPredicted int    `json:"tokens_predicted"`
+	Timings         struct {
 		PromptMs    float64 `json:"prompt_ms"`
 		PredictedMs float64 `json:"predicted_ms"`
 		PromptN     int     `json:"prompt_n"`
@@ -535,13 +535,13 @@ func (c *Client) completeLlamaCpp(ctx context.Context, task string, messages []t
 // and handle the slightly different token usage reporting.
 
 type vllmRequest struct {
-	Model             string             `json:"model"`
-	Messages          []types.LLMMessage `json:"messages"`
-	MaxTokens         int                `json:"max_tokens"`
-	Temperature       float64            `json:"temperature"`
-	TopP              float64            `json:"top_p,omitempty"`
-	FrequencyPenalty  float64            `json:"frequency_penalty,omitempty"`
-	PresencePenalty   float64            `json:"presence_penalty,omitempty"`
+	Model            string             `json:"model"`
+	Messages         []types.LLMMessage `json:"messages"`
+	MaxTokens        int                `json:"max_tokens"`
+	Temperature      float64            `json:"temperature"`
+	TopP             float64            `json:"top_p,omitempty"`
+	FrequencyPenalty float64            `json:"frequency_penalty,omitempty"`
+	PresencePenalty  float64            `json:"presence_penalty,omitempty"`
 }
 
 func (c *Client) completeVLLM(ctx context.Context, task string, messages []types.LLMMessage) (*CompletionResult, error) {
@@ -694,7 +694,7 @@ func (c *Client) completeBedrock(ctx context.Context, task string, messages []ty
 	}
 
 	reqBody := map[string]any{
-		"messages":       bedrockMsgs,
+		"messages": bedrockMsgs,
 		"inferenceConfig": map[string]any{
 			"maxTokens":   c.cfg.MaxTokens,
 			"temperature": c.cfg.Temperature,

@@ -56,7 +56,7 @@ const jetbrainsMono = JetBrains_Mono({
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-  title: 'K8s Cluster Intelligence',
+  title: 'Hetu',
   description: 'AI-Powered Kubernetes Cluster Health & Optimization Dashboard',
 }
 
@@ -86,7 +86,7 @@ export default function RootLayout({
         <script
           dangerouslySetInnerHTML={{
             __html: `
-              window.__CLUSTER_INTEL_API__=${inlineApiUrl};
+              window.__HETU_API__=${inlineApiUrl};
               (function () {
                 // FOUC-safe theme init.
                 // ci_theme may be: graphite | calm-signal | aurora | prism | auto | md-dark | md-light

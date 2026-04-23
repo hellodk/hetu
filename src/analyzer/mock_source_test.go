@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	types "github.com/your-org/cluster-intel/pkg/types"
+	types "github.com/hellodk/hetu/pkg/types"
 )
 
 func TestMockSource_GenerateRanges(t *testing.T) {

@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	types "github.com/your-org/cluster-intel/pkg/types"
+	types "github.com/hellodk/hetu/pkg/types"
 	"k8s.io/apimachinery/pkg/labels"
 )
 

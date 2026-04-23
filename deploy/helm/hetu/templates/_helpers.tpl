@@ -3,26 +3,26 @@ Required-value validation. Called from configmap.yaml so it runs on every
 helm install / upgrade / template. Uses fail/required so the command exits
 with a clear message before any resources are applied.
 */}}
-{{- define "cluster-intel.validate" -}}
+{{- define "hetu.validate" -}}
 
 {{- /* cluster.id ------------------------------------------------------- */}}
 {{- if not .Values.cluster.id -}}
-{{- fail "\n\n[cluster-intel] cluster.id is required.\n  --set cluster.id=<unique-name>   (e.g. prod-eu-1, homelab)\n" -}}
+{{- fail "\n\n[hetu] cluster.id is required.\n  --set cluster.id=<unique-name>   (e.g. prod-eu-1, homelab)\n" -}}
 {{- end -}}
 
 {{- /* llm.model --------------------------------------------------------- */}}
 {{- if not .Values.llm.model -}}
-{{- fail "\n\n[cluster-intel] llm.model is required.\n  --set llm.model=<model>   (e.g. llama3.2, Qwen2.5-Coder:14B-Instruct, claude-sonnet-4-6)\n" -}}
+{{- fail "\n\n[hetu] llm.model is required.\n  --set llm.model=<model>   (e.g. llama3.2, Qwen2.5-Coder:14B-Instruct, claude-sonnet-4-6)\n" -}}
 {{- end -}}
 
 {{- /* llm.endpoint — required for self-hosted providers --------------- */}}
 {{- if and (not (eq .Values.llm.provider "anthropic")) (not .Values.llm.endpoint) -}}
-{{- fail (printf "\n\n[cluster-intel] llm.endpoint is required when provider=%q.\n  --set llm.endpoint=http://<host>:<port>\n" .Values.llm.provider) -}}
+{{- fail (printf "\n\n[hetu] llm.endpoint is required when provider=%q.\n  --set llm.endpoint=http://<host>:<port>\n" .Values.llm.provider) -}}
 {{- end -}}
 
 {{- /* dashboard NodePort value ----------------------------------------- */}}
 {{- if and (eq (.Values.dashboard.service.type | default "ClusterIP") "NodePort") (not .Values.dashboard.service.nodePort) -}}
-{{- fail "\n\n[cluster-intel] dashboard.service.nodePort is required when dashboard.service.type=NodePort.\n  --set dashboard.service.nodePort=<30000-32767>\n" -}}
+{{- fail "\n\n[hetu] dashboard.service.nodePort is required when dashboard.service.type=NodePort.\n  --set dashboard.service.nodePort=<30000-32767>\n" -}}
 {{- end -}}
 
 {{- end -}}
@@ -30,14 +30,14 @@ with a clear message before any resources are applied.
 {{/*
 Cluster display name — falls back to cluster.id when displayName is empty.
 */}}
-{{- define "cluster-intel.displayName" -}}
+{{- define "hetu.displayName" -}}
 {{- .Values.cluster.displayName | default .Values.cluster.id -}}
 {{- end -}}
 
 {{/*
 Expand the name of the chart.
 */}}
-{{- define "cluster-intel.name" -}}
+{{- define "hetu.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
@@ -45,7 +45,7 @@ Expand the name of the chart.
 Create a default fully qualified app name.
 Truncated to 63 chars per the DNS naming spec.
 */}}
-{{- define "cluster-intel.fullname" -}}
+{{- define "hetu.fullname" -}}
 {{- if .Values.fullnameOverride }}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
 {{- else }}
@@ -61,28 +61,28 @@ Truncated to 63 chars per the DNS naming spec.
 {{/*
 Chart name + version for the chart label.
 */}}
-{{- define "cluster-intel.chart" -}}
+{{- define "hetu.chart" -}}
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
 Common labels applied to every resource.
 */}}
-{{- define "cluster-intel.labels" -}}
-helm.sh/chart: {{ include "cluster-intel.chart" . }}
-{{ include "cluster-intel.selectorLabels" . }}
+{{- define "hetu.labels" -}}
+helm.sh/chart: {{ include "hetu.chart" . }}
+{{ include "hetu.selectorLabels" . }}
 {{- if .Chart.AppVersion }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
-app.kubernetes.io/part-of: cluster-intel
+app.kubernetes.io/part-of: hetu
 {{- end }}
 
 {{/*
 Selector labels (used in both Deployment selectors and Service selectors).
 */}}
-{{- define "cluster-intel.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "cluster-intel.name" . }}
+{{- define "hetu.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "hetu.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
@@ -93,9 +93,9 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{/*
 Postgres host: bundled chart service or external host.
 */}}
-{{- define "cluster-intel.postgres.host" -}}
+{{- define "hetu.postgres.host" -}}
 {{- if or .Values.stores.postgres.bundled .Values.stores.postgres.standalone -}}
-{{ include "cluster-intel.fullname" . }}-postgresql.{{ .Release.Namespace }}.svc.cluster.local
+{{ include "hetu.fullname" . }}-postgresql.{{ .Release.Namespace }}.svc.cluster.local
 {{- else -}}
 {{ .Values.stores.postgres.external.host }}
 {{- end -}}
@@ -104,7 +104,7 @@ Postgres host: bundled chart service or external host.
 {{/*
 Postgres port.
 */}}
-{{- define "cluster-intel.postgres.port" -}}
+{{- define "hetu.postgres.port" -}}
 {{- if or .Values.stores.postgres.bundled .Values.stores.postgres.standalone -}}
 5432
 {{- else -}}
@@ -115,9 +115,9 @@ Postgres port.
 {{/*
 Redis address: bundled chart, standalone StatefulSet, or external addr.
 */}}
-{{- define "cluster-intel.redis.addr" -}}
+{{- define "hetu.redis.addr" -}}
 {{- if or .Values.stores.redis.bundled .Values.stores.redis.standalone -}}
-{{ include "cluster-intel.fullname" . }}-redis.{{ .Release.Namespace }}.svc.cluster.local:6379
+{{ include "hetu.fullname" . }}-redis.{{ .Release.Namespace }}.svc.cluster.local:6379
 {{- else -}}
 {{ .Values.stores.redis.external.addr }}
 {{- end -}}
@@ -126,7 +126,7 @@ Redis address: bundled chart, standalone StatefulSet, or external addr.
 {{/*
 NATS URL: bundled chart service or external URL.
 */}}
-{{- define "cluster-intel.nats.url" -}}
+{{- define "hetu.nats.url" -}}
 {{- if .Values.bus.nats.bundled -}}
 nats://{{ .Release.Name }}-nats.{{ .Release.Namespace }}.svc.cluster.local:4222
 {{- else -}}
@@ -140,9 +140,9 @@ nats://{{ .Release.Name }}-nats.{{ .Release.Namespace }}.svc.cluster.local:4222
 
 {{/*
 Merged container-level securityContext (spec.containers[].securityContext).
-fsGroup is NOT valid here; use cluster-intel.podSecurityContext instead.
+fsGroup is NOT valid here; use hetu.podSecurityContext instead.
 */}}
-{{- define "cluster-intel.securityContext" -}}
+{{- define "hetu.securityContext" -}}
 {{- $merged := mustMergeOverwrite (deepCopy .top) .override -}}
 {{- toYaml $merged -}}
 {{- end }}
@@ -151,7 +151,7 @@ fsGroup is NOT valid here; use cluster-intel.podSecurityContext instead.
 Merged pod-level securityContext (spec.securityContext).
 Contains runAsNonRoot, runAsUser, runAsGroup, fsGroup, seccompProfile.
 */}}
-{{- define "cluster-intel.podSecurityContext" -}}
+{{- define "hetu.podSecurityContext" -}}
 {{- $merged := mustMergeOverwrite (deepCopy .top) .override -}}
 {{- toYaml $merged -}}
 {{- end }}
@@ -160,7 +160,7 @@ Contains runAsNonRoot, runAsUser, runAsGroup, fsGroup, seccompProfile.
 Affinity block — uses component override if non-empty, otherwise the
 top-level affinity.
 */}}
-{{- define "cluster-intel.affinity" -}}
+{{- define "hetu.affinity" -}}
 {{- if . -}}
 {{- toYaml . -}}
 {{- end -}}
@@ -171,7 +171,7 @@ Namespace the monitoring stack deploys into. Defaults to
 `monitoring.namespace` (from values.yaml), falls back to the release
 namespace.
 */}}
-{{- define "cluster-intel.monitoringNamespace" -}}
+{{- define "hetu.monitoringNamespace" -}}
 {{- default .Release.Namespace .Values.monitoring.namespace -}}
 {{- end }}
 
@@ -179,7 +179,7 @@ namespace.
 Component selector labels — selectorLabels plus component tag. Used by
 NetworkPolicy peer selectors.
 */}}
-{{- define "cluster-intel.componentSelectorLabels" -}}
-{{ include "cluster-intel.selectorLabels" . }}
+{{- define "hetu.componentSelectorLabels" -}}
+{{ include "hetu.selectorLabels" . }}
 app.kubernetes.io/component: {{ .component }}
 {{- end }}
