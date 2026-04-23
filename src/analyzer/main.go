@@ -25,6 +25,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	ucconfig "github.com/hellodk/hetu/pkg/config"
+	llmclient "github.com/hellodk/hetu/pkg/llm"
 	"github.com/hellodk/hetu/pkg/logger"
 	mw "github.com/hellodk/hetu/pkg/middleware"
 	types "github.com/hellodk/hetu/pkg/types"
@@ -293,6 +294,111 @@ func (a *Analyzer) recordLLMError(err error) {
 	a.llmReachable = false
 	a.llmLastError = err.Error()
 	a.diagMu.Unlock()
+}
+
+// startLLMHealthWatcher probes the LLM endpoint in the background.
+// When the endpoint is unreachable it logs a warning and retries every
+// retryInterval. When it becomes reachable it re-runs model detection,
+// re-initialises the llmClient on the rcaEngine, and logs the recovery.
+// This means the analyzer never exits due to a missing LLM — it waits
+// patiently and self-heals when Ollama (or any other provider) comes up.
+func (a *Analyzer) startLLMHealthWatcher(ctx context.Context, llmCfg ucconfig.LLMConfig) {
+	const (
+		retryInterval   = 30 * time.Second
+		healthyInterval = 5 * time.Minute
+	)
+
+	probe := func() bool {
+		c := &http.Client{Timeout: 5 * time.Second}
+		var url string
+		switch llmCfg.Provider {
+		case "ollama":
+			url = strings.TrimSuffix(strings.TrimRight(llmCfg.Endpoint, "/"), "/v1") + "/api/tags"
+		default:
+			url = strings.TrimRight(llmCfg.Endpoint, "/")
+		}
+		resp, err := c.Get(url)
+		if err != nil {
+			return false
+		}
+		resp.Body.Close()
+		return resp.StatusCode < 500
+	}
+
+	go func() {
+		// Do an immediate probe so we don't wait 30 s for the first log line.
+		reachable := probe()
+		wasReachable := reachable
+
+		if reachable {
+			log.Info().
+				Str("endpoint", llmCfg.Endpoint).
+				Str("provider", llmCfg.Provider).
+				Msg("LLM endpoint reachable at startup")
+			a.recordLLMSuccess()
+		} else {
+			log.Warn().
+				Str("endpoint", llmCfg.Endpoint).
+				Str("provider", llmCfg.Provider).
+				Dur("retry_in", retryInterval).
+				Msg("LLM endpoint unreachable at startup — AI analysis paused; will retry")
+			a.recordLLMError(fmt.Errorf("endpoint unreachable"))
+		}
+
+		ticker := time.NewTicker(retryInterval)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				reachable = probe()
+
+				switch {
+				case reachable && !wasReachable:
+					// Came back online — re-detect model and reinit client.
+					model := AutoDetectModel(llmCfg.Provider, llmCfg.Endpoint, llmCfg.Model, llmCfg.APIKey)
+					log.Info().
+						Str("endpoint", llmCfg.Endpoint).
+						Str("provider", llmCfg.Provider).
+						Str("model", model).
+						Msg("LLM endpoint recovered — AI analysis resuming")
+					if a.rcaEngine != nil {
+						updatedCfg := llmCfg
+						updatedCfg.Model = model
+						metrics := llmclient.NewMetrics("hetu")
+						newClient := llmclient.NewClient(updatedCfg, metrics)
+						a.rcaEngine.mu.Lock()
+						a.rcaEngine.llmClient = newClient
+						a.rcaEngine.mu.Unlock()
+					}
+					a.recordLLMSuccess()
+					ticker.Reset(healthyInterval)
+					wasReachable = true
+
+				case !reachable && wasReachable:
+					// Just went offline.
+					log.Warn().
+						Str("endpoint", llmCfg.Endpoint).
+						Str("provider", llmCfg.Provider).
+						Dur("retry_in", retryInterval).
+						Msg("LLM endpoint became unreachable — AI analysis paused; will retry")
+					a.recordLLMError(fmt.Errorf("endpoint unreachable"))
+					ticker.Reset(retryInterval)
+					wasReachable = false
+
+				case !reachable:
+					// Still offline — log at Warn on every probe so operators see it.
+					log.Warn().
+						Str("endpoint", llmCfg.Endpoint).
+						Str("provider", llmCfg.Provider).
+						Dur("retry_in", retryInterval).
+						Msg("LLM endpoint still unreachable — retrying")
+				}
+			}
+		}
+	}()
 }
 
 func (a *Analyzer) recordAnalysisOutcome(err error) {
@@ -3149,6 +3255,13 @@ func main() {
 	// Setup context
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	// Start LLM health watcher — probes the endpoint in the background,
+	// logs when unreachable, and self-heals when it comes back. The analyzer
+	// never exits because the LLM is down.
+	if rcaLLMCfg.Endpoint != "" {
+		analyzer.startLLMHealthWatcher(ctx, rcaLLMCfg)
+	}
 
 	// Start analyzer
 	if err := analyzer.Start(ctx); err != nil {
