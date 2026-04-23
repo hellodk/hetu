@@ -9,6 +9,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.58.0
 	github.com/hellodk/hetu/pkg/bus v0.0.0
 	github.com/hellodk/hetu/pkg/config v0.0.0
+	github.com/hellodk/hetu/pkg/logger v0.0.0
 	github.com/hellodk/hetu/pkg/types v0.0.0
 	github.com/prometheus/client_golang v1.19.0
 	github.com/rs/zerolog v1.35.0
