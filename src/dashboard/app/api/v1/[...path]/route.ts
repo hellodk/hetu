@@ -78,7 +78,8 @@ async function proxy(request: NextRequest, pathSegments: string[]) {
     return new NextResponse(resp.body, { status: resp.status, headers: respHeaders })
   } catch (err: any) {
     const duration = Date.now() - start
-    logger.error({ err: err.message, target: url, duration_ms: duration, request_id: requestId }, 'proxy error')
-    return NextResponse.json({ error: `Proxy: ${err.message}`, target: url }, { status: 502 })
+    const message = err?.message ?? String(err) ?? 'unknown error'
+    logger.error({ err: message, target: url, duration_ms: duration, request_id: requestId }, 'proxy error')
+    return NextResponse.json({ error: `Proxy: ${message}`, target: url }, { status: 502 })
   }
 }
