@@ -3,12 +3,13 @@ package logger_test
 import (
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/hellodk/hetu/pkg/logger"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-	"os"
 )
 
 func init() {
@@ -33,8 +34,12 @@ func TestRequestLogger_GeneratesRequestID(t *testing.T) {
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rr.Code)
 	}
-	if rr.Header().Get("X-Request-ID") == "" {
+	gotID := rr.Header().Get("X-Request-ID")
+	if gotID == "" {
 		t.Error("expected X-Request-ID response header to be set")
+	}
+	if _, err := uuid.Parse(gotID); err != nil {
+		t.Errorf("X-Request-ID %q is not a valid UUID: %v", gotID, err)
 	}
 }
 

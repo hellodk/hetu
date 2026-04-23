@@ -19,6 +19,13 @@ func (r *responseRecorder) WriteHeader(status int) {
 	r.ResponseWriter.WriteHeader(status)
 }
 
+func (r *responseRecorder) Write(b []byte) (int, error) {
+	if r.status == 0 {
+		r.status = http.StatusOK
+	}
+	return r.ResponseWriter.Write(b)
+}
+
 // RequestLogger is an HTTP middleware that:
 //   - reads X-Request-ID from the incoming request (or generates a UUID v4)
 //   - injects the ID into the request context via WithRequestID
@@ -35,15 +42,32 @@ func RequestLogger(next http.Handler) http.Handler {
 		r = r.WithContext(ctx)
 		w.Header().Set("X-Request-ID", id)
 
-		rec := &responseRecorder{ResponseWriter: w, status: http.StatusOK}
+		rec := &responseRecorder{ResponseWriter: w, status: 0}
 		start := time.Now()
-		next.ServeHTTP(rec, r)
 
-		log.Ctx(ctx).Info().
-			Str("method", r.Method).
-			Str("path", r.URL.Path).
-			Int("status", rec.status).
-			Int64("duration_ms", time.Since(start).Milliseconds()).
-			Msg("http request")
+		defer func() {
+			statusToLog := rec.status
+			if statusToLog == 0 {
+				statusToLog = http.StatusOK
+			}
+			if p := recover(); p != nil {
+				log.Ctx(ctx).Error().
+					Str("method", r.Method).
+					Str("path", r.URL.Path).
+					Int("status", http.StatusInternalServerError).
+					Int64("duration_ms", time.Since(start).Milliseconds()).
+					Interface("panic", p).
+					Msg("http request panic")
+				panic(p) // re-panic so net/http can handle it
+			}
+			log.Ctx(ctx).Info().
+				Str("method", r.Method).
+				Str("path", r.URL.Path).
+				Int("status", statusToLog).
+				Int64("duration_ms", time.Since(start).Milliseconds()).
+				Msg("http request")
+		}()
+
+		next.ServeHTTP(rec, r)
 	})
 }
