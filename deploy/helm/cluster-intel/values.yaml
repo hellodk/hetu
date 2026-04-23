@@ -33,13 +33,18 @@ cluster:
 #     securityContext:
 #       readOnlyRootFilesystem: false   # dashboard needs to write .next/cache
 #
-securityContext:
+# Pod-level security context (spec.securityContext). fsGroup lives here.
+podSecurityContext:
   runAsNonRoot: true
   runAsUser: 65534
   runAsGroup: 65534
   fsGroup: 65534
   seccompProfile:
     type: RuntimeDefault
+
+# Container-level security context (spec.containers[].securityContext).
+# fsGroup is NOT valid here — keep only container-scoped fields.
+securityContext:
   allowPrivilegeEscalation: false
   readOnlyRootFilesystem: true
   capabilities:
@@ -165,12 +170,13 @@ dashboard:
     nodePort: null       # e.g. 30303; only used when type=NodePort
   env: []
   # Dashboard needs a writable FS for Next.js .next/cache and tmp.
-  # Override ONLY the fields that differ from top-level securityContext.
-  securityContext:
-    readOnlyRootFilesystem: false
+  podSecurityContext:
     runAsUser: 1001
     runAsGroup: 1001
     fsGroup: 1001
+  # Container-level only — no fsGroup here.
+  securityContext:
+    readOnlyRootFilesystem: false
   affinity: {}
   topologySpreadConstraints: []
   pdb:
@@ -185,17 +191,34 @@ dashboard:
 stores:
   postgres:
     bundled: true
+    # standalone: deploy a lean postgres:16-alpine StatefulSet instead of Bitnami sub-chart.
+    # Set bundled=false and standalone=true to use it.
+    standalone: false
+    image:
+      repository: postgres
+      tag: "16-alpine"
+    storage: "5Gi"
+    storageClass: ""   # empty = cluster default
     external:
       host: ""
       port: 5432
       db: cluster_intel
       user: cluster_intel
+      password: ""   # standalone: auto-generated if empty; for external use existingSecret
       existingSecret: ""
       existingSecretPasswordKey: password
     sslMode: disable
 
   redis:
     bundled: true
+    # standalone: deploy a lean redis:7-alpine StatefulSet instead of Bitnami sub-chart.
+    # Set bundled=false and standalone=true to use it.
+    standalone: false
+    image:
+      repository: redis
+      tag: "7-alpine"
+    storage: "1Gi"
+    storageClass: ""   # empty = cluster default
     external:
       addr: ""
       existingSecret: ""

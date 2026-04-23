@@ -58,8 +58,8 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 Postgres host: bundled chart service or external host.
 */}}
 {{- define "cluster-intel.postgres.host" -}}
-{{- if .Values.stores.postgres.bundled -}}
-{{ .Release.Name }}-postgresql.{{ .Release.Namespace }}.svc.cluster.local
+{{- if or .Values.stores.postgres.bundled .Values.stores.postgres.standalone -}}
+{{ include "cluster-intel.fullname" . }}-postgresql.{{ .Release.Namespace }}.svc.cluster.local
 {{- else -}}
 {{ .Values.stores.postgres.external.host }}
 {{- end -}}
@@ -69,7 +69,7 @@ Postgres host: bundled chart service or external host.
 Postgres port.
 */}}
 {{- define "cluster-intel.postgres.port" -}}
-{{- if .Values.stores.postgres.bundled -}}
+{{- if or .Values.stores.postgres.bundled .Values.stores.postgres.standalone -}}
 5432
 {{- else -}}
 {{ .Values.stores.postgres.external.port }}
@@ -77,11 +77,11 @@ Postgres port.
 {{- end }}
 
 {{/*
-Redis address: bundled chart service or external addr.
+Redis address: bundled chart, standalone StatefulSet, or external addr.
 */}}
 {{- define "cluster-intel.redis.addr" -}}
-{{- if .Values.stores.redis.bundled -}}
-{{ .Release.Name }}-redis-master.{{ .Release.Namespace }}.svc.cluster.local:6379
+{{- if or .Values.stores.redis.bundled .Values.stores.redis.standalone -}}
+{{ include "cluster-intel.fullname" . }}-redis.{{ .Release.Namespace }}.svc.cluster.local:6379
 {{- else -}}
 {{ .Values.stores.redis.external.addr }}
 {{- end -}}
@@ -103,12 +103,19 @@ nats://{{ .Release.Name }}-nats.{{ .Release.Namespace }}.svc.cluster.local:4222
      =================================================================== */}}
 
 {{/*
-Merged container securityContext: top-level defaults, deep-merged with
-per-component overrides. Usage:
-  securityContext:
-    {{- include "cluster-intel.securityContext" (dict "top" .Values.securityContext "override" .Values.collector.securityContext) | nindent 12 }}
+Merged container-level securityContext (spec.containers[].securityContext).
+fsGroup is NOT valid here; use cluster-intel.podSecurityContext instead.
 */}}
 {{- define "cluster-intel.securityContext" -}}
+{{- $merged := mustMergeOverwrite (deepCopy .top) .override -}}
+{{- toYaml $merged -}}
+{{- end }}
+
+{{/*
+Merged pod-level securityContext (spec.securityContext).
+Contains runAsNonRoot, runAsUser, runAsGroup, fsGroup, seccompProfile.
+*/}}
+{{- define "cluster-intel.podSecurityContext" -}}
 {{- $merged := mustMergeOverwrite (deepCopy .top) .override -}}
 {{- toYaml $merged -}}
 {{- end }}

@@ -44,6 +44,26 @@ nats:
 monitoring:
   enabled: false      # stack already deployed as 'monitoring' Helm release
 
+# ── Stores — lightweight official images instead of Bitnami sub-charts ───────
+stores:
+  postgres:
+    bundled: false
+    standalone: true          # deploys postgres:16-alpine StatefulSet
+    image:
+      repository: postgres
+      tag: "16-alpine"
+    external:
+      db: cluster_intel
+      user: cluster_intel
+      password: ""   # auto-generated on first install; preserved by lookup on upgrade
+
+  redis:
+    bundled: false
+    standalone: true          # deploys redis:7-alpine StatefulSet
+    image:
+      repository: redis
+      tag: "7-alpine"
+
 # ── Storage — NFS is default; no overrides needed ────────────────────────────
 # nfs-client is the default StorageClass; postgres and redis PVCs bind automatically.
 

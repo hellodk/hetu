@@ -21,6 +21,8 @@ spec:
         app.kubernetes.io/component: collector
     spec:
       serviceAccountName: cluster-intel
+      securityContext:
+        {{- include "cluster-intel.podSecurityContext" (dict "top" .Values.podSecurityContext "override" (default dict .Values.collector.podSecurityContext)) | nindent 8 }}
       {{- with .Values.global.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}

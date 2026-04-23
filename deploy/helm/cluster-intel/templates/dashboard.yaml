@@ -18,6 +18,8 @@ spec:
         {{- include "cluster-intel.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: dashboard
     spec:
+      securityContext:
+        {{- include "cluster-intel.podSecurityContext" (dict "top" .Values.podSecurityContext "override" (default dict .Values.dashboard.podSecurityContext)) | nindent 8 }}
       {{- with .Values.global.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}

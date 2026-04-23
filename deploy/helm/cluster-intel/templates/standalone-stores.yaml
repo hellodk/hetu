@@ -1,0 +1,194 @@
+{{/*
+Standalone PostgreSQL and Redis StatefulSets using official images.
+Enabled when stores.postgres.standalone=true / stores.redis.standalone=true.
+These replace the Bitnami sub-charts (set bundled=false when using standalone).
+*/}}
+
+{{- if .Values.stores.postgres.standalone }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "cluster-intel.fullname" . }}-postgresql
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "cluster-intel.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgresql
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5432
+      targetPort: 5432
+      name: postgres
+  selector:
+    {{- include "cluster-intel.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: postgresql
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "cluster-intel.fullname" . }}-postgresql
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "cluster-intel.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgresql
+spec:
+  serviceName: {{ include "cluster-intel.fullname" . }}-postgresql
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "cluster-intel.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: postgresql
+  template:
+    metadata:
+      labels:
+        {{- include "cluster-intel.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: postgresql
+    spec:
+      securityContext:
+        fsGroup: 999
+      containers:
+        - name: postgres
+          image: "{{ .Values.stores.postgres.image.repository }}:{{ .Values.stores.postgres.image.tag }}"
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: POSTGRES_DB
+              value: {{ .Values.stores.postgres.external.db | quote }}
+            - name: POSTGRES_USER
+              value: {{ .Values.stores.postgres.external.user | quote }}
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "cluster-intel.fullname" . }}-postgres-secret
+                  key: password
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          ports:
+            - containerPort: 5432
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", {{ .Values.stores.postgres.external.user | quote }}]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- with .Values.stores.postgres.storageClass }}
+        storageClassName: {{ . | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.stores.postgres.storage | default "5Gi" }}
+{{- $secretName := printf "%s-postgres-secret" (include "cluster-intel.fullname" .) }}
+{{- $existing := lookup "v1" "Secret" .Release.Namespace $secretName }}
+{{- $password := "" }}
+{{- if $existing }}
+{{- $password = index $existing.data "password" | b64dec }}
+{{- else if .Values.stores.postgres.external.password }}
+{{- $password = .Values.stores.postgres.external.password }}
+{{- else }}
+{{- $password = randAlphaNum 24 }}
+{{- end }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $secretName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "cluster-intel.labels" . | nindent 4 }}
+type: Opaque
+stringData:
+  password: {{ $password | quote }}
+{{- end }}
+
+
+{{- if .Values.stores.redis.standalone }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "cluster-intel.fullname" . }}-redis
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "cluster-intel.labels" . | nindent 4 }}
+    app.kubernetes.io/component: redis
+spec:
+  type: ClusterIP
+  ports:
+    - port: 6379
+      targetPort: 6379
+      name: redis
+  selector:
+    {{- include "cluster-intel.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: redis
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "cluster-intel.fullname" . }}-redis
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "cluster-intel.labels" . | nindent 4 }}
+    app.kubernetes.io/component: redis
+spec:
+  serviceName: {{ include "cluster-intel.fullname" . }}-redis
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "cluster-intel.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: redis
+  template:
+    metadata:
+      labels:
+        {{- include "cluster-intel.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: redis
+    spec:
+      securityContext:
+        fsGroup: 999
+      containers:
+        - name: redis
+          image: "{{ .Values.stores.redis.image.repository }}:{{ .Values.stores.redis.image.tag }}"
+          imagePullPolicy: IfNotPresent
+          command: ["redis-server", "--appendonly", "yes", "--save", "60", "1"]
+          ports:
+            - containerPort: 6379
+          readinessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          volumeMounts:
+            - name: data
+              mountPath: /data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- with .Values.stores.redis.storageClass }}
+        storageClassName: {{ . | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.stores.redis.storage | default "1Gi" }}
+{{- end }}
