@@ -23,7 +23,7 @@ func Init(level, format string) {
 	zerolog.SetGlobalLevel(lvl)
 
 	if format == "pretty" {
-		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
+		log.Logger = zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr}).With().Timestamp().Logger()
 	} else {
 		log.Logger = zerolog.New(os.Stderr).With().Timestamp().Logger()
 	}
