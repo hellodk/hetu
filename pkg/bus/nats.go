@@ -10,6 +10,7 @@ import (
 	"github.com/nats-io/nats.go/jetstream"
 
 	"github.com/hellodk/hetu/pkg/config"
+	"github.com/hellodk/hetu/pkg/logger"
 )
 
 // Bus wraps a NATS JetStream connection and provides typed Publish/Subscribe
@@ -85,7 +86,14 @@ func Connect(ctx context.Context, cfg config.NATSConfig) (*Bus, error) {
 // prefixed with the configured stream prefix (e.g. "ci.signals.k8s.events").
 func (b *Bus) Publish(ctx context.Context, subject string, data []byte) error {
 	fqn := b.prefix + "." + subject
-	_, err := b.js.Publish(ctx, fqn, data)
+
+	msg := &nats.Msg{Subject: fqn, Data: data}
+	if id := logger.RequestIDFromContext(ctx); id != "" {
+		msg.Header = nats.Header{}
+		msg.Header.Set("X-Request-ID", id)
+	}
+
+	_, err := b.js.PublishMsg(ctx, msg)
 	if err != nil {
 		return fmt.Errorf("bus: publish %q: %w", fqn, err)
 	}
