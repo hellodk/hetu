@@ -4,7 +4,10 @@ const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
 
-  
+  // Serve the app under a subpath (e.g. abc.com/hetu).
+  // Set NEXT_BASE_PATH='' to serve from root (default when not behind a reverse proxy).
+  basePath: process.env.NEXT_BASE_PATH ?? '/hetu',
+
   // Environment variables - empty string means use relative URLs (proxied via rewrites)
   env: {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || '',

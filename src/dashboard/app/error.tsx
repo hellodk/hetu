@@ -11,8 +11,16 @@ export default function ErrorBoundary({
     reset: () => void
 }) {
     useEffect(() => {
-        // Log the error to an error reporting service
         console.error('Dashboard Application Error:', error)
+        fetch('/api/log-client-error', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                message: error.message,
+                stack: error.stack,
+                componentStack: error.digest,
+            }),
+        }).catch(() => { /* best-effort */ })
     }, [error])
 
     return (

@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { randomUUID } from 'crypto'
+import logger from '@/lib/logger'
 
 // Runtime API proxy: /api/v1/{path} → analyzer:8081/api/v1/{path}
 // Runs server-side inside the dashboard pod — uses K8s DNS, no CORS.
@@ -41,30 +43,42 @@ export async function DELETE(req: NextRequest, ctx: RouteContext) {
 }
 
 async function proxy(request: NextRequest, pathSegments: string[]) {
+  const requestId = request.headers.get('x-request-id') ?? randomUUID()
   const base = getAnalyzerUrl()
   const path = pathSegments.join('/')
   const qs = request.nextUrl.searchParams.toString()
   const url = qs ? `${base}/api/v1/${path}?${qs}` : `${base}/api/v1/${path}`
+  const start = Date.now()
 
   try {
     const opts: RequestInit = {
       method: request.method,
-      headers: { 'Content-Type': request.headers.get('content-type') || 'application/json' },
+      headers: {
+        'Content-Type': request.headers.get('content-type') || 'application/json',
+        'X-Request-ID': requestId,
+      },
     }
     if (request.method !== 'GET' && request.method !== 'HEAD') {
       opts.body = await request.text()
     }
 
     const resp = await fetch(url, opts)
+    const duration = Date.now() - start
+
+    logger.info({ method: request.method, path: `/api/v1/${path}`, status: resp.status, duration_ms: duration, request_id: requestId }, 'proxy request')
+
     const respHeaders = new Headers()
     resp.headers.forEach((v, k) => {
       if (!['transfer-encoding', 'content-encoding'].includes(k.toLowerCase())) {
         respHeaders.set(k, v)
       }
     })
+    respHeaders.set('X-Request-ID', requestId)
 
     return new NextResponse(resp.body, { status: resp.status, headers: respHeaders })
   } catch (err: any) {
+    const duration = Date.now() - start
+    logger.error({ err: err.message, target: url, duration_ms: duration, request_id: requestId }, 'proxy error')
     return NextResponse.json({ error: `Proxy: ${err.message}`, target: url }, { status: 502 })
   }
 }

@@ -168,6 +168,7 @@ dashboard:
   service:
     type: ClusterIP      # set to NodePort for direct node access without Ingress
     nodePort: null       # e.g. 30303; only used when type=NodePort
+  basePath: "/hetu"     # subpath the dashboard is served under; must match nginx location
   env: []
   # Dashboard needs a writable FS for Next.js .next/cache and tmp.
   podSecurityContext:

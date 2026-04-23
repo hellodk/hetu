@@ -41,6 +41,8 @@ spec:
           env:
             - name: NEXT_PUBLIC_API_URL
               value: "http://{{ include "hetu.fullname" . }}-analyzer:8081"
+            - name: NEXT_BASE_PATH
+              value: {{ .Values.dashboard.basePath | default "/hetu" | quote }}
             {{- with .Values.dashboard.env }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -50,13 +52,13 @@ spec:
               protocol: TCP
           livenessProbe:
             httpGet:
-              path: /
+              path: {{ .Values.dashboard.basePath | default "/hetu" }}/
               port: http
             initialDelaySeconds: 10
             periodSeconds: 15
           readinessProbe:
             httpGet:
-              path: /
+              path: {{ .Values.dashboard.basePath | default "/hetu" }}/
               port: http
             initialDelaySeconds: 5
             periodSeconds: 10
