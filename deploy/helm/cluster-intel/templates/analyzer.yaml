@@ -33,15 +33,6 @@ spec:
       topologySpreadConstraints:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      # TODO: add init container for DB migration runner
-      # initContainers:
-      #   - name: migrate
-      #     image: "{{ .Values.analyzer.image.repository }}:{{ .Values.analyzer.image.tag }}"
-      #     command: ["cluster-intel-analyzer", "migrate", "--up"]
-      #     volumeMounts:
-      #       - name: config
-      #         mountPath: /etc/cluster-intel
-      #         readOnly: true
       containers:
         - name: analyzer
           image: "{{ .Values.analyzer.image.repository }}:{{ .Values.analyzer.image.tag }}"

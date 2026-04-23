@@ -53,12 +53,15 @@ metadata:
     {{- include "cluster-intel.labels" . | nindent 4 }}
     app.kubernetes.io/component: dashboard
 spec:
-  type: ClusterIP
+  type: {{ .Values.dashboard.service.type | default "ClusterIP" }}
   ports:
     - port: 3000
       targetPort: http
       protocol: TCP
       name: http
+      {{- if and (eq (.Values.dashboard.service.type | default "ClusterIP") "NodePort") .Values.dashboard.service.nodePort }}
+      nodePort: {{ .Values.dashboard.service.nodePort }}
+      {{- end }}
   selector:
     {{- include "cluster-intel.selectorLabels" . | nindent 4 }}
     app.kubernetes.io/component: dashboard

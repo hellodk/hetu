@@ -1,0 +1,52 @@
+# values-local.yaml — single-node home cluster (cylon, 100.89.50.27)
+# Usage:
+#   helm upgrade --install cluster-intel deploy/helm/cluster-intel/ \
+#     --namespace cluster-intel --create-namespace \
+#     -f deploy/helm/values-local.yaml --wait
+
+cluster:
+  id: cylon
+  displayName: "Home Lab"
+
+# ── LLM ──────────────────────────────────────────────────────────────────────
+llm:
+  provider: ollama
+  endpoint: "http://100.89.50.27:11434"
+  model: "Qwen2.5-Coder:14B-Instruct"
+  maxTokens: 4096
+  temperature: 0.2
+  dailyTokenBudget: 1000000
+  apiKeySecret:
+    name: ""          # Ollama does not need a secret; dummy is sent at runtime
+
+# ── Images ───────────────────────────────────────────────────────────────────
+collector:
+  image:
+    tag: "7.0.0"
+
+analyzer:
+  image:
+    tag: "7.0.0"
+
+dashboard:
+  image:
+    tag: "7.0.0"
+  service:
+    type: NodePort
+    nodePort: 30303    # http://100.89.50.27:30303
+
+# ── NATS — disable nats-box debug sidecar ────────────────────────────────────
+nats:
+  natsBox:
+    enabled: false
+
+# ── Monitoring — reuse existing kube-prometheus-stack ────────────────────────
+monitoring:
+  enabled: false      # stack already deployed as 'monitoring' Helm release
+
+# ── Storage — NFS is default; no overrides needed ────────────────────────────
+# nfs-client is the default StorageClass; postgres and redis PVCs bind automatically.
+
+# ── Ingress — no IngressClass in cluster; use NodePort above ─────────────────
+ingress:
+  enabled: false

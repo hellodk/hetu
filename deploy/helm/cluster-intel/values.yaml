@@ -90,7 +90,7 @@ collector:
     limits:
       cpu: 500m
       memory: 256Mi
-  prometheusUrl: "http://prometheus-server.monitoring.svc.cluster.local:9090"
+  prometheusUrl: "http://monitoring-prometheus.monitoring.svc.cluster.local:9090"
   env: []
   # Pod log streaming subsystem. Streams logs from running pods via the k8s API.
   podlogs:
@@ -160,6 +160,9 @@ dashboard:
     limits:
       cpu: 500m
       memory: 256Mi
+  service:
+    type: ClusterIP      # set to NodePort for direct node access without Ingress
+    nodePort: null       # e.g. 30303; only used when type=NodePort
   env: []
   # Dashboard needs a writable FS for Next.js .next/cache and tmp.
   # Override ONLY the fields that differ from top-level securityContext.
