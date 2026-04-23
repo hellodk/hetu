@@ -40,7 +40,7 @@ const severityConfig = {
     bg: 'bg-red-500/10',
     border: 'border-red-500/30',
     text: 'text-red-400',
-    badge: 'bg-red-900/50 text-red-300 border-red-700',
+    badge: 'bg-red-100 text-red-400 border-red-300 dark:bg-red-900/50 dark:text-red-300 dark:border-red-700',
     priority: 1,
   },
   high: {
@@ -48,7 +48,7 @@ const severityConfig = {
     bg: 'bg-orange-500/10',
     border: 'border-orange-500/30',
     text: 'text-orange-400',
-    badge: 'bg-orange-900/50 text-orange-300 border-orange-700',
+    badge: 'bg-orange-100 text-orange-400 border-orange-300 dark:bg-orange-900/50 dark:text-orange-300 dark:border-orange-700',
     priority: 2,
   },
   medium: {
@@ -56,7 +56,7 @@ const severityConfig = {
     bg: 'bg-yellow-500/10',
     border: 'border-yellow-500/30',
     text: 'text-yellow-400',
-    badge: 'bg-yellow-900/50 text-yellow-300 border-yellow-700',
+    badge: 'bg-yellow-100 text-yellow-400 border-yellow-300 dark:bg-yellow-900/50 dark:text-yellow-300 dark:border-yellow-700',
     priority: 3,
   },
   low: {
@@ -64,7 +64,7 @@ const severityConfig = {
     bg: 'bg-blue-500/10',
     border: 'border-blue-500/30',
     text: 'text-blue-400',
-    badge: 'bg-blue-900/50 text-blue-300 border-blue-700',
+    badge: 'bg-blue-100 text-blue-400 border-blue-300 dark:bg-blue-900/50 dark:text-blue-300 dark:border-blue-700',
     priority: 4,
   },
 }
@@ -186,8 +186,8 @@ export function IssuesList({ issues, expanded = false, onViewAll, onIssueClick, 
           <div className="w-16 h-16 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
             <AlertCircle className="w-8 h-8 text-green-500" aria-hidden="true" />
           </div>
-          <p className="text-slate-300 font-medium">No active issues detected</p>
-          <p className="text-sm text-slate-400 mt-1">Your cluster is running smoothly</p>
+          <p className="text-cluster-text font-medium">No active issues detected</p>
+          <p className="text-sm text-cluster-muted mt-1">Your cluster is running smoothly</p>
         </div>
       </section>
     )
@@ -200,7 +200,7 @@ export function IssuesList({ issues, expanded = false, onViewAll, onIssueClick, 
           <AlertTriangle className="w-5 h-5 text-yellow-500" aria-hidden="true" />
           Active Issues
         </h2>
-        <span className="text-sm text-slate-400" aria-live="polite">
+        <span className="text-sm text-cluster-muted" aria-live="polite">
           {filteredIssues.length} of {issues.length} issue{issues.length !== 1 ? 's' : ''}
         </span>
       </div>
@@ -210,7 +210,7 @@ export function IssuesList({ issues, expanded = false, onViewAll, onIssueClick, 
         <div className="flex flex-col sm:flex-row gap-3 mb-4">
           {/* Search Input */}
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" aria-hidden="true" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-cluster-muted" aria-hidden="true" />
             <input
               type="search"
               placeholder="Search issues..."
@@ -223,7 +223,7 @@ export function IssuesList({ issues, expanded = false, onViewAll, onIssueClick, 
 
           {/* Severity Filter */}
           <div className="flex items-center gap-2 flex-wrap" role="group" aria-label="Filter by severity">
-            <Filter className="w-4 h-4 text-slate-400 hidden sm:block" aria-hidden="true" />
+            <Filter className="w-4 h-4 text-cluster-muted hidden sm:block" aria-hidden="true" />
             {(['all', 'critical', 'high', 'medium', 'low'] as const).map((severity) => (
               <button
                 key={severity}
@@ -247,8 +247,8 @@ export function IssuesList({ issues, expanded = false, onViewAll, onIssueClick, 
       <div className="space-y-3" role="list" aria-label="Issues list">
         {filteredIssues.length === 0 ? (
           <div className="text-center py-8">
-            <Search className="w-8 h-8 text-slate-500 mx-auto mb-2" aria-hidden="true" />
-            <p className="text-slate-400">No issues match your search</p>
+            <Search className="w-8 h-8 text-cluster-muted mx-auto mb-2" aria-hidden="true" />
+            <p className="text-cluster-muted">No issues match your search</p>
           </div>
         ) : (
           filteredIssues.map((issue) => {
@@ -284,29 +284,29 @@ export function IssuesList({ issues, expanded = false, onViewAll, onIssueClick, 
                       </span>
                       <span className={clsx(
                         'px-2 py-0.5 text-xs font-medium rounded-full capitalize',
-                        categoryColors[issue.category] || 'bg-slate-500/20 text-slate-300'
+                        categoryColors[issue.category] || 'bg-cluster-border/40 text-cluster-muted'
                       )}>
                         {issue.category}
                       </span>
-                      <span className="text-xs text-slate-400">
+                      <span className="text-xs text-cluster-muted">
                         {Math.round(issue.confidence * 100)}% confidence
                       </span>
                     </div>
 
                     <h3 className="font-medium text-cluster-text mb-1">{issue.title}</h3>
-                    <p className="text-sm text-slate-400 mb-2">{issue.description}</p>
+                    <p className="text-sm text-cluster-muted mb-2">{issue.description}</p>
 
                     {expanded && (
                       <>
                         {issue.rootCause && (
                           <div className="mt-3 p-3 bg-black/20 rounded-lg">
-                            <p className="text-xs text-slate-400 uppercase tracking-wide mb-1">Root Cause Analysis</p>
+                            <p className="text-xs text-cluster-muted uppercase tracking-wide mb-1">Root Cause Analysis</p>
                             <p className="text-sm text-cluster-text">{issue.rootCause}</p>
                           </div>
                         )}
 
                         <div className="mt-3">
-                          <p className="text-xs text-slate-400 uppercase tracking-wide mb-2">Affected Resources</p>
+                          <p className="text-xs text-cluster-muted uppercase tracking-wide mb-2">Affected Resources</p>
                           <div className="flex flex-wrap gap-2">
                             {(issue.affectedResources ?? []).map((resource, idx) => {
                               const parts = resource.split('/')
@@ -319,7 +319,7 @@ export function IssuesList({ issues, expanded = false, onViewAll, onIssueClick, 
                                   className="px-2 py-1 bg-black/20 hover:bg-blue-600/20 rounded text-xs font-mono text-cluster-text hover:text-blue-400 flex items-center gap-1 transition-colors"
                                 >
                                   {resource}
-                                  <ExternalLink className="w-3 h-3 text-slate-400" aria-hidden="true" />
+                                  <ExternalLink className="w-3 h-3 text-cluster-muted" aria-hidden="true" />
                                 </Link>
                               )
                             })}
@@ -329,7 +329,7 @@ export function IssuesList({ issues, expanded = false, onViewAll, onIssueClick, 
                     )}
                   </div>
 
-                  <ChevronRight className="w-5 h-5 text-slate-400 flex-shrink-0" aria-hidden="true" />
+                  <ChevronRight className="w-5 h-5 text-cluster-muted flex-shrink-0" aria-hidden="true" />
                 </div>
               </article>
             )
@@ -365,18 +365,18 @@ export function IssuesList({ issues, expanded = false, onViewAll, onIssueClick, 
               </span>
               <span className={clsx(
                 'px-3 py-1 text-sm font-medium rounded-full capitalize',
-                categoryColors[selectedIssue.category] || 'bg-slate-500/20 text-slate-300'
+                categoryColors[selectedIssue.category] || 'bg-cluster-border/40 text-cluster-muted'
               )}>
                 {selectedIssue.category}
               </span>
-              <span className="text-sm text-slate-400">
+              <span className="text-sm text-cluster-muted">
                 {Math.round(selectedIssue.confidence * 100)}% confidence
               </span>
             </div>
 
             {/* Description */}
             <div>
-              <h4 className="text-sm font-medium text-slate-400 mb-2">Description</h4>
+              <h4 className="text-sm font-medium text-cluster-muted mb-2">Description</h4>
               <p className="text-cluster-text">{selectedIssue.description}</p>
             </div>
 
@@ -393,7 +393,7 @@ export function IssuesList({ issues, expanded = false, onViewAll, onIssueClick, 
 
             {/* Affected Resources */}
             <div>
-              <h4 className="text-sm font-medium text-slate-400 mb-2">Affected Resources</h4>
+              <h4 className="text-sm font-medium text-cluster-muted mb-2">Affected Resources</h4>
               <div className="flex flex-wrap gap-2">
                 {(selectedIssue.affectedResources ?? []).map((resource, idx) => (
                   <span
@@ -401,7 +401,7 @@ export function IssuesList({ issues, expanded = false, onViewAll, onIssueClick, 
                     className="px-3 py-1.5 bg-black/20 rounded-lg text-sm font-mono text-cluster-text flex items-center gap-2"
                   >
                     {resource}
-                    <ExternalLink className="w-3.5 h-3.5 text-slate-400" aria-hidden="true" />
+                    <ExternalLink className="w-3.5 h-3.5 text-cluster-muted" aria-hidden="true" />
                   </span>
                 ))}
               </div>
@@ -410,21 +410,21 @@ export function IssuesList({ issues, expanded = false, onViewAll, onIssueClick, 
             {/* Correlated Evidence */}
             {selectedIssue.evidence && selectedIssue.evidence.length > 0 && (
               <div>
-                <h4 className="text-sm font-medium text-slate-400 mb-2">Correlated Evidence</h4>
+                <h4 className="text-sm font-medium text-cluster-muted mb-2">Correlated Evidence</h4>
                 <div className="space-y-3">
                   {selectedIssue.evidence.map((ev, idx) => (
                     <div key={idx} className="p-3 bg-black/20 rounded-lg border border-cluster-border text-sm">
                       {ev.event && (
                         <div className="mb-2">
-                          <span className="font-semibold text-slate-300">Event: </span>
+                          <span className="font-semibold text-cluster-muted">Event: </span>
                           <span className="text-cluster-text">{ev.event.reason || ev.event.type}</span>
-                          <p className="text-slate-400 text-xs mt-1">{ev.event.message}</p>
+                          <p className="text-cluster-muted text-xs mt-1">{ev.event.message}</p>
                         </div>
                       )}
                       {ev.logLines && ev.logLines.length > 0 && (
                         <div className="mt-2">
-                          <span className="text-xs font-semibold text-slate-400 uppercase">Related Logs</span>
-                          <pre className="mt-1 p-2 bg-black/40 rounded text-xs text-slate-300 overflow-x-auto whitespace-pre font-mono">
+                          <span className="text-xs font-semibold text-cluster-muted uppercase">Related Logs</span>
+                          <pre className="mt-1 p-2 bg-black/40 rounded text-xs text-cluster-muted overflow-x-auto whitespace-pre font-mono">
                             {ev.logLines.join('\n')}
                           </pre>
                         </div>
@@ -450,7 +450,7 @@ export function IssuesList({ issues, expanded = false, onViewAll, onIssueClick, 
             <div className="flex flex-col sm:flex-row justify-end gap-3 pt-4 border-t border-cluster-border">
               <button
                 onClick={() => { setShowModal(false); setSelectedIssue(null); }}
-                className="btn-ghost px-4 py-2 text-slate-400 hover:text-cluster-text"
+                className="btn-ghost px-4 py-2 text-cluster-muted hover:text-cluster-text"
               >
                 Close
               </button>

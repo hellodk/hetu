@@ -73,7 +73,7 @@ export function CoreDNSHealth() {
 
     const isHealthy = safeData.status.toLowerCase() === 'healthy'
     const StatusIcon = isHealthy ? CheckCircle : AlertTriangle
-    const statusColor = isHealthy ? 'text-green-400' : 'text-red-400'
+    const statusColor = isHealthy ? 'text-green-400' : 'text-red-400'   // remapped to sev tokens in light themes
     const statusBg = isHealthy ? 'bg-green-500/10 border-green-500/20' : 'bg-red-500/10 border-red-500/20'
 
     return (
@@ -93,20 +93,20 @@ export function CoreDNSHealth() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {/* Request Rate */}
                 <div className="p-4 rounded-lg bg-cluster-border/30">
-                    <p className="text-xs text-slate-400 mb-1">Request Rate</p>
+                    <p className="text-xs text-cluster-muted mb-1">Request Rate</p>
                     <div className="flex items-baseline gap-1">
-                        <span className="text-xl sm:text-2xl font-bold text-slate-100">
+                        <span className="text-xl sm:text-2xl font-bold text-cluster-text">
                             {safeData.requestRate.toFixed(1)}
                         </span>
-                        <span className="text-xs font-medium text-slate-500">req/s</span>
+                        <span className="text-xs font-medium text-cluster-muted">req/s</span>
                     </div>
                 </div>
 
                 {/* Error Rate */}
                 <div className="p-4 rounded-lg bg-cluster-border/30">
-                    <p className="text-xs text-slate-400 mb-1">Error Rate</p>
+                    <p className="text-xs text-cluster-muted mb-1">Error Rate</p>
                     <div className="flex items-baseline gap-1">
-                        <span className={clsx('text-xl sm:text-2xl font-bold', safeData.errorRate > 1 ? 'text-red-400' : 'text-slate-100')}>
+                        <span className={clsx('text-xl sm:text-2xl font-bold', safeData.errorRate > 1 ? 'text-red-400' : 'text-cluster-text')}>
                             {safeData.errorRate.toFixed(2)}%
                         </span>
                     </div>
@@ -114,20 +114,20 @@ export function CoreDNSHealth() {
 
                 {/* Latency P99 */}
                 <div className="p-4 rounded-lg bg-cluster-border/30">
-                    <p className="text-xs text-slate-400 mb-1">P99 Latency</p>
+                    <p className="text-xs text-cluster-muted mb-1">P99 Latency</p>
                     <div className="flex items-baseline gap-1">
-                        <span className={clsx('text-xl sm:text-2xl font-bold', safeData.latencyP99 > 50 ? 'text-yellow-400' : 'text-slate-100')}>
+                        <span className={clsx('text-xl sm:text-2xl font-bold', safeData.latencyP99 > 50 ? 'text-yellow-400' : 'text-cluster-text')}>
                             {safeData.latencyP99.toFixed(1)}
                         </span>
-                        <span className="text-xs font-medium text-slate-500">ms</span>
+                        <span className="text-xs font-medium text-cluster-muted">ms</span>
                     </div>
                 </div>
 
                 {/* Cache Hit Rate */}
                 <div className="p-4 rounded-lg bg-cluster-border/30">
-                    <p className="text-xs text-slate-400 mb-1">Cache Hit Rate</p>
+                    <p className="text-xs text-cluster-muted mb-1">Cache Hit Rate</p>
                     <div className="flex items-baseline gap-1">
-                        <span className="text-xl sm:text-2xl font-bold text-slate-100">
+                        <span className="text-xl sm:text-2xl font-bold text-cluster-text">
                             {safeData.cacheHitRate.toFixed(1)}%
                         </span>
                     </div>

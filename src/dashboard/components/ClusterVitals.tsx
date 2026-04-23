@@ -97,7 +97,7 @@ export function ClusterVitals({ summary, resources }: ClusterVitalsProps) {
         label="CPU"
         icon={<Cpu className="w-4 h-4" />}
         main={`${cpuPct}%`}
-        sub={`${resources.cpu.used} / ${resources.cpu.capacity} ${resources.cpu.unit}`}
+        sub={`${Number(resources.cpu.used).toFixed(1)} / ${Number(resources.cpu.capacity).toFixed(1)} ${resources.cpu.unit}`}
         barPercent={cpuPct}
         barColor={cpuColor}
       />
@@ -105,7 +105,7 @@ export function ClusterVitals({ summary, resources }: ClusterVitalsProps) {
         label="Memory"
         icon={<HardDrive className="w-4 h-4" />}
         main={`${memPct}%`}
-        sub={`${resources.memory.used} / ${resources.memory.capacity} ${resources.memory.unit}`}
+        sub={`${Number(resources.memory.used).toFixed(1)} / ${Number(resources.memory.capacity).toFixed(1)} ${resources.memory.unit}`}
         barPercent={memPct}
         barColor={memColor}
       />

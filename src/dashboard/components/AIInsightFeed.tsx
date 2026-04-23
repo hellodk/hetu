@@ -163,7 +163,7 @@ export function AIInsightFeed() {
         <h2 className="text-sm font-semibold flex items-center gap-2">
           <Sparkles className="w-4 h-4 text-blue-400" aria-hidden="true" />
           AI Insights
-          <span className="text-xs text-slate-500 font-normal">
+          <span className="text-xs text-cluster-muted font-normal">
             ({insights.length} from {new Set(insights.map(i => i.source)).size} sources)
           </span>
         </h2>
@@ -177,18 +177,18 @@ export function AIInsightFeed() {
           {opportunityCount > 0 && (
             <span className="px-1.5 py-0.5 text-xs bg-emerald-500/20 text-emerald-400 rounded">{opportunityCount}</span>
           )}
-          {expanded ? <ChevronUp className="w-4 h-4 text-slate-500" /> : <ChevronDown className="w-4 h-4 text-slate-500" />}
+          {expanded ? <ChevronUp className="w-4 h-4 text-cluster-muted" /> : <ChevronDown className="w-4 h-4 text-cluster-muted" />}
         </div>
       </button>
 
       {expanded && (
         <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
           {loading && (
-            <div className="py-4 text-center text-sm text-slate-500">Loading insights...</div>
+            <div className="py-4 text-center text-sm text-cluster-muted">Loading insights...</div>
           )}
 
           {!loading && insights.length === 0 && (
-            <div className="py-4 text-center text-sm text-slate-500">
+            <div className="py-4 text-center text-sm text-cluster-muted">
               No insights available. Data will appear as scanners produce findings.
             </div>
           )}
@@ -208,17 +208,17 @@ export function AIInsightFeed() {
                       <span className={clsx('text-[10px] font-bold uppercase tracking-wider', cfg.color)}>
                         {cfg.label}
                       </span>
-                      <span className="text-[10px] text-slate-600">{insight.source}</span>
+                      <span className="text-[10px] text-cluster-muted">{insight.source}</span>
                       {insight.timestamp && (
-                        <span className="text-[10px] text-slate-600 ml-auto flex items-center gap-1">
+                        <span className="text-[10px] text-cluster-muted ml-auto flex items-center gap-1">
                           <Clock className="w-3 h-3" />{timeSince(insight.timestamp)}
                         </span>
                       )}
                     </div>
-                    <p className="text-sm text-slate-200 leading-snug">{insight.title}</p>
-                    <p className="text-xs text-slate-400 mt-1 line-clamp-2">{insight.description}</p>
+                    <p className="text-sm text-cluster-text leading-snug">{insight.title}</p>
+                    <p className="text-xs text-cluster-muted mt-1 line-clamp-2">{insight.description}</p>
                     {insight.metadata && (
-                      <p className="text-[10px] text-slate-500 mt-1 font-mono">{insight.metadata}</p>
+                      <p className="text-[10px] text-cluster-muted mt-1 font-mono">{insight.metadata}</p>
                     )}
                   </div>
                 </div>

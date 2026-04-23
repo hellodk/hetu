@@ -58,11 +58,11 @@ export function StatusBar({
 
       {/* Live / Demo pill */}
       <span
-        className={`flex items-center gap-1.5 flex-shrink-0 ${isLive ? 'text-green-400' : 'text-yellow-400'}`}
+        className={`flex items-center gap-1.5 flex-shrink-0 ${isLive ? 'text-green-500' : 'text-yellow-300'}`}
         aria-label={`Profile: ${isLive ? 'live' : 'demo mode'}`}
       >
         <span
-          className={`w-1.5 h-1.5 rounded-full ${isLive ? 'bg-green-400' : 'bg-yellow-400'} animate-pulse`}
+          className={`w-1.5 h-1.5 rounded-full ${isLive ? 'bg-green-500' : 'bg-yellow-300'} animate-pulse`}
           aria-hidden="true"
         />
         {isLive ? 'LIVE' : 'DEMO'}
@@ -71,14 +71,14 @@ export function StatusBar({
       {lastUpdated && (
         <>
           <span className="text-[#374151] hidden md:inline" aria-hidden="true">|</span>
-          <span className="text-[#6b7280] hidden md:inline">
+          <span className="text-[#9ca3af] hidden md:inline">
             {lastUpdated.toLocaleTimeString()}
           </span>
         </>
       )}
 
       <span className="text-[#374151] hidden lg:inline" aria-hidden="true">|</span>
-      <span className="text-[#4b5563] hidden lg:inline">v{version}</span>
+      <span className="text-[#9ca3af] hidden lg:inline">v{version}</span>
 
       {/* Actions */}
       <div className="ml-auto flex items-center gap-0.5" role="group" aria-label="Dashboard actions">
