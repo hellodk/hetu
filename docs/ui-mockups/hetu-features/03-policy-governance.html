@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Hetu — Policies (Kyverno)</title>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;600;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="app.css"/>
+<style>
+/* ── Policy editor + validator (page-local additions to app.css) ── */
+.pe-tools{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.pe-tools .sp{flex:1}
+.seg{display:inline-flex;background:var(--surface);border:1px solid var(--outline);border-radius:999px;padding:3px;gap:2px}
+.seg .opt{font-size:11px;font-weight:700;letter-spacing:.04em;padding:4px 13px;border-radius:999px;color:var(--muted);cursor:pointer;border:none;background:transparent;font-family:inherit}
+.seg .opt.on{background:var(--warn-c);color:var(--warn)}
+.seg .opt.on.enf{background:var(--crit-c);color:var(--crit)}
+.code-ed{background:var(--surface);border:1px solid var(--outline);border-radius:var(--r-sm);overflow-x:auto;padding:8px 0;line-height:1.65;font-size:12px}
+.cl{display:grid;grid-template-columns:40px 18px 1fr;align-items:start;border-left:2px solid transparent;padding-right:12px}
+.cl .gut{text-align:right;color:var(--outline-2);user-select:none;padding-right:12px}
+.cl .mk{text-align:center;font-weight:700;user-select:none}
+.cl .txt{white-space:pre;color:var(--muted)}
+.cl .cm{color:var(--outline-2);font-style:italic}
+.cl.err{border-left-color:var(--crit);background:rgba(147,0,10,.20)}
+.cl.err .mk{color:var(--crit)}
+.cl.err .txt{color:#ffd9d4}
+.cl.warn{border-left-color:var(--warn);background:rgba(75,57,0,.30)}
+.cl.warn .mk{color:var(--warn)}
+.cl.ok{border-left-color:var(--ok);background:rgba(0,83,32,.18)}
+.cl.ok .mk{color:var(--ok)}
+.vr{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid rgba(73,69,79,.5)}
+.vr:last-child{border-bottom:none}
+.vr .chip{flex:0 0 auto;margin-top:1px;width:20px;justify-content:center;padding:3px 0}
+.vr .vmsg{font-size:12.5px;line-height:1.5;color:var(--on-surface)}
+.vr .vmsg .ln{color:var(--outline-2);font-size:11px}
+.score{display:flex;align-items:center;gap:16px;padding:12px 14px;background:var(--s2);border:1px solid var(--outline);border-radius:var(--r-sm);margin-bottom:14px}
+.score .num{font-size:26px;font-weight:700;color:var(--warn);font-variant-numeric:tabular-nums;line-height:1;white-space:nowrap}
+.score .num b{font-size:14px;color:var(--muted);font-weight:500}
+</style>
+</head>
+<body>
+<nav class="nav">
+  <div class="brand"><span class="dot"></span> hetu</div>
+  <div class="nav-sec">Analyze</div>
+  <div class="nav-item">▦ Overview</div>
+  <div class="nav-item">◈ Incidents</div>
+  <div class="nav-item">⚠ Errors</div>
+  <div class="nav-item">▤ Workloads</div>
+  <div class="nav-item">↘ Optimization</div>
+  <div class="nav-item">⛨ Security</div>
+  <div class="nav-sec">Platform</div>
+  <div class="nav-item">⧉ Reusable Resources <span class="tag">NEW</span></div>
+  <div class="nav-item active">⚖ Policies <span class="tag">NEW</span></div>
+  <div class="nav-item">❤ Resilience <span class="tag">NEW</span></div>
+  <div class="nav-item">✉ Email & Alerts <span class="tag">NEW</span></div>
+  <div class="nav-item">✦ AI Chat <span class="tag">NEW</span></div>
+  <div class="nav-item">⚙ Settings</div>
+</nav>
+
+<header class="top">
+  <span class="cluster">prod-eu-1</span>
+  <span class="live"><i></i> LIVE</span>
+  <span class="spacer"></span>
+  <span class="meta">Source: <b style="color:var(--on-surface)">Kyverno PolicyReporter API</b></span>
+  <span class="avatar">DK</span>
+</header>
+
+<main class="main">
+  <div class="head">
+    <div>
+      <div class="h-title">Policies &amp; Governance</div>
+      <div class="h-sub">Hetu reads Kyverno's <span class="kbd">PolicyReport</span> / Policy Reporter API and renders results inline with cluster health. Author, enforce (audit→enforce), and replicate baseline policies across namespaces — including the generate-policies that power Reusable Resources.</div>
+    </div>
+    <div style="display:flex;gap:10px"><button class="btn btn-g">Import library</button><button class="btn btn-p">+ New policy</button></div>
+  </div>
+
+  <div class="tiles">
+    <div class="tile ok"><div class="n">1,284</div><div class="l">Passing rules</div></div>
+    <div class="tile crit"><div class="n">37</div><div class="l">Failing (enforce)</div></div>
+    <div class="tile warn"><div class="n">112</div><div class="l">Warnings (audit)</div></div>
+    <div class="tile info"><div class="n">26</div><div class="l">Policies active</div></div>
+  </div>
+
+  <div class="callout">Yes — Kyverno exposes an <b>API</b> (the <span class="kbd">wgpolicyk8s.io/v1alpha2 PolicyReport</span> CRD) and <b>Policy Reporter</b> ships a REST API + UI + metrics. Hetu doesn't replace it; it <b>embeds</b> the data so policy violations sit next to RCA/scoring and feed the health score &amp; email alerts.</div>
+
+  <div class="row">
+    <div class="card">
+      <div class="card-t">Policies</div>
+      <table>
+        <thead><tr><th>Policy</th><th>Category</th><th>Mode</th><th>Results</th><th>Scope</th><th></th></tr></thead>
+        <tbody>
+          <tr><td><b>require-requests-limits</b></td><td>Reliability</td><td><span class="chip c-crit">enforce</span></td><td><span class="chip c-ok">418 ✓</span> <span class="chip c-crit">12 ✗</span></td><td class="note">all ns</td><td><button class="btn btn-g btn-sm">View</button></td></tr>
+          <tr><td><b>disallow-latest-tag</b></td><td>Supply chain</td><td><span class="chip c-warn">audit</span></td><td><span class="chip c-ok">301 ✓</span> <span class="chip c-warn">22 ⚠</span></td><td class="note">app-*</td><td><button class="btn btn-g btn-sm">View</button></td></tr>
+          <tr><td><b>restrict-privileged</b></td><td>Security / PSS</td><td><span class="chip c-crit">enforce</span></td><td><span class="chip c-ok">512 ✓</span> <span class="chip c-crit">4 ✗</span></td><td class="note">all ns</td><td><button class="btn btn-g btn-sm">View</button></td></tr>
+          <tr><td><b>require-netpol</b></td><td>Network</td><td><span class="chip c-warn">audit</span></td><td><span class="chip c-ok">40 ✓</span> <span class="chip c-warn">18 ⚠</span></td><td class="note">app-*</td><td><button class="btn btn-g btn-sm">View</button></td></tr>
+          <tr><td><b>hetu-sync-brevo-smtp</b> <span class="chip c-info">generate</span></td><td>Reusable</td><td><span class="chip c-ok">active</span></td><td><span class="chip c-ok">11 ✓</span></td><td class="note">label sync=true</td><td><button class="btn btn-g btn-sm">View</button></td></tr>
+          <tr><td><b>add-default-netpol</b> <span class="chip c-info">generate</span></td><td>Reusable</td><td><span class="chip c-ok">active</span></td><td><span class="chip c-ok">14 ✓</span></td><td class="note">new ns</td><td><button class="btn btn-g btn-sm">View</button></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div>
+      <div class="card">
+        <div class="card-t">Top violations (last 24h)</div>
+        <div class="list-item"><div class="li-ic" style="background:var(--crit-c);color:var(--crit)">✗</div><div class="li-body"><div class="li-title">payments-gw missing memory limits</div><div class="li-desc">require-requests-limits · ns app-pay · 3 pods · feeds Reliability score −6</div></div></div>
+        <div class="list-item"><div class="li-ic" style="background:var(--crit-c);color:var(--crit)">✗</div><div class="li-body"><div class="li-title">batch-runner runs privileged</div><div class="li-desc">restrict-privileged · ns jobs · blocks new rollouts</div></div></div>
+        <div class="list-item"><div class="li-ic" style="background:var(--warn-c);color:var(--warn)">⚠</div><div class="li-body"><div class="li-title">12 deploys use :latest</div><div class="li-desc">disallow-latest-tag · audit only</div></div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-t">Enforcement rollout</div>
+        <div class="note" style="margin-bottom:10px">Safe path: <b>audit → fix violations → enforce</b>. Hetu shows the would-block count before you flip.</div>
+        <div class="flow" style="margin-bottom:10px"><span class="chip c-warn">audit</span><span class="arrow">→</span><span class="chip c-crit">enforce</span><span class="note">require-netpol: 18 would block</span></div>
+        <button class="btn btn-g btn-sm">Simulate enforce</button>
+      </div>
+
+      <div class="card">
+        <div class="card-t">Integration</div>
+        <div class="note" style="line-height:1.7">• Reads <span class="kbd">PolicyReport</span>/<span class="kbd">ClusterPolicyReport</span> CRDs<br/>• Optional Policy Reporter REST API for trends<br/>• Kyverno metrics scraped by Prometheus<br/>• Nirmata (managed Kyverno) supported via same CRDs</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="callout">Validation here is wired to real tooling: <b>Kyverno CLI</b> (<span class="kbd">kyverno apply</span> / <span class="kbd">kyverno test</span>) for offline rule evaluation, <b>server-side dry-run</b> through the admission webhook (<span class="kbd">kubectl apply --dry-run=server</span>), and <b>JSON-schema validation</b> against the installed Kyverno CRD. Results are cross-checked against <b>Policy Reporter</b> so the linter and live reports never disagree.</div>
+
+  <div class="row">
+    <div class="card">
+      <div class="card-t">Policy editor <span class="chip c-info">ClusterPolicy</span></div>
+      <div class="pe-tools">
+        <input class="input mono" style="max-width:280px" value="require-requests-limits"/>
+        <div class="seg" id="modeSeg">
+          <button class="opt on">Audit</button>
+          <button class="opt enf">Enforce</button>
+        </div>
+        <span class="sp"></span>
+        <button class="btn btn-p btn-sm" id="btnValidate">Validate</button>
+        <button class="btn btn-g btn-sm">Dry-run (server)</button>
+        <button class="btn btn-g btn-sm">Format</button>
+        <button class="btn btn-g btn-sm">Save</button>
+      </div>
+
+      <div class="code-ed mono">
+        <div class="cl warn"><span class="gut">1</span><span class="mk">⚠</span><span class="txt">apiVersion: kyverno.io/v1</span></div>
+        <div class="cl"><span class="gut">2</span><span class="mk"></span><span class="txt">kind: ClusterPolicy</span></div>
+        <div class="cl warn"><span class="gut">3</span><span class="mk">⚠</span><span class="txt">metadata:</span></div>
+        <div class="cl"><span class="gut">4</span><span class="mk"></span><span class="txt">  name: require-requests-limits</span></div>
+        <div class="cl"><span class="gut">5</span><span class="mk"></span><span class="txt">spec:</span></div>
+        <div class="cl err"><span class="gut">6</span><span class="mk">✗</span><span class="txt">  background: true                 <span class="cm"># validationFailureAction not set → defaults to Audit</span></span></div>
+        <div class="cl"><span class="gut">7</span><span class="mk"></span><span class="txt">  rules:</span></div>
+        <div class="cl"><span class="gut">8</span><span class="mk"></span><span class="txt">  - name: validate-resources</span></div>
+        <div class="cl ok"><span class="gut">9</span><span class="mk">✓</span><span class="txt">    match:</span></div>
+        <div class="cl"><span class="gut">10</span><span class="mk"></span><span class="txt">      any:</span></div>
+        <div class="cl"><span class="gut">11</span><span class="mk"></span><span class="txt">      - resources:</span></div>
+        <div class="cl"><span class="gut">12</span><span class="mk"></span><span class="txt">          kinds:</span></div>
+        <div class="cl"><span class="gut">13</span><span class="mk"></span><span class="txt">          - Pod</span></div>
+        <div class="cl"><span class="gut">14</span><span class="mk"></span><span class="txt">    validate:</span></div>
+        <div class="cl"><span class="gut">15</span><span class="mk"></span><span class="txt">      message: "CPU and memory requests and limits are required"</span></div>
+        <div class="cl"><span class="gut">16</span><span class="mk"></span><span class="txt">      pattern:</span></div>
+        <div class="cl"><span class="gut">17</span><span class="mk"></span><span class="txt">        spec:</span></div>
+        <div class="cl err"><span class="gut">18</span><span class="mk">✗</span><span class="txt">          containers:                <span class="cm"># single pattern, no anyPattern fallback</span></span></div>
+        <div class="cl"><span class="gut">19</span><span class="mk"></span><span class="txt">          - resources:</span></div>
+        <div class="cl err"><span class="gut">20</span><span class="mk">✗</span><span class="txt">              limits:                <span class="cm"># enforces limits but not requests</span></span></div>
+        <div class="cl"><span class="gut">21</span><span class="mk"></span><span class="txt">                memory: "?*"</span></div>
+        <div class="cl"><span class="gut">22</span><span class="mk"></span><span class="txt">                cpu: "?*"</span></div>
+      </div>
+      <div class="note" style="margin-top:10px">Inline markers mirror the validator on the right — <span class="chip c-crit">✗</span> errors, <span class="chip c-warn">⚠</span> warnings, <span class="chip c-ok">✓</span> validated. Hetu never auto-flips a policy to <b>enforce</b>; you stay in audit until the linter is clean.</div>
+    </div>
+
+    <div>
+      <div class="card" id="valPanel">
+        <div class="card-t">Validation results</div>
+        <div class="score">
+          <div class="num">7<b>/10</b></div>
+          <div>
+            <div class="note" style="color:var(--on-surface);font-weight:600">Lint score</div>
+            <div class="note"><span style="color:var(--crit)">3 issues</span> · <span style="color:var(--warn)">2 warnings</span> · 4 passed</div>
+          </div>
+        </div>
+
+        <div class="vr"><span class="chip c-ok">✓</span><div class="vmsg">YAML parses &amp; schema valid against the Kyverno <span class="kbd">ClusterPolicy</span> CRD</div></div>
+        <div class="vr"><span class="chip c-crit">✗</span><div class="vmsg">Rule <b>require-limits</b>: missing <span class="kbd">spec.validationFailureAction</span> (defaulting to Audit) <span class="ln">— line 6</span></div></div>
+        <div class="vr"><span class="chip c-warn">⚠</span><div class="vmsg">Uses <span class="kbd">apiVersion: kyverno.io/v1</span> — consider <b>v2</b> for new policies <span class="ln">— line 1</span></div></div>
+        <div class="vr"><span class="chip c-ok">✓</span><div class="vmsg"><span class="kbd">match</span> block present and scoped to <span class="kbd">Pod</span> <span class="ln">— line 9</span></div></div>
+        <div class="vr"><span class="chip c-crit">✗</span><div class="vmsg">Pattern references <span class="kbd">request.object.spec.containers[].resources.limits</span> but has no <span class="kbd">anyPattern</span> fallback <span class="ln">— line 18</span></div></div>
+        <div class="vr"><span class="chip c-crit">✗</span><div class="vmsg">Enforces <span class="kbd">limits</span> but not <span class="kbd">requests</span> — policy name implies both <span class="ln">— line 20</span></div></div>
+        <div class="vr"><span class="chip c-warn">⚠</span><div class="vmsg">No <span class="kbd">policies.kyverno.io/description</span> annotation <span class="ln">— line 3</span></div></div>
+        <div class="vr"><span class="chip c-ok">✓</span><div class="vmsg">Idempotent — no side effects on dry-run (validate-only rule)</div></div>
+        <div class="vr"><span class="chip c-ok">✓</span><div class="vmsg">Server dry-run accepted by admission webhook</div></div>
+
+        <div class="callout" style="background:var(--ok-c);border-color:rgba(109,213,140,.3);color:#bdf0cd;margin:14px 0 0"><span class="mono">$ kubectl apply --dry-run=server -f policy.yaml</span><br/>clusterpolicy.kyverno.io/require-requests-limits created (dry run)</div>
+      </div>
+
+      <div class="card">
+        <div class="card-t">Validation engines</div>
+        <div class="flow" style="gap:8px"><span class="pill-src">kyverno apply</span><span class="pill-src">kyverno test</span><span class="pill-src">--dry-run=server</span><span class="pill-src">CRD JSON-schema</span><span class="pill-src">Policy Reporter</span></div>
+        <div class="note" style="margin-top:10px">Linting runs client-side on every edit; the server dry-run hits the live admission webhook before <b>Save</b> commits to GitOps.</div>
+      </div>
+    </div>
+  </div>
+</main>
+<script>
+(function(){
+  document.querySelectorAll('.seg .opt').forEach(function(o){
+    o.addEventListener('click',function(){
+      o.parentNode.querySelectorAll('.opt').forEach(function(x){x.classList.remove('on')});
+      o.classList.add('on');
+    });
+  });
+  var v=document.getElementById('btnValidate'),p=document.getElementById('valPanel');
+  if(v&&p){v.addEventListener('click',function(){
+    p.style.transition='box-shadow .2s';p.style.boxShadow='0 0 0 2px var(--primary)';
+    setTimeout(function(){p.style.boxShadow='none'},500);
+  });}
+})();
+</script>
+</body>
+</html>

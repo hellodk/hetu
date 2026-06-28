@@ -1,0 +1,1062 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Hetu — Grafana Dashboards (METL)</title>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;600;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="app.css"/>
+<style>
+/* ── Grafana-style dashboard preview (page-local additions to app.css) ── */
+.gf-wrap{display:grid;grid-template-columns:248px 1fr;gap:22px;align-items:start}
+
+/* Left folder panel (Grafana style) */
+.gf-folder{position:sticky;top:0;background:var(--s1);border:1px solid var(--outline);border-radius:var(--r);overflow:hidden}
+.gf-folder .fh{display:flex;align-items:center;gap:9px;padding:13px 15px;border-bottom:1px solid var(--outline);font-size:12px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.gf-folder .fh .car{color:var(--primary)}
+.gf-folder .frow{display:flex;align-items:center;gap:9px;padding:9px 15px 9px 30px;font-size:12.5px;color:var(--muted);border-left:2px solid transparent;cursor:pointer}
+.gf-folder .frow:hover{background:rgba(208,188,255,.06);color:var(--on-surface);border-left-color:var(--primary)}
+.gf-folder .frow .gi{width:14px;text-align:center;opacity:.8;flex:0 0 auto}
+.gf-folder .grp{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--outline-2);padding:12px 15px 4px 16px}
+
+/* Dashboard block */
+.gdash{background:var(--s1);border:1px solid var(--outline);border-radius:var(--r);margin-bottom:22px;overflow:hidden;scroll-margin-top:14px}
+.gdash-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:14px 18px;border-bottom:1px solid var(--outline);background:linear-gradient(180deg,var(--s2),var(--s1))}
+.gdash-head .dt{font-size:16px;font-weight:600}
+.gdash-head .sp{flex:1}
+.gdash-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ds-pill{display:inline-flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--outline);border-radius:999px;padding:3px 10px;font-size:11px;font-weight:600;color:var(--on-surface)}
+.ds-pill .dd{width:8px;height:8px;border-radius:2px;flex:0 0 auto}
+.dd-prom{background:#E6522C}.dd-loki{background:#F5A623}.dd-tempo{background:#6C5CE7}
+.tagchip{font-size:10px;font-weight:700;letter-spacing:.03em;padding:3px 8px;border-radius:5px;background:var(--secondary-container);color:var(--on-secondary-container)}
+.timepick{display:inline-flex;align-items:center;gap:7px;background:var(--surface);border:1px solid var(--outline-2);border-radius:var(--r-sm);padding:4px 11px;font-size:11.5px;font-weight:600;color:var(--on-surface)}
+.timepick .ic{opacity:.7}
+.refresh{display:inline-flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--outline-2);border-radius:var(--r-sm);padding:4px 9px;font-size:11.5px;font-weight:600;color:var(--ok)}
+.refresh i{width:5px;height:5px;border-radius:50%;background:var(--ok);display:inline-block;animation:p 2s infinite}
+
+/* 24-col panel grid faithful to gridPos */
+.gdash-grid{display:grid;grid-template-columns:repeat(24,1fr);grid-auto-rows:26px;gap:8px;padding:14px}
+.gpanel{background:var(--s2);border:1px solid var(--outline);border-radius:var(--r-sm);padding:9px 11px;display:flex;flex-direction:column;min-width:0;overflow:hidden}
+.gp-t{font-size:12px;font-weight:600;color:var(--on-surface);margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gp-body{flex:1;min-height:0;display:flex;flex-direction:column;justify-content:center}
+
+/* stat panels */
+.gp-body.stat{align-items:center;justify-content:center;text-align:center;position:relative}
+.gp-body.stat .big{font-size:34px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1}
+.gp-body.stat .un{font-size:11px;color:var(--muted);margin-top:4px;font-weight:500}
+.v-ok{color:var(--ok)}.v-warn{color:var(--high)}.v-crit{color:var(--crit)}.v-info{color:var(--info)}
+.pbg-ok{background:var(--ok-c);border-color:rgba(109,213,140,.4)}.pbg-ok .big{color:var(--ok)}
+.pbg-warn{background:var(--high-c);border-color:rgba(255,183,124,.4)}.pbg-warn .big{color:var(--high)}
+.pbg-crit{background:var(--crit-c);border-color:rgba(255,180,171,.4)}.pbg-crit .big{color:var(--crit)}
+.pbg-info{background:var(--info-c);border-color:rgba(130,202,255,.4)}.pbg-info .big{color:var(--info)}
+.spark{position:absolute;left:0;right:0;bottom:-9px;height:30px;width:100%;opacity:.5}
+
+/* chart panels */
+.chart{width:100%;flex:1;min-height:0}
+.chart .grid line{stroke:var(--outline);stroke-width:1;opacity:.55;vector-effect:non-scaling-stroke}
+.chart .axis{stroke:var(--outline-2);stroke-width:1;vector-effect:non-scaling-stroke}
+.chart polyline{fill:none;stroke-width:2;vector-effect:non-scaling-stroke;stroke-linejoin:round;stroke-linecap:round}
+.chart polygon{stroke:none}
+.chart rect.bar{vector-effect:non-scaling-stroke}
+.l-info{stroke:var(--info)}.a-info{fill:var(--info)}
+.l-high{stroke:var(--high)}.a-high{fill:var(--high)}
+.l-ok{stroke:var(--ok)}.a-ok{fill:var(--ok)}
+.l-prim{stroke:var(--primary)}.a-prim{fill:var(--primary)}
+.l-crit{stroke:var(--crit)}.a-crit{fill:var(--crit)}
+.l-mut{stroke:var(--outline-2);stroke-dasharray:5 4}
+.bar-info{fill:var(--info)}.bar-prim{fill:var(--primary)}.bar-high{fill:var(--high)}.bar-crit{fill:var(--crit)}.bar-warn{fill:var(--warn)}
+.legend{display:flex;flex-wrap:wrap;gap:5px 14px;margin-top:7px;font-size:10.5px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:11px;height:3px;border-radius:2px;display:inline-block}
+
+/* text/markdown panel */
+.gp-md{font-size:12px;color:var(--muted);line-height:1.6;overflow:auto}
+.gp-md h3{font-size:13.5px;color:var(--on-surface);margin:0 0 8px}
+.gp-md b{color:var(--on-surface)}
+.gp-md ul{margin:6px 0 8px 16px}
+.gp-md li{margin:2px 0}
+.gp-md code{font-family:'Roboto Mono',monospace;font-size:11px;background:var(--s3);border:1px solid var(--outline);border-radius:4px;padding:1px 5px;color:var(--info)}
+
+/* query line under panel */
+.q{margin-top:8px;border-top:1px solid var(--outline);padding-top:7px;font-family:'Roboto Mono',monospace;font-size:11px;color:var(--muted);line-height:1.5;word-break:break-word;white-space:normal}
+.qk{display:inline-block;font-size:9px;font-weight:700;letter-spacing:.05em;padding:1px 6px;border-radius:4px;margin-right:7px;vertical-align:1px}
+.qk-prom{background:rgba(230,82,44,.18);color:#ffb59e}
+.qk-loki{background:rgba(245,166,35,.18);color:#f7cd7e}
+.q + .q{margin-top:5px;border-top:none;padding-top:0}
+
+/* app dashboard cards */
+.appcards{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.appcard{background:var(--s2);border:1px solid var(--outline);border-radius:var(--r);padding:16px}
+.appcard .ah{display:flex;align-items:center;gap:9px;margin-bottom:8px}
+.appcard .ic{width:32px;height:32px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:16px;background:var(--primary-container);color:var(--on-primary-container);flex:0 0 auto}
+.appcard h4{font-size:14px;font-weight:600}
+.appcard p{font-size:12px;color:var(--muted);line-height:1.55;margin:6px 0 10px}
+.appcard .af{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.cnt{font-size:10px;font-weight:700;letter-spacing:.04em;padding:3px 8px;border-radius:999px;background:var(--s3);color:var(--muted)}
+
+/* ── extra panel-type renderers (gauge / bargauge / piechart / traces / nodeGraph / row) ── */
+.qk-tempo{background:rgba(108,92,231,.20);color:#cdbaf9}
+/* row divider inside a dashboard grid */
+.grow{display:flex;align-items:center;gap:10px;font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);background:transparent;border:none;padding:6px 2px 0}
+.grow::after{content:"";flex:1;height:1px;background:var(--outline)}
+.grow .car{color:var(--primary);font-size:11px}
+/* radial gauge */
+.gauge{align-items:center;justify-content:center}
+.gauge-wrap{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:0;width:100%}
+.gauge-wrap svg{width:100%;max-width:140px;height:auto}
+.gauge-wrap .gv{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums;margin-top:-10px}
+.gtrack{fill:none;stroke:var(--s3);stroke-width:11;stroke-linecap:round}
+.garc{fill:none;stroke-width:11;stroke-linecap:round}
+.gtick{stroke:var(--surface);stroke-width:2.5}
+/* bargauge (lcd horizontal) */
+.bargauge{flex:1;display:flex;flex-direction:column;justify-content:center;gap:10px}
+.bg-row{display:flex;align-items:center;gap:11px}
+.bg-row .lbl{font-size:11.5px;color:var(--muted);width:96px;flex:0 0 auto}
+.bg-track{flex:1;height:22px;border-radius:4px;background:var(--surface);border:1px solid var(--outline);padding:3px;display:flex;gap:2px;overflow:hidden}
+.bg-seg{flex:1;border-radius:1px;background:var(--s3)}
+.bg-row .bgv{font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;width:58px;text-align:right;flex:0 0 auto}
+/* piechart donut */
+.donut-wrap{flex:1;display:flex;align-items:center;gap:16px;min-height:0}
+.donut-wrap svg{width:108px;height:108px;flex:0 0 auto}
+.donut-leg{flex:1;font-size:11px;color:var(--muted);display:flex;flex-direction:column;gap:5px}
+.donut-leg .dl{display:flex;align-items:center;gap:8px}
+.donut-leg .dl i{width:10px;height:10px;border-radius:2px;flex:0 0 auto}
+.donut-leg .dl b{margin-left:auto;color:var(--on-surface);font-variant-numeric:tabular-nums}
+/* traces table */
+.trace-tbl{width:100%;border-collapse:collapse;font-size:11.5px}
+.trace-tbl th{padding:5px 8px;font-size:9.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);border-bottom:1px solid var(--outline);text-align:left}
+.trace-tbl td{padding:6px 8px;border-bottom:1px solid rgba(73,69,79,.5);vertical-align:middle;white-space:nowrap}
+.trace-tbl tr:last-child td{border-bottom:none}
+.trace-tbl .tid{font-family:'Roboto Mono',monospace;color:var(--info)}
+.dur-bar{display:inline-block;height:6px;border-radius:999px;background:var(--info);vertical-align:middle;margin-right:8px}
+/* node graph */
+.nodegraph{flex:1;min-height:0;width:100%}
+.nodegraph .edge{stroke:var(--outline-2);stroke-width:1.5;fill:none}
+.nodegraph .elabel{fill:var(--muted);font-size:9px;font-family:'Roboto Mono',monospace}
+.nodegraph .node text{fill:var(--on-surface);font-size:10.5px;font-weight:600;text-anchor:middle}
+.nodegraph .node .sub{fill:var(--muted);font-size:8.5px;font-weight:500}
+
+@media(max-width:1100px){.gf-wrap{grid-template-columns:1fr}.gf-folder{position:relative}.appcards{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<nav class="nav">
+  <div class="brand"><span class="dot"></span> hetu</div>
+  <div class="nav-sec">Analyze</div>
+  <div class="nav-item">▦ Overview</div>
+  <div class="nav-item">◈ Incidents</div>
+  <div class="nav-item">⚠ Errors</div>
+  <div class="nav-item">▤ Workloads</div>
+  <div class="nav-item">↘ Optimization</div>
+  <div class="nav-item">⛨ Security</div>
+  <div class="nav-sec">Platform</div>
+  <div class="nav-item">⧉ Reusable Resources <span class="tag">NEW</span></div>
+  <div class="nav-item">⚖ Policies <span class="tag">NEW</span></div>
+  <div class="nav-item">❤ Resilience <span class="tag">NEW</span></div>
+  <div class="nav-item">✉ Email & Alerts <span class="tag">NEW</span></div>
+  <div class="nav-item active">▦ Dashboards <span class="tag">NEW</span></div>
+  <div class="nav-item">✦ AI Chat <span class="tag">NEW</span></div>
+  <div class="nav-item">⚙ Settings</div>
+</nav>
+
+<header class="top">
+  <span class="cluster">prod-eu-1</span>
+  <span class="live"><i></i> LIVE</span>
+  <span class="spacer"></span>
+  <span class="meta">Source: <b style="color:var(--on-surface)">kube-prometheus-stack · Grafana sidecar</b></span>
+  <span class="avatar">DK</span>
+</header>
+
+<main class="main">
+  <div class="head">
+    <div>
+      <div class="h-title">Grafana Dashboards</div>
+      <div class="h-sub">All Hetu dashboards are <b>auto-provisioned</b> by the kube-prometheus-stack Grafana sidecar: each dashboard ships as a <span class="kbd">ConfigMap</span> labeled <span class="kbd">grafana_dashboard:"1"</span>, and the sidecar drops them into a single Grafana folder named <span class="kbd">hetu</span>. The <b>METL</b> set (Metrics · Events · Traces · Logs) covers the four observability pillars over Prometheus, Loki and Tempo.</div>
+    </div>
+    <a class="btn btn-g" href="index.html">← All concepts</a>
+  </div>
+
+  <div class="callout">This is a static design preview — it renders fake-but-realistic data inline and never calls Grafana or any backend. Layout, panel types, units, threshold colors and query expressions mirror the dashboard JSON in <span class="kbd">deploy/helm/hetu/dashboards/</span>.</div>
+
+  <div class="gf-wrap">
+    <!-- ─────────── Left folder panel ─────────── -->
+    <aside class="gf-folder">
+      <div class="fh"><span class="car">▾</span> 📁 hetu <span style="margin-left:auto;font-weight:500;text-transform:none;letter-spacing:0;color:var(--outline-2)">7</span></div>
+      <div class="grp">METL · observability</div>
+      <a class="frow" href="#d-metrics"><span class="gi">▦</span> METL · Metrics Overview</a>
+      <a class="frow" href="#d-logs"><span class="gi">▤</span> METL · Logs Overview</a>
+      <a class="frow" href="#d-traces"><span class="gi">◈</span> METL · Traces Overview</a>
+      <a class="frow" href="#d-events"><span class="gi">⚠</span> METL · Events Overview</a>
+      <div class="grp">Hetu app dashboards</div>
+      <a class="frow" href="#d-cluster-intel"><span class="gi">◔</span> Cluster Intelligence</a>
+      <a class="frow" href="#d-ollama"><span class="gi">✦</span> Ollama LLM Monitoring</a>
+      <a class="frow" href="#d-llm-traces"><span class="gi">◇</span> LLM Request Traces</a>
+    </aside>
+
+    <!-- ─────────── Dashboards ─────────── -->
+    <div>
+
+      <!-- ===== METL · Metrics Overview ===== -->
+      <section class="gdash" id="d-metrics">
+        <div class="gdash-head">
+          <span class="dt">METL · Metrics Overview</span>
+          <div class="gdash-meta">
+            <span class="ds-pill"><span class="dd dd-prom"></span> Prometheus</span>
+            <span class="tagchip">metl</span><span class="tagchip">metrics</span><span class="tagchip">prometheus</span>
+          </div>
+          <span class="sp"></span>
+          <span class="timepick"><span class="ic">🕒</span> Last 6 hours</span>
+          <span class="refresh"><i></i> 30s</span>
+        </div>
+        <div class="gdash-grid">
+          <!-- Running Pods : stat / value / area -->
+          <div class="gpanel" style="grid-column:1/span 6;grid-row:1/span 4">
+            <div class="gp-t">Running Pods</div>
+            <div class="gp-body stat">
+              <div class="big v-ok">142</div>
+              <svg class="spark" viewBox="0 0 120 28" preserveAspectRatio="none"><polygon class="a-ok" opacity=".18" points="0,28 0,20 15,16 30,21 45,13 60,18 75,10 90,15 105,8 120,12 120,28"/><polyline class="l-ok" points="0,20 15,16 30,21 45,13 60,18 75,10 90,15 105,8 120,12"/></svg>
+            </div>
+            <div class="q"><span class="qk qk-prom">PromQL</span> sum(kube_pod_status_phase{phase="Running"})</div>
+          </div>
+          <!-- Ready Nodes : stat / value / area -->
+          <div class="gpanel" style="grid-column:7/span 6;grid-row:1/span 4">
+            <div class="gp-t">Ready Nodes</div>
+            <div class="gp-body stat">
+              <div class="big v-ok">6</div>
+              <svg class="spark" viewBox="0 0 120 28" preserveAspectRatio="none"><polygon class="a-ok" opacity=".18" points="0,28 0,18 30,18 60,16 90,16 120,15 120,28"/><polyline class="l-ok" points="0,18 30,18 60,16 90,16 120,15"/></svg>
+            </div>
+            <div class="q"><span class="qk qk-prom">PromQL</span> sum(kube_node_status_condition{condition="Ready",status="true"})</div>
+          </div>
+          <!-- Pending Pods : stat / background (orange) -->
+          <div class="gpanel pbg-warn" style="grid-column:13/span 6;grid-row:1/span 4">
+            <div class="gp-t">Pending Pods</div>
+            <div class="gp-body stat"><div class="big">3</div></div>
+            <div class="q"><span class="qk qk-prom">PromQL</span> sum(kube_pod_status_phase{phase="Pending"})</div>
+          </div>
+          <!-- Namespaces : stat / value (blue) -->
+          <div class="gpanel" style="grid-column:19/span 6;grid-row:1/span 4">
+            <div class="gp-t">Namespaces</div>
+            <div class="gp-body stat"><div class="big v-info">18</div></div>
+            <div class="q"><span class="qk qk-prom">PromQL</span> count(kube_namespace_created)</div>
+          </div>
+          <!-- Cluster CPU Usage : timeseries line (2 series) -->
+          <div class="gpanel" style="grid-column:1/span 12;grid-row:5/span 8">
+            <div class="gp-t">Cluster CPU Usage (cores)</div>
+            <div class="gp-body">
+              <svg class="chart" viewBox="0 0 560 150" preserveAspectRatio="none">
+                <g class="grid"><line x1="0" y1="37" x2="560" y2="37"/><line x1="0" y1="75" x2="560" y2="75"/><line x1="0" y1="112" x2="560" y2="112"/></g>
+                <line class="axis" x1="0" y1="149" x2="560" y2="149"/>
+                <polygon class="a-info" opacity=".15" points="0,150 0,118 47,108 93,116 140,92 187,100 233,78 280,86 327,64 373,74 420,58 467,66 513,50 560,58 560,150"/>
+                <polyline class="l-info" points="0,118 47,108 93,116 140,92 187,100 233,78 280,86 327,64 373,74 420,58 467,66 513,50 560,58"/>
+                <polyline class="l-mut" points="0,34 560,34"/>
+              </svg>
+            </div>
+            <div class="legend"><span><i class="a-info" style="opacity:.9"></i> used cores</span><span><i style="background:var(--outline-2)"></i> capacity cores</span></div>
+            <div class="q"><span class="qk qk-prom">PromQL</span> sum(rate(container_cpu_usage_seconds_total{container!=""}[5m]))</div>
+            <div class="q"><span class="qk qk-prom">PromQL</span> sum(machine_cpu_cores)</div>
+          </div>
+          <!-- Cluster Memory : timeseries line (2 series, bytes) -->
+          <div class="gpanel" style="grid-column:13/span 12;grid-row:5/span 8">
+            <div class="gp-t">Cluster Memory Working Set (bytes)</div>
+            <div class="gp-body">
+              <svg class="chart" viewBox="0 0 560 150" preserveAspectRatio="none">
+                <g class="grid"><line x1="0" y1="37" x2="560" y2="37"/><line x1="0" y1="75" x2="560" y2="75"/><line x1="0" y1="112" x2="560" y2="112"/></g>
+                <line class="axis" x1="0" y1="149" x2="560" y2="149"/>
+                <polygon class="a-high" opacity=".15" points="0,150 0,100 47,96 93,104 140,90 187,98 233,86 280,94 327,82 373,90 420,80 467,88 513,78 560,84 560,150"/>
+                <polyline class="l-high" points="0,100 47,96 93,104 140,90 187,98 233,86 280,94 327,82 373,90 420,80 467,88 513,78 560,84"/>
+                <polyline class="l-mut" points="0,30 560,30"/>
+              </svg>
+            </div>
+            <div class="legend"><span><i class="a-high" style="opacity:.9"></i> used</span><span><i style="background:var(--outline-2)"></i> capacity</span></div>
+            <div class="q"><span class="qk qk-prom">PromQL</span> sum(container_memory_working_set_bytes{container!=""})</div>
+            <div class="q"><span class="qk qk-prom">PromQL</span> sum(machine_memory_bytes)</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== METL · Logs Overview ===== -->
+      <section class="gdash" id="d-logs">
+        <div class="gdash-head">
+          <span class="dt">METL · Logs Overview</span>
+          <div class="gdash-meta">
+            <span class="ds-pill"><span class="dd dd-loki"></span> Loki</span>
+            <span class="tagchip">metl</span><span class="tagchip">logs</span><span class="tagchip">loki</span>
+          </div>
+          <span class="sp"></span>
+          <span class="timepick"><span class="ic">🕒</span> Last 1 hour</span>
+          <span class="refresh"><i></i> 30s</span>
+        </div>
+        <div class="gdash-grid">
+          <!-- Total Log Rate : stat / value / area -->
+          <div class="gpanel" style="grid-column:1/span 8;grid-row:1/span 4">
+            <div class="gp-t">Total Log Rate (lines/s)</div>
+            <div class="gp-body stat">
+              <div class="big v-ok">842</div><div class="un">lines/s</div>
+              <svg class="spark" viewBox="0 0 120 28" preserveAspectRatio="none"><polygon class="a-ok" opacity=".18" points="0,28 0,19 15,15 30,20 45,12 60,17 75,11 90,16 105,9 120,13 120,28"/><polyline class="l-ok" points="0,19 15,15 30,20 45,12 60,17 75,11 90,16 105,9 120,13"/></svg>
+            </div>
+            <div class="q"><span class="qk qk-loki">LogQL</span> sum(rate({namespace=~".+"}[5m]))</div>
+          </div>
+          <!-- Error Log Rate : stat / background (orange) / area -->
+          <div class="gpanel pbg-warn" style="grid-column:9/span 8;grid-row:1/span 4">
+            <div class="gp-t">Error Log Rate (lines/s)</div>
+            <div class="gp-body stat">
+              <div class="big">2.3</div><div class="un" style="color:var(--high)">lines/s</div>
+              <svg class="spark" viewBox="0 0 120 28" preserveAspectRatio="none"><polygon class="a-high" opacity=".22" points="0,28 0,20 15,17 30,21 45,14 60,18 75,12 90,17 105,11 120,15 120,28"/><polyline class="l-high" points="0,20 15,17 30,21 45,14 60,18 75,12 90,17 105,11 120,15"/></svg>
+            </div>
+            <div class="q"><span class="qk qk-loki">LogQL</span> sum(rate({namespace=~".+"} |~ "(?i)(error|err|fatal|panic)" [5m]))</div>
+          </div>
+          <!-- Active Namespaces : stat / value (blue) -->
+          <div class="gpanel" style="grid-column:17/span 8;grid-row:1/span 4">
+            <div class="gp-t">Active Namespaces (logging)</div>
+            <div class="gp-body stat"><div class="big v-info">14</div></div>
+            <div class="q"><span class="qk qk-loki">LogQL</span> count(count by (namespace) (rate({namespace=~".+"}[5m])))</div>
+          </div>
+          <!-- Log Volume by Namespace : timeseries bars / stacked -->
+          <div class="gpanel" style="grid-column:1/span 12;grid-row:5/span 9">
+            <div class="gp-t">Log Volume by Namespace</div>
+            <div class="gp-body">
+              <svg class="chart" viewBox="0 0 560 150" preserveAspectRatio="none">
+                <g class="grid"><line x1="0" y1="37" x2="560" y2="37"/><line x1="0" y1="75" x2="560" y2="75"/><line x1="0" y1="112" x2="560" y2="112"/></g>
+                <line class="axis" x1="0" y1="149" x2="560" y2="149"/>
+                <g opacity=".7">
+                  <rect class="bar-info" x="20"  y="110" width="34" height="30"/><rect class="bar-prim" x="20"  y="92"  width="34" height="18"/><rect class="bar-high" x="20"  y="82"  width="34" height="10"/>
+                  <rect class="bar-info" x="70"  y="114" width="34" height="26"/><rect class="bar-prim" x="70"  y="92"  width="34" height="22"/><rect class="bar-high" x="70"  y="84"  width="34" height="8"/>
+                  <rect class="bar-info" x="120" y="106" width="34" height="34"/><rect class="bar-prim" x="120" y="90"  width="34" height="16"/><rect class="bar-high" x="120" y="78"  width="34" height="12"/>
+                  <rect class="bar-info" x="170" y="112" width="34" height="28"/><rect class="bar-prim" x="170" y="92"  width="34" height="20"/><rect class="bar-high" x="170" y="83"  width="34" height="9"/>
+                  <rect class="bar-info" x="220" y="102" width="34" height="38"/><rect class="bar-prim" x="220" y="88"  width="34" height="14"/><rect class="bar-high" x="220" y="77"  width="34" height="11"/>
+                  <rect class="bar-info" x="270" y="116" width="34" height="24"/><rect class="bar-prim" x="270" y="90"  width="34" height="26"/><rect class="bar-high" x="270" y="83"  width="34" height="7"/>
+                  <rect class="bar-info" x="320" y="108" width="34" height="32"/><rect class="bar-prim" x="320" y="90"  width="34" height="18"/><rect class="bar-high" x="320" y="77"  width="34" height="13"/>
+                  <rect class="bar-info" x="370" y="110" width="34" height="30"/><rect class="bar-prim" x="370" y="88"  width="34" height="22"/><rect class="bar-high" x="370" y="78"  width="34" height="10"/>
+                  <rect class="bar-info" x="420" y="104" width="34" height="36"/><rect class="bar-prim" x="420" y="88"  width="34" height="16"/><rect class="bar-high" x="420" y="79"  width="34" height="9"/>
+                  <rect class="bar-info" x="470" y="113" width="34" height="27"/><rect class="bar-prim" x="470" y="89"  width="34" height="24"/><rect class="bar-high" x="470" y="77"  width="34" height="12"/>
+                  <rect class="bar-info" x="520" y="107" width="34" height="33"/><rect class="bar-prim" x="520" y="88"  width="34" height="19"/><rect class="bar-high" x="520" y="80"  width="34" height="8"/>
+                </g>
+              </svg>
+            </div>
+            <div class="legend"><span><i class="bar-info"></i> utilities</span><span><i class="bar-prim"></i> hetu</span><span><i class="bar-high"></i> monitoring</span></div>
+            <div class="q"><span class="qk qk-loki">LogQL</span> sum by (namespace) (rate({namespace=~".+"}[5m]))</div>
+          </div>
+          <!-- Error Log Rate by Namespace : timeseries line -->
+          <div class="gpanel" style="grid-column:13/span 12;grid-row:5/span 9">
+            <div class="gp-t">Error Log Rate by Namespace</div>
+            <div class="gp-body">
+              <svg class="chart" viewBox="0 0 560 150" preserveAspectRatio="none">
+                <g class="grid"><line x1="0" y1="37" x2="560" y2="37"/><line x1="0" y1="75" x2="560" y2="75"/><line x1="0" y1="112" x2="560" y2="112"/></g>
+                <line class="axis" x1="0" y1="149" x2="560" y2="149"/>
+                <polygon class="a-crit" opacity=".10" points="0,150 0,120 47,118 93,122 140,110 187,116 233,108 280,114 327,104 373,112 420,100 467,108 513,98 560,106 560,150"/>
+                <polyline class="l-crit" points="0,120 47,118 93,122 140,110 187,116 233,108 280,114 327,104 373,112 420,100 467,108 513,98 560,106"/>
+                <polyline class="l-high" points="0,132 47,130 93,128 140,131 187,126 233,129 280,124 327,127 373,122 420,125 467,120 513,123 560,118"/>
+                <polyline class="l-info" points="0,140 47,139 93,141 140,137 187,140 233,136 280,138 327,134 373,137 420,133 467,136 513,132 560,135"/>
+              </svg>
+            </div>
+            <div class="legend"><span><i class="a-crit" style="opacity:.9"></i> utilities</span><span><i class="a-high" style="opacity:.9"></i> hetu</span><span><i class="a-info" style="opacity:.9"></i> monitoring</span></div>
+            <div class="q"><span class="qk qk-loki">LogQL</span> sum by (namespace) (rate({namespace=~".+"} |~ "(?i)(error|err|fatal|panic)" [5m]))</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== METL · Traces Overview ===== -->
+      <section class="gdash" id="d-traces">
+        <div class="gdash-head">
+          <span class="dt">METL · Traces Overview</span>
+          <div class="gdash-meta">
+            <span class="ds-pill"><span class="dd dd-prom"></span> Prometheus</span>
+            <span class="ds-pill"><span class="dd dd-tempo"></span> Tempo</span>
+            <span class="tagchip">metl</span><span class="tagchip">traces</span><span class="tagchip">tempo</span>
+          </div>
+          <span class="sp"></span>
+          <span class="timepick"><span class="ic">🕒</span> Last 1 hour</span>
+          <span class="refresh"><i></i> 30s</span>
+        </div>
+        <div class="gdash-grid">
+          <!-- Request Rate : stat / value / area -->
+          <div class="gpanel" style="grid-column:1/span 6;grid-row:1/span 4">
+            <div class="gp-t">Request Rate (req/s)</div>
+            <div class="gp-body stat">
+              <div class="big v-ok">47</div><div class="un">req/s</div>
+              <svg class="spark" viewBox="0 0 120 28" preserveAspectRatio="none"><polygon class="a-ok" opacity=".18" points="0,28 0,18 15,16 30,20 45,13 60,17 75,11 90,15 105,9 120,13 120,28"/><polyline class="l-ok" points="0,18 15,16 30,20 45,13 60,17 75,11 90,15 105,9 120,13"/></svg>
+            </div>
+            <div class="q"><span class="qk qk-prom">PromQL</span> sum(rate(cluster_intel_llm_request_total[5m]))</div>
+          </div>
+          <!-- Error Rate : stat / background (green @ 0.4%) / area -->
+          <div class="gpanel pbg-ok" style="grid-column:7/span 6;grid-row:1/span 4">
+            <div class="gp-t">Error Rate</div>
+            <div class="gp-body stat">
+              <div class="big">0.4%</div>
+              <svg class="spark" viewBox="0 0 120 28" preserveAspectRatio="none"><polygon class="a-ok" opacity=".18" points="0,28 0,22 15,21 30,23 45,20 60,22 75,19 90,21 105,18 120,21 120,28"/><polyline class="l-ok" points="0,22 15,21 30,23 45,20 60,22 75,19 90,21 105,18 120,21"/></svg>
+            </div>
+            <div class="q"><span class="qk qk-prom">PromQL</span> sum(rate(cluster_intel_llm_request_total{status="error"}[5m])) / clamp_min(sum(rate(cluster_intel_llm_request_total[5m])), 1)</div>
+          </div>
+          <!-- Latency p95 : stat / value / area -->
+          <div class="gpanel" style="grid-column:13/span 6;grid-row:1/span 4">
+            <div class="gp-t">Latency p95</div>
+            <div class="gp-body stat">
+              <div class="big v-ok">1.8s</div>
+              <svg class="spark" viewBox="0 0 120 28" preserveAspectRatio="none"><polygon class="a-ok" opacity=".18" points="0,28 0,18 15,15 30,20 45,14 60,17 75,12 90,16 105,11 120,14 120,28"/><polyline class="l-ok" points="0,18 15,15 30,20 45,14 60,17 75,12 90,16 105,11 120,14"/></svg>
+            </div>
+            <div class="q"><span class="qk qk-prom">PromQL</span> histogram_quantile(0.95, sum(rate(cluster_intel_llm_request_duration_seconds_bucket[5m])) by (le))</div>
+          </div>
+          <!-- Latency p99 : stat / value / area -->
+          <div class="gpanel" style="grid-column:19/span 6;grid-row:1/span 4">
+            <div class="gp-t">Latency p99</div>
+            <div class="gp-body stat">
+              <div class="big v-ok">4.2s</div>
+              <svg class="spark" viewBox="0 0 120 28" preserveAspectRatio="none"><polygon class="a-ok" opacity=".18" points="0,28 0,17 15,14 30,19 45,12 60,16 75,10 90,15 105,9 120,13 120,28"/><polyline class="l-ok" points="0,17 15,14 30,19 45,12 60,16 75,10 90,15 105,9 120,13"/></svg>
+            </div>
+            <div class="q"><span class="qk qk-prom">PromQL</span> histogram_quantile(0.99, sum(rate(cluster_intel_llm_request_duration_seconds_bucket[5m])) by (le))</div>
+          </div>
+          <!-- Request Latency Percentiles : timeseries line (3 series) -->
+          <div class="gpanel" style="grid-column:1/span 16;grid-row:5/span 9">
+            <div class="gp-t">Request Latency Percentiles</div>
+            <div class="gp-body">
+              <svg class="chart" viewBox="0 0 560 150" preserveAspectRatio="none">
+                <g class="grid"><line x1="0" y1="37" x2="560" y2="37"/><line x1="0" y1="75" x2="560" y2="75"/><line x1="0" y1="112" x2="560" y2="112"/></g>
+                <line class="axis" x1="0" y1="149" x2="560" y2="149"/>
+                <polygon class="a-crit" opacity=".10" points="0,150 0,64 47,58 93,70 140,54 187,66 233,50 280,62 327,48 373,60 420,52 467,64 513,46 560,56 560,150"/>
+                <polyline class="l-crit" points="0,64 47,58 93,70 140,54 187,66 233,50 280,62 327,48 373,60 420,52 467,64 513,46 560,56"/>
+                <polyline class="l-high" points="0,96 47,92 93,100 140,88 187,94 233,82 280,90 327,78 373,86 420,80 467,88 513,76 560,84"/>
+                <polyline class="l-ok" points="0,128 47,126 93,130 140,124 187,128 233,122 280,126 327,120 373,124 420,118 467,122 513,116 560,120"/>
+              </svg>
+            </div>
+            <div class="legend"><span><i class="a-ok" style="opacity:.9"></i> p50</span><span><i class="a-high" style="opacity:.9"></i> p95</span><span><i class="a-crit" style="opacity:.9"></i> p99</span></div>
+            <div class="q"><span class="qk qk-prom">PromQL</span> histogram_quantile(0.50, sum(rate(cluster_intel_llm_request_duration_seconds_bucket[5m])) by (le))</div>
+            <div class="q"><span class="qk qk-prom">PromQL</span> histogram_quantile(0.95, …) by (le) &nbsp;·&nbsp; histogram_quantile(0.99, …) by (le)</div>
+          </div>
+          <!-- Service Map : text / markdown -->
+          <div class="gpanel" style="grid-column:17/span 8;grid-row:5/span 9">
+            <div class="gp-t">Service Map</div>
+            <div class="gp-body gp-md">
+              <h3>Service Map / Traces</h3>
+              <p>The interactive <b>service graph</b> and <b>trace search</b> live in the <b>Hetu → LLM Request Traces</b> dashboard and in <b>Explore → Tempo</b>.</p>
+              <p>Tempo is wired with:</p>
+              <ul>
+                <li><code>tracesToLogs</code> → <b>Loki</b> (jump to logs for a span)</li>
+                <li><code>tracesToMetrics</code> → <b>Prometheus</b> (request/error rate)</li>
+                <li><code>serviceMap</code> + <code>nodeGraph</code> (built from span metrics)</li>
+              </ul>
+              <p>Open <b>Explore</b>, pick the <b>Tempo</b> datasource, and use <i>Service Graph</i> to view the live dependency map.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== METL · Events Overview ===== -->
+      <section class="gdash" id="d-events">
+        <div class="gdash-head">
+          <span class="dt">METL · Events Overview</span>
+          <div class="gdash-meta">
+            <span class="ds-pill"><span class="dd dd-prom"></span> Prometheus</span>
+            <span class="tagchip">metl</span><span class="tagchip">events</span><span class="tagchip">kubernetes</span>
+          </div>
+          <span class="sp"></span>
+          <span class="timepick"><span class="ic">🕒</span> Last 6 hours</span>
+          <span class="refresh"><i></i> 30s</span>
+        </div>
+        <div class="gdash-grid">
+          <!-- Warning Event Rate : stat / background (orange) / area -->
+          <div class="gpanel pbg-warn" style="grid-column:1/span 8;grid-row:1/span 4">
+            <div class="gp-t">Warning Event Rate (/s)</div>
+            <div class="gp-body stat">
+              <div class="big">0.3</div><div class="un" style="color:var(--high)">warning/s</div>
+              <svg class="spark" viewBox="0 0 120 28" preserveAspectRatio="none"><polygon class="a-high" opacity=".22" points="0,28 0,20 15,18 30,22 45,15 60,19 75,13 90,18 105,12 120,16 120,28"/><polyline class="l-high" points="0,20 15,18 30,22 45,15 60,19 75,13 90,18 105,12 120,16"/></svg>
+            </div>
+            <div class="q"><span class="qk qk-prom">PromQL</span> sum(rate(kube_event_count{type="Warning"}[5m])) or sum(rate(cluster_intel_pod_health_total{category=~"crashloop|oomkilled|failed|evicted"}[5m]))</div>
+          </div>
+          <!-- Normal Event Rate : stat / value (blue) / area -->
+          <div class="gpanel" style="grid-column:9/span 8;grid-row:1/span 4">
+            <div class="gp-t">Normal Event Rate (/s)</div>
+            <div class="gp-body stat">
+              <div class="big v-info">2.4</div><div class="un">normal/s</div>
+              <svg class="spark" viewBox="0 0 120 28" preserveAspectRatio="none"><polygon class="a-info" opacity=".18" points="0,28 0,17 15,15 30,19 45,12 60,16 75,11 90,15 105,9 120,13 120,28"/><polyline class="l-info" points="0,17 15,15 30,19 45,12 60,16 75,11 90,15 105,9 120,13"/></svg>
+            </div>
+            <div class="q"><span class="qk qk-prom">PromQL</span> sum(rate(kube_event_count{type="Normal"}[5m]))</div>
+          </div>
+          <!-- Problem Pods : stat / background (orange) -->
+          <div class="gpanel pbg-warn" style="grid-column:17/span 8;grid-row:1/span 4">
+            <div class="gp-t">Problem Pods (current)</div>
+            <div class="gp-body stat"><div class="big">4</div></div>
+            <div class="q"><span class="qk qk-prom">PromQL</span> sum(cluster_intel_pod_health_total{category=~"crashloop|oomkilled|failed|evicted|pending"})</div>
+          </div>
+          <!-- Event Rate by Type : timeseries line -->
+          <div class="gpanel" style="grid-column:1/span 12;grid-row:5/span 9">
+            <div class="gp-t">Event Rate by Type</div>
+            <div class="gp-body">
+              <svg class="chart" viewBox="0 0 560 150" preserveAspectRatio="none">
+                <g class="grid"><line x1="0" y1="37" x2="560" y2="37"/><line x1="0" y1="75" x2="560" y2="75"/><line x1="0" y1="112" x2="560" y2="112"/></g>
+                <line class="axis" x1="0" y1="149" x2="560" y2="149"/>
+                <polygon class="a-info" opacity=".15" points="0,150 0,70 47,64 93,76 140,60 187,72 233,56 280,68 327,52 373,66 420,58 467,70 513,54 560,62 560,150"/>
+                <polyline class="l-info" points="0,70 47,64 93,76 140,60 187,72 233,56 280,68 327,52 373,66 420,58 467,70 513,54 560,62"/>
+                <polyline class="l-high" points="0,134 47,132 93,136 140,128 187,133 233,126 280,131 327,124 373,130 420,122 467,128 513,120 560,126"/>
+              </svg>
+            </div>
+            <div class="legend"><span><i class="a-info" style="opacity:.9"></i> Normal</span><span><i class="a-high" style="opacity:.9"></i> Warning</span></div>
+            <div class="q"><span class="qk qk-prom">PromQL</span> sum by (type) (rate(kube_event_count[5m]))</div>
+          </div>
+          <!-- Pod Health Problems by Category : timeseries bars / stacked -->
+          <div class="gpanel" style="grid-column:13/span 12;grid-row:5/span 9">
+            <div class="gp-t">Pod Health Problems by Category (hetu)</div>
+            <div class="gp-body">
+              <svg class="chart" viewBox="0 0 560 150" preserveAspectRatio="none">
+                <g class="grid"><line x1="0" y1="37" x2="560" y2="37"/><line x1="0" y1="75" x2="560" y2="75"/><line x1="0" y1="112" x2="560" y2="112"/></g>
+                <line class="axis" x1="0" y1="149" x2="560" y2="149"/>
+                <g opacity=".7">
+                  <rect class="bar-crit" x="26"  y="124" width="40" height="16"/><rect class="bar-high" x="26"  y="112" width="40" height="12"/><rect class="bar-info" x="26"  y="104" width="40" height="8"/>
+                  <rect class="bar-crit" x="92"  y="120" width="40" height="20"/><rect class="bar-high" x="92"  y="110" width="40" height="10"/><rect class="bar-info" x="92"  y="100" width="40" height="10"/>
+                  <rect class="bar-crit" x="158" y="128" width="40" height="12"/><rect class="bar-high" x="158" y="114" width="40" height="14"/><rect class="bar-info" x="158" y="107" width="40" height="7"/>
+                  <rect class="bar-crit" x="224" y="122" width="40" height="18"/><rect class="bar-high" x="224" y="111" width="40" height="11"/><rect class="bar-info" x="224" y="102" width="40" height="9"/>
+                  <rect class="bar-crit" x="290" y="126" width="40" height="14"/><rect class="bar-high" x="290" y="113" width="40" height="13"/><rect class="bar-info" x="290" y="105" width="40" height="8"/>
+                  <rect class="bar-crit" x="356" y="118" width="40" height="22"/><rect class="bar-high" x="356" y="108" width="40" height="10"/><rect class="bar-info" x="356" y="99"  width="40" height="9"/>
+                  <rect class="bar-crit" x="422" y="124" width="40" height="16"/><rect class="bar-high" x="422" y="112" width="40" height="12"/><rect class="bar-info" x="422" y="103" width="40" height="9"/>
+                  <rect class="bar-crit" x="488" y="121" width="40" height="19"/><rect class="bar-high" x="488" y="110" width="40" height="11"/><rect class="bar-info" x="488" y="101" width="40" height="9"/>
+                </g>
+              </svg>
+            </div>
+            <div class="legend"><span><i class="bar-crit"></i> crashloop</span><span><i class="bar-high"></i> oomkilled</span><span><i class="bar-info"></i> failed</span><span><i style="background:var(--ok)"></i> evicted</span><span><i style="background:var(--warn)"></i> pending</span></div>
+            <div class="q"><span class="qk qk-prom">PromQL</span> sum by (category) (cluster_intel_pod_health_total{category=~"crashloop|oomkilled|failed|evicted|pending"})</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== Cluster Intelligence (app dashboard) ===== -->
+      <section class="gdash" id="d-cluster-intel">
+        <div class="gdash-head">
+          <span class="dt">Cluster Intelligence</span>
+          <div class="gdash-meta">
+            <span class="ds-pill"><span class="dd dd-prom"></span> Prometheus</span>
+            <span class="tagchip">kubernetes</span><span class="tagchip">cluster-intel</span>
+          </div>
+          <span class="sp"></span>
+          <span class="timepick"><span class="ic">🕒</span> Last 6 hours</span>
+          <span class="refresh"><i></i> 30s</span>
+        </div>
+        <div class="gdash-grid">
+          <!-- text header -->
+          <div class="gpanel" style="grid-column:1/span 24;grid-row:1/span 2;background:transparent;border:none;padding:4px 2px">
+            <div class="gp-body gp-md"><h3 style="font-size:16px;margin:0">K8s Cluster Intelligence Engine</h3></div>
+          </div>
+          <!-- gauges: Overall / Reliability / Security / Architecture -->
+          <div class="gpanel" style="grid-column:1/span 5;grid-row:3/span 6">
+            <div class="gp-t">Overall Health</div>
+            <div class="gp-body gauge"><div class="gauge-wrap">
+              <svg viewBox="0 0 120 72" preserveAspectRatio="xMidYMid meet">
+                <path class="gtrack" d="M 12 60 A 48 48 0 0 1 108 60"/>
+                <path class="garc" style="stroke:var(--ok)" d="M 12 60 A 48 48 0 0 1 108 60" stroke-dasharray="117.6 999"/>
+                <line class="gtick" x1="47.0" y1="20.1" x2="43.3" y2="8.6"/><line class="gtick" x1="73.0" y1="20.1" x2="76.7" y2="8.6"/>
+              </svg>
+              <div class="gv" style="color:var(--ok)">78</div>
+            </div></div>
+            <div class="q"><span class="qk qk-prom">PromQL</span> cluster_intel_health_score{type="overall"}</div>
+          </div>
+          <div class="gpanel" style="grid-column:6/span 5;grid-row:3/span 6">
+            <div class="gp-t">Reliability</div>
+            <div class="gp-body gauge"><div class="gauge-wrap">
+              <svg viewBox="0 0 120 72" preserveAspectRatio="xMidYMid meet">
+                <path class="gtrack" d="M 12 60 A 48 48 0 0 1 108 60"/>
+                <path class="garc" style="stroke:var(--ok)" d="M 12 60 A 48 48 0 0 1 108 60" stroke-dasharray="108.6 999"/>
+                <line class="gtick" x1="47.0" y1="20.1" x2="43.3" y2="8.6"/><line class="gtick" x1="73.0" y1="20.1" x2="76.7" y2="8.6"/>
+              </svg>
+              <div class="gv" style="color:var(--ok)">72</div>
+            </div></div>
+            <div class="q"><span class="qk qk-prom">PromQL</span> cluster_intel_health_score{type="reliability"}</div>
+          </div>
+          <div class="gpanel" style="grid-column:11/span 5;grid-row:3/span 6">
+            <div class="gp-t">Security</div>
+            <div class="gp-body gauge"><div class="gauge-wrap">
+              <svg viewBox="0 0 120 72" preserveAspectRatio="xMidYMid meet">
+                <path class="gtrack" d="M 12 60 A 48 48 0 0 1 108 60"/>
+                <path class="garc" style="stroke:var(--ok)" d="M 12 60 A 48 48 0 0 1 108 60" stroke-dasharray="96.5 999"/>
+                <line class="gtick" x1="47.0" y1="20.1" x2="43.3" y2="8.6"/><line class="gtick" x1="73.0" y1="20.1" x2="76.7" y2="8.6"/>
+              </svg>
+              <div class="gv" style="color:var(--ok)">64</div>
+            </div></div>
+            <div class="q"><span class="qk qk-prom">PromQL</span> cluster_intel_health_score{type="security"}</div>
+          </div>
+          <div class="gpanel" style="grid-column:16/span 5;grid-row:3/span 6">
+            <div class="gp-t">Architecture</div>
+            <div class="gp-body gauge"><div class="gauge-wrap">
+              <svg viewBox="0 0 120 72" preserveAspectRatio="xMidYMid meet">
+                <path class="gtrack" d="M 12 60 A 48 48 0 0 1 108 60"/>
+                <path class="garc" style="stroke:var(--ok)" d="M 12 60 A 48 48 0 0 1 108 60" stroke-dasharray="122.1 999"/>
+                <line class="gtick" x1="47.0" y1="20.1" x2="43.3" y2="8.6"/><line class="gtick" x1="73.0" y1="20.1" x2="76.7" y2="8.6"/>
+              </svg>
+              <div class="gv" style="color:var(--ok)">81</div>
+            </div></div>
+            <div class="q"><span class="qk qk-prom">PromQL</span> cluster_intel_health_score{type="architecture"}</div>
+          </div>
+          <!-- Trend timeseries (legend hidden) -->
+          <div class="gpanel" style="grid-column:21/span 4;grid-row:3/span 6">
+            <div class="gp-t">Trend</div>
+            <div class="gp-body">
+              <svg class="chart" viewBox="0 0 560 150" preserveAspectRatio="none">
+                <g class="grid"><line x1="0" y1="50" x2="560" y2="50"/><line x1="0" y1="100" x2="560" y2="100"/></g>
+                <line class="axis" x1="0" y1="149" x2="560" y2="149"/>
+                <polygon class="a-ok" opacity=".20" points="0,150 0,80 70,76 140,84 210,70 280,78 350,66 420,72 490,60 560,66 560,150"/>
+                <polyline class="l-ok" points="0,80 70,76 140,84 210,70 280,78 350,66 420,72 490,60 560,66"/>
+              </svg>
+            </div>
+            <div class="q"><span class="qk qk-prom">PromQL</span> cluster_intel_health_score{type="overall"}</div>
+          </div>
+
+          <!-- ROW: Pod Health -->
+          <div class="grow" style="grid-column:1/span 24;grid-row:9/span 1"><span class="car">▾</span> Pod Health</div>
+          <div class="gpanel pbg-ok" style="grid-column:1/span 4;grid-row:10/span 4">
+            <div class="gp-t">Evicted</div><div class="gp-body stat"><div class="big">0</div></div>
+            <div class="q"><span class="qk qk-prom">PromQL</span> cluster_intel_pod_health_total{category="evicted"}</div>
+          </div>
+          <div class="gpanel pbg-warn" style="grid-column:5/span 4;grid-row:10/span 4">
+            <div class="gp-t">CrashLoop</div><div class="gp-body stat"><div class="big">1</div></div>
+            <div class="q"><span class="qk qk-prom">PromQL</span> cluster_intel_pod_health_total{category="crashloop"}</div>
+          </div>
+          <div class="gpanel pbg-warn" style="grid-column:9/span 4;grid-row:10/span 4">
+            <div class="gp-t">Pending</div><div class="gp-body stat"><div class="big">2</div></div>
+            <div class="q"><span class="qk qk-prom">PromQL</span> cluster_intel_pod_health_total{category="pending"}</div>
+          </div>
+          <div class="gpanel pbg-ok" style="grid-column:13/span 4;grid-row:10/span 4">
+            <div class="gp-t">OOMKilled</div><div class="gp-body stat"><div class="big">0</div></div>
+            <div class="q"><span class="qk qk-prom">PromQL</span> cluster_intel_pod_health_total{category="oomkilled"}</div>
+          </div>
+          <div class="gpanel pbg-warn" style="grid-column:17/span 4;grid-row:10/span 4">
+            <div class="gp-t">Failed</div><div class="gp-body stat"><div class="big">1</div></div>
+            <div class="q"><span class="qk qk-prom">PromQL</span> cluster_intel_pod_health_total{category="failed"}</div>
+          </div>
+          <div class="gpanel" style="grid-column:21/span 4;grid-row:10/span 4;background:var(--s3);border-color:var(--outline-2)">
+            <div class="gp-t">Completed</div><div class="gp-body stat"><div class="big" style="color:var(--muted)">34</div></div>
+            <div class="q"><span class="qk qk-prom">PromQL</span> cluster_intel_pod_health_total{category="completed"}</div>
+          </div>
+
+          <!-- ROW: Security -->
+          <div class="grow" style="grid-column:1/span 24;grid-row:14/span 1"><span class="car">▾</span> Security</div>
+          <div class="gpanel pbg-ok" style="grid-column:1/span 6;grid-row:15/span 4">
+            <div class="gp-t">Critical Vulns</div>
+            <div class="gp-body stat"><div class="big">0</div>
+              <svg class="spark" viewBox="0 0 120 28" preserveAspectRatio="none"><polyline class="l-ok" points="0,22 30,22 60,21 90,22 120,22"/></svg>
+            </div>
+            <div class="q"><span class="qk qk-prom">PromQL</span> cluster_intel_vulnerabilities_total{severity="critical"}</div>
+          </div>
+          <div class="gpanel pbg-warn" style="grid-column:7/span 6;grid-row:15/span 4">
+            <div class="gp-t">High Vulns</div>
+            <div class="gp-body stat"><div class="big">3</div>
+              <svg class="spark" viewBox="0 0 120 28" preserveAspectRatio="none"><polygon class="a-high" opacity=".22" points="0,28 0,20 30,18 60,21 90,17 120,19 120,28"/><polyline class="l-high" points="0,20 30,18 60,21 90,17 120,19"/></svg>
+            </div>
+            <div class="q"><span class="qk qk-prom">PromQL</span> cluster_intel_vulnerabilities_total{severity="high"}</div>
+          </div>
+          <div class="gpanel pbg-crit" style="grid-column:13/span 6;grid-row:15/span 4">
+            <div class="gp-t">CIS Failures</div>
+            <div class="gp-body stat"><div class="big">2</div>
+              <svg class="spark" viewBox="0 0 120 28" preserveAspectRatio="none"><polygon class="a-crit" opacity=".20" points="0,28 0,20 30,19 60,21 90,18 120,20 120,28"/><polyline class="l-crit" points="0,20 30,19 60,21 90,18 120,20"/></svg>
+            </div>
+            <div class="q"><span class="qk qk-prom">PromQL</span> cluster_intel_cis_checks_total{status="fail"}</div>
+          </div>
+          <div class="gpanel pbg-ok" style="grid-column:19/span 6;grid-row:15/span 4">
+            <div class="gp-t">CIS Passed</div>
+            <div class="gp-body stat"><div class="big">118</div>
+              <svg class="spark" viewBox="0 0 120 28" preserveAspectRatio="none"><polygon class="a-ok" opacity=".18" points="0,28 0,16 30,15 60,16 90,14 120,15 120,28"/><polyline class="l-ok" points="0,16 30,15 60,16 90,14 120,15"/></svg>
+            </div>
+            <div class="q"><span class="qk qk-prom">PromQL</span> cluster_intel_cis_checks_total{status="pass"}</div>
+          </div>
+
+          <!-- ROW: Resources -->
+          <div class="grow" style="grid-column:1/span 24;grid-row:19/span 1"><span class="car">▾</span> Resources</div>
+          <div class="gpanel pbg-warn" style="grid-column:1/span 6;grid-row:20/span 4">
+            <div class="gp-t">Over-Provisioned</div><div class="gp-body stat"><div class="big">8</div></div>
+            <div class="q"><span class="qk qk-prom">PromQL</span> cluster_intel_resources_category_total{category="over_provisioned"}</div>
+          </div>
+          <div class="gpanel pbg-warn" style="grid-column:7/span 6;grid-row:20/span 4">
+            <div class="gp-t">Under-Provisioned</div><div class="gp-body stat"><div class="big">2</div></div>
+            <div class="q"><span class="qk qk-prom">PromQL</span> cluster_intel_resources_category_total{category="under_provisioned"}</div>
+          </div>
+          <div class="gpanel pbg-warn" style="grid-column:13/span 6;grid-row:20/span 4">
+            <div class="gp-t">No Limits</div><div class="gp-body stat"><div class="big">14</div></div>
+            <div class="q"><span class="qk qk-prom">PromQL</span> cluster_intel_resources_category_total{category="no_limits"}</div>
+          </div>
+          <div class="gpanel pbg-ok" style="grid-column:19/span 6;grid-row:20/span 4">
+            <div class="gp-t">Optimal</div><div class="gp-body stat"><div class="big">96</div></div>
+            <div class="q"><span class="qk qk-prom">PromQL</span> cluster_intel_resources_category_total{category="optimal"}</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== Ollama LLM Monitoring (app dashboard) ===== -->
+      <section class="gdash" id="d-ollama">
+        <div class="gdash-head">
+          <span class="dt">Ollama LLM Monitoring</span>
+          <div class="gdash-meta">
+            <span class="ds-pill"><span class="dd dd-prom"></span> Prometheus</span>
+            <span class="tagchip">ollama</span><span class="tagchip">llm</span><span class="tagchip">ai</span><span class="tagchip">cluster-intel</span>
+          </div>
+          <span class="sp"></span>
+          <span class="timepick"><span class="ic">🕒</span> Last 1 hour</span>
+          <span class="refresh"><i></i> 30s</span>
+        </div>
+        <div class="gdash-grid">
+          <!-- ROW: Ollama Overview -->
+          <div class="grow" style="grid-column:1/span 24;grid-row:1/span 1"><span class="car">▾</span> Ollama Overview</div>
+          <div class="gpanel pbg-ok" style="grid-column:1/span 4;grid-row:2/span 4">
+            <div class="gp-t">Ollama Status</div><div class="gp-body stat"><div class="big" style="font-size:26px">UP</div></div>
+            <div class="q"><span class="qk qk-prom">PromQL</span> up{job="ollama"}</div>
+          </div>
+          <div class="gpanel" style="grid-column:5/span 4;grid-row:2/span 4">
+            <div class="gp-t">Models Loaded</div>
+            <div class="gp-body stat"><div class="big v-info">3</div>
+              <svg class="spark" viewBox="0 0 120 28" preserveAspectRatio="none"><polygon class="a-info" opacity=".18" points="0,28 0,18 40,18 80,16 120,16 120,28"/><polyline class="l-info" points="0,18 40,18 80,16 120,16"/></svg>
+            </div>
+            <div class="q"><span class="qk qk-prom">PromQL</span> ollama_models_loaded</div>
+          </div>
+          <div class="gpanel" style="grid-column:9/span 4;grid-row:2/span 4">
+            <div class="gp-t">Active Requests</div>
+            <div class="gp-body stat"><div class="big v-info">2</div>
+              <svg class="spark" viewBox="0 0 120 28" preserveAspectRatio="none"><polygon class="a-info" opacity=".18" points="0,28 0,20 30,16 60,22 90,14 120,18 120,28"/><polyline class="l-info" points="0,20 30,16 60,22 90,14 120,18"/></svg>
+            </div>
+            <div class="q"><span class="qk qk-prom">PromQL</span> ollama_running_requests</div>
+          </div>
+          <div class="gpanel" style="grid-column:13/span 4;grid-row:2/span 4">
+            <div class="gp-t">Queued Requests</div>
+            <div class="gp-body stat"><div class="big v-ok">1</div>
+              <svg class="spark" viewBox="0 0 120 28" preserveAspectRatio="none"><polygon class="a-ok" opacity=".18" points="0,28 0,22 30,20 60,23 90,19 120,21 120,28"/><polyline class="l-ok" points="0,22 30,20 60,23 90,19 120,21"/></svg>
+            </div>
+            <div class="q"><span class="qk qk-prom">PromQL</span> ollama_queued_requests</div>
+          </div>
+          <div class="gpanel" style="grid-column:17/span 4;grid-row:2/span 4">
+            <div class="gp-t">GPU Memory Used</div>
+            <div class="gp-body stat"><div class="big v-info" style="font-size:24px">14.2 GB</div>
+              <svg class="spark" viewBox="0 0 120 28" preserveAspectRatio="none"><polygon class="a-info" opacity=".18" points="0,28 0,16 30,15 60,17 90,14 120,15 120,28"/><polyline class="l-info" points="0,16 30,15 60,17 90,14 120,15"/></svg>
+            </div>
+            <div class="q"><span class="qk qk-prom">PromQL</span> ollama_gpu_memory_used_bytes</div>
+          </div>
+          <div class="gpanel" style="grid-column:21/span 4;grid-row:2/span 4">
+            <div class="gp-t">VRAM Utilization</div>
+            <div class="gp-body gauge"><div class="gauge-wrap">
+              <svg viewBox="0 0 120 72" preserveAspectRatio="xMidYMid meet">
+                <path class="gtrack" d="M 12 60 A 48 48 0 0 1 108 60"/>
+                <path class="garc" style="stroke:var(--high)" d="M 12 60 A 48 48 0 0 1 108 60" stroke-dasharray="110.1 999"/>
+                <line class="gtick" x1="50.6" y1="22.6" x2="47.7" y2="11.4"/><line class="gtick" x1="86.1" y1="36.4" x2="92.0" y2="28.9"/>
+              </svg>
+              <div class="gv" style="color:var(--high)">73%</div>
+            </div></div>
+            <div class="q"><span class="qk qk-prom">PromQL</span> (ollama_gpu_memory_used_bytes / ollama_gpu_memory_total_bytes) * 100</div>
+          </div>
+
+          <!-- ROW: Request Performance -->
+          <div class="grow" style="grid-column:1/span 24;grid-row:6/span 1"><span class="car">▾</span> Request Performance</div>
+          <div class="gpanel" style="grid-column:1/span 12;grid-row:7/span 8">
+            <div class="gp-t">Request Rate by Model</div>
+            <div class="gp-body">
+              <svg class="chart" viewBox="0 0 560 150" preserveAspectRatio="none">
+                <g class="grid"><line x1="0" y1="37" x2="560" y2="37"/><line x1="0" y1="75" x2="560" y2="75"/><line x1="0" y1="112" x2="560" y2="112"/></g>
+                <line class="axis" x1="0" y1="149" x2="560" y2="149"/>
+                <polygon class="a-info" opacity=".10" points="0,150 0,90 47,86 93,94 140,82 187,90 233,80 280,88 327,76 373,84 420,78 467,86 513,74 560,82 560,150"/>
+                <polyline class="l-info" points="0,90 47,86 93,94 140,82 187,90 233,80 280,88 327,76 373,84 420,78 467,86 513,74 560,82"/>
+                <polyline class="l-high" points="0,118 47,114 93,120 140,110 187,116 233,108 280,114 327,104 373,112 420,106 467,114 513,102 560,110"/>
+              </svg>
+            </div>
+            <div class="legend"><span><i class="a-info" style="opacity:.9"></i> llama3.1 - success</span><span><i class="a-high" style="opacity:.9"></i> qwen2.5 - success</span></div>
+            <div class="q"><span class="qk qk-prom">PromQL</span> rate(ollama_requests_total[5m])</div>
+          </div>
+          <div class="gpanel" style="grid-column:13/span 12;grid-row:7/span 8">
+            <div class="gp-t">Request Latency Percentiles</div>
+            <div class="gp-body">
+              <svg class="chart" viewBox="0 0 560 150" preserveAspectRatio="none">
+                <g class="grid"><line x1="0" y1="37" x2="560" y2="37"/><line x1="0" y1="75" x2="560" y2="75"/><line x1="0" y1="112" x2="560" y2="112"/></g>
+                <line class="axis" x1="0" y1="149" x2="560" y2="149"/>
+                <polyline class="l-crit" points="0,64 47,58 93,70 140,54 187,66 233,50 280,62 327,48 373,60 420,52 467,64 513,46 560,56"/>
+                <polyline class="l-high" points="0,96 47,92 93,100 140,88 187,94 233,82 280,90 327,78 373,86 420,80 467,88 513,76 560,84"/>
+                <polyline class="l-ok" points="0,128 47,126 93,130 140,124 187,128 233,122 280,126 327,120 373,124 420,118 467,122 513,116 560,120"/>
+              </svg>
+            </div>
+            <div class="legend"><span><i class="a-ok" style="opacity:.9"></i> P50</span><span><i class="a-high" style="opacity:.9"></i> P95</span><span><i class="a-crit" style="opacity:.9"></i> P99</span></div>
+            <div class="q"><span class="qk qk-prom">PromQL</span> histogram_quantile(0.50, rate(ollama_request_duration_seconds_bucket[5m]))</div>
+            <div class="q"><span class="qk qk-prom">PromQL</span> histogram_quantile(0.95, …) &nbsp;·&nbsp; histogram_quantile(0.99, …)</div>
+          </div>
+
+          <!-- ROW: Token Generation -->
+          <div class="grow" style="grid-column:1/span 24;grid-row:15/span 1"><span class="car">▾</span> Token Generation</div>
+          <div class="gpanel" style="grid-column:1/span 8;grid-row:16/span 8">
+            <div class="gp-t">Token Generation Rate</div>
+            <div class="gp-body">
+              <svg class="chart" viewBox="0 0 560 150" preserveAspectRatio="none">
+                <g class="grid"><line x1="0" y1="37" x2="560" y2="37"/><line x1="0" y1="75" x2="560" y2="75"/><line x1="0" y1="112" x2="560" y2="112"/></g>
+                <line class="axis" x1="0" y1="149" x2="560" y2="149"/>
+                <polygon class="a-prim" opacity=".10" points="0,150 0,88 47,82 93,92 140,76 187,86 233,72 280,84 327,68 373,80 420,74 467,82 513,66 560,76 560,150"/>
+                <polyline class="l-prim" points="0,88 47,82 93,92 140,76 187,86 233,72 280,84 327,68 373,80 420,74 467,82 513,66 560,76"/>
+              </svg>
+            </div>
+            <div class="legend"><span><i class="a-prim" style="opacity:.9"></i> llama3.1</span></div>
+            <div class="q"><span class="qk qk-prom">PromQL</span> rate(ollama_tokens_generated_total[5m])</div>
+          </div>
+          <div class="gpanel" style="grid-column:9/span 8;grid-row:16/span 8">
+            <div class="gp-t">Time to First Token (TTFT)</div>
+            <div class="gp-body">
+              <svg class="chart" viewBox="0 0 560 150" preserveAspectRatio="none">
+                <g class="grid"><line x1="0" y1="37" x2="560" y2="37"/><line x1="0" y1="75" x2="560" y2="75"/><line x1="0" y1="112" x2="560" y2="112"/></g>
+                <line class="axis" x1="0" y1="149" x2="560" y2="149"/>
+                <polyline class="l-high" points="0,90 47,86 93,94 140,82 187,90 233,80 280,88 327,76 373,84 420,78 467,86 513,74 560,82"/>
+                <polyline class="l-ok" points="0,122 47,120 93,124 140,118 187,122 233,116 280,120 327,114 373,118 420,112 467,116 513,110 560,114"/>
+              </svg>
+            </div>
+            <div class="legend"><span><i class="a-ok" style="opacity:.9"></i> P50 TTFT</span><span><i class="a-high" style="opacity:.9"></i> P95 TTFT</span></div>
+            <div class="q"><span class="qk qk-prom">PromQL</span> histogram_quantile(0.50, rate(ollama_time_to_first_token_seconds_bucket[5m]))</div>
+          </div>
+          <div class="gpanel" style="grid-column:17/span 8;grid-row:16/span 8">
+            <div class="gp-t">Tokens per Second by Model</div>
+            <div class="gp-body">
+              <svg class="chart" viewBox="0 0 560 150" preserveAspectRatio="none">
+                <g class="grid"><line x1="0" y1="37" x2="560" y2="37"/><line x1="0" y1="75" x2="560" y2="75"/><line x1="0" y1="112" x2="560" y2="112"/></g>
+                <line class="axis" x1="0" y1="149" x2="560" y2="149"/>
+                <polygon class="a-ok" opacity=".10" points="0,150 0,80 47,76 93,84 140,70 187,78 233,66 280,74 327,62 373,72 420,64 467,72 513,58 560,68 560,150"/>
+                <polyline class="l-ok" points="0,80 47,76 93,84 140,70 187,78 233,66 280,74 327,62 373,72 420,64 467,72 513,58 560,68"/>
+                <polyline class="l-info" points="0,108 47,104 93,110 140,100 187,106 233,98 280,104 327,94 373,102 420,96 467,104 513,92 560,100"/>
+              </svg>
+            </div>
+            <div class="legend"><span><i class="a-ok" style="opacity:.9"></i> llama3.1 tokens/sec</span><span><i class="a-info" style="opacity:.9"></i> qwen2.5 tokens/sec</span></div>
+            <div class="q"><span class="qk qk-prom">PromQL</span> rate(ollama_tokens_generated_total[1m]) / (rate(ollama_request_duration_seconds_sum[1m]) > 0)</div>
+          </div>
+
+          <!-- ROW: Application LLM Metrics -->
+          <div class="grow" style="grid-column:1/span 24;grid-row:24/span 1"><span class="car">▾</span> Application LLM Metrics</div>
+          <div class="gpanel" style="grid-column:1/span 12;grid-row:25/span 8">
+            <div class="gp-t">LLM Requests by Task Type</div>
+            <div class="gp-body">
+              <svg class="chart" viewBox="0 0 560 150" preserveAspectRatio="none">
+                <g class="grid"><line x1="0" y1="37" x2="560" y2="37"/><line x1="0" y1="75" x2="560" y2="75"/><line x1="0" y1="112" x2="560" y2="112"/></g>
+                <line class="axis" x1="0" y1="149" x2="560" y2="149"/>
+                <polyline class="l-info" points="0,96 47,92 93,100 140,88 187,94 233,82 280,90 327,78 373,86 420,80 467,88 513,76 560,84"/>
+                <polyline class="l-prim" points="0,116 47,112 93,120 140,108 187,114 233,106 280,112 327,102 373,110 420,104 467,112 513,100 560,108"/>
+                <polyline class="l-high" points="0,132 47,130 93,134 140,128 187,132 233,126 280,130 327,124 373,128 420,122 467,128 513,120 560,126"/>
+              </svg>
+            </div>
+            <div class="legend"><span><i class="a-info" style="opacity:.9"></i> rca - success</span><span><i class="a-prim" style="opacity:.9"></i> summarize - success</span><span><i class="a-high" style="opacity:.9"></i> chat - success</span></div>
+            <div class="q"><span class="qk qk-prom">PromQL</span> rate(llm_request_total{job="cluster-intel"}[5m])</div>
+          </div>
+          <div class="gpanel" style="grid-column:13/span 12;grid-row:25/span 8">
+            <div class="gp-t">LLM Request Duration by Task</div>
+            <div class="gp-body">
+              <svg class="chart" viewBox="0 0 560 150" preserveAspectRatio="none">
+                <g class="grid"><line x1="0" y1="37" x2="560" y2="37"/><line x1="0" y1="75" x2="560" y2="75"/><line x1="0" y1="112" x2="560" y2="112"/></g>
+                <line class="axis" x1="0" y1="149" x2="560" y2="149"/>
+                <polyline class="l-high" points="0,80 47,74 93,86 140,70 187,82 233,66 280,78 327,62 373,76 420,68 467,80 513,60 560,72"/>
+                <polyline class="l-ok" points="0,120 47,118 93,122 140,116 187,120 233,114 280,118 327,112 373,116 420,110 467,114 513,108 560,112"/>
+              </svg>
+            </div>
+            <div class="legend"><span><i class="a-ok" style="opacity:.9"></i> P50 - rca</span><span><i class="a-high" style="opacity:.9"></i> P95 - rca</span></div>
+            <div class="q"><span class="qk qk-prom">PromQL</span> histogram_quantile(0.50, rate(llm_request_duration_seconds_bucket{job="cluster-intel"}[5m]))</div>
+          </div>
+          <div class="gpanel" style="grid-column:1/span 12;grid-row:33/span 8">
+            <div class="gp-t">Token Usage (Hourly)</div>
+            <div class="gp-body">
+              <svg class="chart" viewBox="0 0 560 150" preserveAspectRatio="none">
+                <g class="grid"><line x1="0" y1="37" x2="560" y2="37"/><line x1="0" y1="75" x2="560" y2="75"/><line x1="0" y1="112" x2="560" y2="112"/></g>
+                <line class="axis" x1="0" y1="149" x2="560" y2="149"/>
+                <g opacity=".8">
+                  <rect class="bar-info" x="24"  y="108" width="44" height="32"/><rect class="bar-prim" x="24"  y="92"  width="44" height="16"/>
+                  <rect class="bar-info" x="92"  y="102" width="44" height="38"/><rect class="bar-prim" x="92"  y="84"  width="44" height="18"/>
+                  <rect class="bar-info" x="160" y="112" width="44" height="28"/><rect class="bar-prim" x="160" y="98"  width="44" height="14"/>
+                  <rect class="bar-info" x="228" y="98"  width="44" height="42"/><rect class="bar-prim" x="228" y="78"  width="44" height="20"/>
+                  <rect class="bar-info" x="296" y="106" width="44" height="34"/><rect class="bar-prim" x="296" y="90"  width="44" height="16"/>
+                  <rect class="bar-info" x="364" y="94"  width="44" height="46"/><rect class="bar-prim" x="364" y="72"  width="44" height="22"/>
+                  <rect class="bar-info" x="432" y="104" width="44" height="36"/><rect class="bar-prim" x="432" y="86"  width="44" height="18"/>
+                  <rect class="bar-info" x="500" y="100" width="44" height="40"/><rect class="bar-prim" x="500" y="82"  width="44" height="18"/>
+                </g>
+              </svg>
+            </div>
+            <div class="legend"><span><i class="bar-info"></i> Input - llama3.1</span><span><i class="bar-prim"></i> Output - llama3.1</span></div>
+            <div class="q"><span class="qk qk-prom">PromQL</span> increase(llm_tokens_input_total{job="cluster-intel"}[1h]) &nbsp;·&nbsp; increase(llm_tokens_output_total{job="cluster-intel"}[1h])</div>
+          </div>
+          <div class="gpanel" style="grid-column:13/span 12;grid-row:33/span 8">
+            <div class="gp-t">LLM Success Rate</div>
+            <div class="gp-body bargauge">
+              <div class="bg-row">
+                <span class="lbl">Success Rate</span>
+                <span class="bg-track">
+                  <i class="bg-seg" style="background:var(--high)"></i><i class="bg-seg" style="background:var(--high)"></i><i class="bg-seg" style="background:var(--high)"></i><i class="bg-seg" style="background:var(--high)"></i><i class="bg-seg" style="background:var(--high)"></i><i class="bg-seg" style="background:var(--high)"></i><i class="bg-seg" style="background:var(--high)"></i><i class="bg-seg" style="background:var(--high)"></i><i class="bg-seg" style="background:var(--high)"></i><i class="bg-seg" style="background:var(--high)"></i><i class="bg-seg" style="background:var(--high)"></i><i class="bg-seg" style="background:var(--high)"></i><i class="bg-seg" style="background:var(--high)"></i><i class="bg-seg" style="background:var(--high)"></i><i class="bg-seg" style="background:var(--high)"></i><i class="bg-seg"></i>
+                </span>
+                <span class="bgv" style="color:var(--high)">93.4%</span>
+              </div>
+              <div class="note" style="font-size:11px">LCD bargauge · thresholds: <span style="color:var(--ok)">≥95% green</span> · <span style="color:var(--high)">≥90% yellow</span> · <span style="color:var(--crit)">&lt;90% red</span></div>
+            </div>
+            <div class="q"><span class="qk qk-prom">PromQL</span> sum(rate(llm_request_total{job="cluster-intel",status="success"}[5m])) / sum(rate(llm_request_total{job="cluster-intel"}[5m]))</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== LLM Request Traces (app dashboard) ===== -->
+      <section class="gdash" id="d-llm-traces">
+        <div class="gdash-head">
+          <span class="dt">LLM Request Traces</span>
+          <div class="gdash-meta">
+            <span class="ds-pill"><span class="dd dd-tempo"></span> Tempo</span>
+            <span class="ds-pill"><span class="dd dd-prom"></span> Prometheus</span>
+            <span class="tagchip">llm</span><span class="tagchip">traces</span><span class="tagchip">tempo</span><span class="tagchip">otel</span><span class="tagchip">cluster-intel</span>
+          </div>
+          <span class="sp"></span>
+          <span class="timepick"><span class="ic">🕒</span> Last 1 hour</span>
+          <span class="refresh"><i></i> 30s</span>
+        </div>
+        <div class="gdash-grid">
+          <!-- ROW: LLM Request Traces -->
+          <div class="grow" style="grid-column:1/span 24;grid-row:1/span 1"><span class="car">▾</span> LLM Request Traces</div>
+          <!-- traces panel rendered as a static table -->
+          <div class="gpanel" style="grid-column:1/span 24;grid-row:2/span 8">
+            <div class="gp-t">Recent LLM Traces</div>
+            <div class="gp-body" style="overflow:auto">
+              <table class="trace-tbl">
+                <thead><tr><th>Trace ID</th><th>Span</th><th>Service</th><th>Duration</th><th>Status</th><th>Start</th></tr></thead>
+                <tbody>
+                  <tr><td class="tid">7f3a1c9b2e</td><td>llm.complete</td><td>cluster-intel</td><td><span class="dur-bar" style="width:46px"></span>1.84s</td><td><span class="chip c-ok">ok</span></td><td class="note">12:04:21</td></tr>
+                  <tr><td class="tid">a91c5d0f74</td><td>llm.complete</td><td>cluster-intel</td><td><span class="dur-bar" style="width:58px"></span>2.31s</td><td><span class="chip c-ok">ok</span></td><td class="note">12:04:18</td></tr>
+                  <tr><td class="tid">4e2d88a1b3</td><td>llm.complete</td><td>cluster-intel</td><td><span class="dur-bar" style="width:120px;background:var(--crit)"></span>6.12s</td><td><span class="chip c-crit">error</span></td><td class="note">12:03:55</td></tr>
+                  <tr><td class="tid">b8f0e3727a</td><td>llm.complete</td><td>cluster-intel</td><td><span class="dur-bar" style="width:32px"></span>1.27s</td><td><span class="chip c-ok">ok</span></td><td class="note">12:03:40</td></tr>
+                  <tr><td class="tid">c5a7f41902</td><td>llm.complete</td><td>cluster-intel</td><td><span class="dur-bar" style="width:76px"></span>3.04s</td><td><span class="chip c-ok">ok</span></td><td class="note">12:03:22</td></tr>
+                  <tr><td class="tid">2d9e6b8c15</td><td>llm.complete</td><td>cluster-intel</td><td><span class="dur-bar" style="width:24px"></span>0.98s</td><td><span class="chip c-ok">ok</span></td><td class="note">12:03:01</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="q"><span class="qk qk-tempo">TraceQL</span> { resource.service.name = "cluster-intel" &amp;&amp; name = "llm.complete" } &nbsp;<span class="note">· limit 50</span></div>
+          </div>
+
+          <!-- ROW: Service Graph -->
+          <div class="grow" style="grid-column:1/span 24;grid-row:10/span 1"><span class="car">▾</span> Service Graph</div>
+          <div class="gpanel" style="grid-column:1/span 24;grid-row:11/span 10">
+            <div class="gp-t">Service Dependency Graph</div>
+            <div class="gp-body">
+              <svg class="nodegraph" viewBox="0 0 560 210" preserveAspectRatio="xMidYMid meet">
+                <defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="var(--outline-2)"/></marker></defs>
+                <line class="edge" x1="96"  y1="105" x2="232" y2="105" marker-end="url(#arrow)"/>
+                <text class="elabel" x="150" y="98">4 ms</text>
+                <line class="edge" x1="288" y1="92"  x2="430" y2="58"  marker-end="url(#arrow)"/>
+                <text class="elabel" x="338" y="68">1.8 s</text>
+                <line class="edge" x1="288" y1="118" x2="430" y2="152" marker-end="url(#arrow)"/>
+                <text class="elabel" x="338" y="148">22 ms</text>
+                <g class="node"><circle cx="70"  cy="105" r="26" fill="var(--info-c)" stroke="var(--info)"/><text x="70" y="150">cursor-cli</text><text class="sub" x="70" y="163">client</text></g>
+                <g class="node"><circle cx="260" cy="105" r="30" fill="var(--ok-c)" stroke="var(--ok)"/><text x="260" y="108">cluster-intel</text><text class="sub" x="260" y="155">1.9k req · 0.4% err</text></g>
+                <g class="node"><circle cx="460" cy="55"  r="26" fill="var(--high-c)" stroke="var(--high)"/><text x="460" y="58">ollama</text><text class="sub" x="460" y="100">p95 1.8s</text></g>
+                <g class="node"><circle cx="460" cy="152" r="24" fill="var(--ok-c)" stroke="var(--ok)"/><text x="460" y="155">kube-api</text><text class="sub" x="460" y="192">p95 22ms</text></g>
+              </svg>
+            </div>
+            <div class="q"><span class="qk qk-tempo">Tempo</span> queryType: serviceMap &nbsp;<span class="note">· built from span metrics (node graph)</span></div>
+          </div>
+
+          <!-- ROW: LLM Performance Analysis -->
+          <div class="grow" style="grid-column:1/span 24;grid-row:21/span 1"><span class="car">▾</span> LLM Performance Analysis</div>
+          <div class="gpanel" style="grid-column:1/span 12;grid-row:22/span 8">
+            <div class="gp-t">LLM Request Latency Distribution</div>
+            <div class="gp-body">
+              <svg class="chart" viewBox="0 0 560 150" preserveAspectRatio="none">
+                <g class="grid"><line x1="0" y1="37" x2="560" y2="37"/><line x1="0" y1="75" x2="560" y2="75"/><line x1="0" y1="112" x2="560" y2="112"/></g>
+                <line class="axis" x1="0" y1="149" x2="560" y2="149"/>
+                <polyline class="l-crit" points="0,64 47,58 93,70 140,54 187,66 233,50 280,62 327,48 373,60 420,52 467,64 513,46 560,56"/>
+                <polyline class="l-high" points="0,96 47,92 93,100 140,88 187,94 233,82 280,90 327,78 373,86 420,80 467,88 513,76 560,84"/>
+                <polyline class="l-ok" points="0,128 47,126 93,130 140,124 187,128 233,122 280,126 327,120 373,124 420,118 467,122 513,116 560,120"/>
+              </svg>
+            </div>
+            <div class="legend"><span><i class="a-ok" style="opacity:.9"></i> P50</span><span><i class="a-high" style="opacity:.9"></i> P95</span><span><i class="a-crit" style="opacity:.9"></i> P99</span></div>
+            <div class="q"><span class="qk qk-prom">PromQL</span> histogram_quantile(0.95, rate(cluster_intel_llm_request_duration_seconds_bucket[5m]))</div>
+          </div>
+          <div class="gpanel" style="grid-column:13/span 12;grid-row:22/span 8">
+            <div class="gp-t">LLM Requests by Task (Hourly)</div>
+            <div class="gp-body">
+              <svg class="chart" viewBox="0 0 560 150" preserveAspectRatio="none">
+                <g class="grid"><line x1="0" y1="37" x2="560" y2="37"/><line x1="0" y1="75" x2="560" y2="75"/><line x1="0" y1="112" x2="560" y2="112"/></g>
+                <line class="axis" x1="0" y1="149" x2="560" y2="149"/>
+                <g opacity=".8">
+                  <rect class="bar-ok" x="24"  y="100" width="44" height="40" style="fill:var(--ok)"/><rect class="bar-crit" x="24"  y="94"  width="44" height="6"/>
+                  <rect class="bar-ok" x="92"  y="92"  width="44" height="48" style="fill:var(--ok)"/><rect class="bar-crit" x="92"  y="88"  width="44" height="4"/>
+                  <rect class="bar-ok" x="160" y="104" width="44" height="36" style="fill:var(--ok)"/><rect class="bar-crit" x="160" y="96"  width="44" height="8"/>
+                  <rect class="bar-ok" x="228" y="88"  width="44" height="52" style="fill:var(--ok)"/><rect class="bar-crit" x="228" y="83"  width="44" height="5"/>
+                  <rect class="bar-ok" x="296" y="98"  width="44" height="42" style="fill:var(--ok)"/><rect class="bar-crit" x="296" y="92"  width="44" height="6"/>
+                  <rect class="bar-ok" x="364" y="84"  width="44" height="56" style="fill:var(--ok)"/><rect class="bar-crit" x="364" y="80"  width="44" height="4"/>
+                  <rect class="bar-ok" x="432" y="96"  width="44" height="44" style="fill:var(--ok)"/><rect class="bar-crit" x="432" y="89"  width="44" height="7"/>
+                  <rect class="bar-ok" x="500" y="90"  width="44" height="50" style="fill:var(--ok)"/><rect class="bar-crit" x="500" y="85"  width="44" height="5"/>
+                </g>
+              </svg>
+            </div>
+            <div class="legend"><span><i style="background:var(--ok)"></i> Success - rca</span><span><i class="bar-crit"></i> Error - rca</span></div>
+            <div class="q"><span class="qk qk-prom">PromQL</span> increase(cluster_intel_llm_request_total{status="success"}[1h]) &nbsp;·&nbsp; increase(cluster_intel_llm_request_total{status="error"}[1h])</div>
+          </div>
+          <div class="gpanel pbg-ok" style="grid-column:1/span 6;grid-row:30/span 4">
+            <div class="gp-t">LLM Success Rate</div>
+            <div class="gp-body stat"><div class="big">99.6%</div>
+              <svg class="spark" viewBox="0 0 120 28" preserveAspectRatio="none"><polygon class="a-ok" opacity=".18" points="0,28 0,15 30,14 60,16 90,13 120,14 120,28"/><polyline class="l-ok" points="0,15 30,14 60,16 90,13 120,14"/></svg>
+            </div>
+            <div class="q"><span class="qk qk-prom">PromQL</span> sum(rate(cluster_intel_llm_request_total{status="success"}[5m])) / sum(rate(cluster_intel_llm_request_total[5m]))</div>
+          </div>
+          <div class="gpanel" style="grid-column:7/span 6;grid-row:30/span 4">
+            <div class="gp-t">Requests In Flight</div>
+            <div class="gp-body stat"><div class="big v-info">2</div>
+              <svg class="spark" viewBox="0 0 120 28" preserveAspectRatio="none"><polygon class="a-info" opacity=".18" points="0,28 0,20 30,16 60,22 90,14 120,18 120,28"/><polyline class="l-info" points="0,20 30,16 60,22 90,14 120,18"/></svg>
+            </div>
+            <div class="q"><span class="qk qk-prom">PromQL</span> sum(cluster_intel_llm_request_in_flight)</div>
+          </div>
+          <div class="gpanel" style="grid-column:13/span 6;grid-row:30/span 4">
+            <div class="gp-t">Tokens (Last Hour)</div>
+            <div class="gp-body stat"><div class="big v-info" style="font-size:28px">48.2k</div>
+              <svg class="spark" viewBox="0 0 120 28" preserveAspectRatio="none"><polygon class="a-info" opacity=".18" points="0,28 0,18 30,16 60,19 90,14 120,16 120,28"/><polyline class="l-info" points="0,18 30,16 60,19 90,14 120,16"/></svg>
+            </div>
+            <div class="q"><span class="qk qk-prom">PromQL</span> sum(increase(cluster_intel_llm_tokens_input_total[1h])) + sum(increase(cluster_intel_llm_tokens_output_total[1h]))</div>
+          </div>
+          <div class="gpanel" style="grid-column:19/span 6;grid-row:30/span 4">
+            <div class="gp-t">Avg Time to First Token</div>
+            <div class="gp-body stat"><div class="big v-info">0.42s</div>
+              <svg class="spark" viewBox="0 0 120 28" preserveAspectRatio="none"><polygon class="a-info" opacity=".18" points="0,28 0,19 30,21 60,18 90,20 120,17 120,28"/><polyline class="l-info" points="0,19 30,21 60,18 90,20 120,17"/></svg>
+            </div>
+            <div class="q"><span class="qk qk-prom">PromQL</span> histogram_quantile(0.50, rate(cluster_intel_llm_time_to_first_token_seconds_bucket[5m]))</div>
+          </div>
+
+          <!-- ROW: Error Analysis -->
+          <div class="grow" style="grid-column:1/span 24;grid-row:34/span 1"><span class="car">▾</span> Error Analysis</div>
+          <div class="gpanel" style="grid-column:1/span 12;grid-row:35/span 8">
+            <div class="gp-t">Errors by Type (24h)</div>
+            <div class="gp-body donut-wrap">
+              <svg viewBox="0 0 100 100">
+                <g transform="rotate(-90 50 50)" fill="none" stroke-width="15">
+                  <circle cx="50" cy="50" r="40" stroke="var(--crit)"    stroke-dasharray="120.6 251.3" stroke-dashoffset="0"/>
+                  <circle cx="50" cy="50" r="40" stroke="var(--high)"    stroke-dasharray="70.4 251.3"  stroke-dashoffset="-120.6"/>
+                  <circle cx="50" cy="50" r="40" stroke="var(--info)"    stroke-dasharray="40.2 251.3"  stroke-dashoffset="-191.0"/>
+                  <circle cx="50" cy="50" r="40" stroke="var(--primary)" stroke-dasharray="20.1 251.3"  stroke-dashoffset="-231.2"/>
+                </g>
+                <text x="50" y="48" text-anchor="middle" fill="var(--on-surface)" style="font-size:13px;font-weight:700">25</text>
+                <text x="50" y="60" text-anchor="middle" fill="var(--muted)" style="font-size:7px">errors</text>
+              </svg>
+              <div class="donut-leg">
+                <div class="dl"><i style="background:var(--crit)"></i> timeout <b>12</b></div>
+                <div class="dl"><i style="background:var(--high)"></i> rate_limit <b>7</b></div>
+                <div class="dl"><i style="background:var(--info)"></i> parse_error <b>4</b></div>
+                <div class="dl"><i style="background:var(--primary)"></i> connection <b>2</b></div>
+              </div>
+            </div>
+            <div class="q"><span class="qk qk-prom">PromQL</span> sum by (error_type) (increase(cluster_intel_llm_errors_total[24h]))</div>
+          </div>
+          <div class="gpanel" style="grid-column:13/span 12;grid-row:35/span 8">
+            <div class="gp-t">Error Rate Over Time</div>
+            <div class="gp-body">
+              <svg class="chart" viewBox="0 0 560 150" preserveAspectRatio="none">
+                <g class="grid"><line x1="0" y1="37" x2="560" y2="37"/><line x1="0" y1="75" x2="560" y2="75"/><line x1="0" y1="112" x2="560" y2="112"/></g>
+                <line class="axis" x1="0" y1="149" x2="560" y2="149"/>
+                <polyline class="l-crit" points="0,128 47,124 93,132 140,118 187,126 233,112 280,122 327,108 373,120 420,114 467,124 513,106 560,118"/>
+                <polyline class="l-high" points="0,136 47,134 93,138 140,130 187,135 233,128 280,133 327,126 373,132 420,124 467,130 513,122 560,128"/>
+              </svg>
+            </div>
+            <div class="legend"><span><i class="a-crit" style="opacity:.9"></i> timeout</span><span><i class="a-high" style="opacity:.9"></i> rate_limit</span></div>
+            <div class="q"><span class="qk qk-prom">PromQL</span> sum by (error_type) (rate(cluster_intel_llm_errors_total[5m]))</div>
+          </div>
+        </div>
+      </section>
+
+      <div class="note" style="margin:2px 4px 8px;line-height:1.7">
+        Provisioning: each JSON above is mounted as a <span class="kbd">ConfigMap</span> with label <span class="kbd">grafana_dashboard:"1"</span>; the kube-prometheus-stack Grafana <b>sidecar</b> watches for that label and imports every dashboard into the <span class="kbd">hetu</span> folder automatically — no manual upload, fully GitOps-managed.
+      </div>
+
+    </div>
+  </div>
+</main>
+
+<script>
+/* optional: smooth-scroll for the folder anchors */
+document.querySelectorAll('.gf-folder a[href^="#"]').forEach(function(a){
+  a.addEventListener('click',function(e){
+    var t=document.querySelector(a.getAttribute('href'));
+    if(t){e.preventDefault();t.scrollIntoView({behavior:'smooth',block:'start'});}
+  });
+});
+</script>
+</body>
+</html>

@@ -90,6 +90,54 @@ services:
       - analyzer
     restart: unless-stopped
 
+  # ── Chatbot ───────────────────────────────────────────────────────────────
+  chatbot-api:
+    build:
+      context: .
+      dockerfile: src/chatbot/Dockerfile
+    container_name: hetu-chatbot-api
+    ports:
+      - "${CHATBOT_PORT:-8000}:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      # LLM endpoint — use same Ollama server as analyzer
+      - LLM_ENDPOINT=${LLM_ENDPOINT:-http://host.docker.internal:11434/v1/chat/completions}
+      - LLM_PROVIDER=${LLM_PROVIDER:-ollama}
+      - LLM_MODEL=${LLM_MODEL:-mistral}
+      # Embeddings — use same Ollama for embeddings
+      - EMBEDDING_ENDPOINT=${EMBEDDING_ENDPOINT:-http://host.docker.internal:11434}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-nomic-embed-text}
+      # Knowledge graph (Qdrant)
+      - QDRANT_URL=http://qdrant:6333
+      # Cluster data sources
+      - ANALYZER_URL=http://analyzer:8081
+      - KUBECONFIG_PATH=/kubeconfig
+    volumes:
+      - ${KUBECONFIG:-~/.kube/config}:/kubeconfig:ro
+    depends_on:
+      - analyzer
+      - qdrant
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ── Redis (conversation cache for chatbot) ────────────────────────────────
+  redis:
+    image: redis:7.2-alpine
+    container_name: hetu-redis
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
 volumes:
   qdrant_storage:
     name: hetu-qdrant-storage

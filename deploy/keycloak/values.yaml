@@ -1,0 +1,149 @@
+# =============================================================================
+# Keycloak — values.yaml
+# Chart: codecentric/keycloakx  (NOT Bitnami; NOT the dead charts.keycloak.org)
+# Chart version: 7.1.11   (Keycloak app version 26.5.6)
+#
+# Repo / pull (already pulled to the local helm library):
+#   helm repo add codecentric https://codecentric.github.io/helm-charts
+#   helm pull codecentric/keycloakx --version 7.1.11
+#   # tgz lives at: dumpyard/kubernetes/utilities/helms/keycloakx-7.1.11.tgz
+#
+# Install (parent runs this — see deploy/keycloak/README.md for the full order):
+#   helm upgrade --install keycloak \
+#     /home/dk/Documents/git/dumpyard/kubernetes/utilities/helms/keycloakx-7.1.11.tgz \
+#     -f deploy/keycloak/values.yaml \
+#     -n keycloak --create-namespace
+#
+# EXPOSURE: plain HTTP on port 5080 via a pinned ClusterIP (10.103.70.200).
+#   - NOT behind Traefik, NOT 80/443 (per explicit instruction "run it on 5080").
+#   - The chart Service publishes httpPort 5080; a second pinned-ClusterIP Service
+#     (deploy/keycloak/keycloak-service-5080.yaml) fixes the IP to 10.103.70.200
+#     because this chart's Service template does not expose a clusterIP field.
+#   - DNS: keycloak.local -> 10.103.70.200 (already mapped by the operator).
+#   - Issuer URL: http://keycloak.local:5080/realms/hetu
+# =============================================================================
+
+replicas: 1
+
+image:
+  repository: quay.io/keycloak/keycloak
+  tag: "26.5.6"            # pinned — never :latest
+  pullPolicy: IfNotPresent
+
+# -- Start command: runtime config + realm import on first boot ----------------
+# Override args to add --import-realm. We do NOT use --optimized so the image
+# auto-builds from the runtime KC_DB_* env the chart injects.
+command:
+  - "/opt/keycloak/bin/kc.sh"
+args:
+  - "start"
+  - "--import-realm"
+
+# -- Extra env -----------------------------------------------------------------
+# Hostname is the full external URL (Keycloak 26 v2 hostname). Plain HTTP is
+# enabled because we serve HTTP directly on 5080 (no TLS-terminating proxy).
+# Bootstrap admin uses the KC_BOOTSTRAP_ADMIN_* names (KEYCLOAK_ADMIN is
+# deprecated in Keycloak 26). Credentials come from the SealedSecret
+# 'keycloak-secrets'.
+extraEnv: |
+  - name: KC_HOSTNAME
+    value: "http://keycloak.local:5080"
+  - name: KC_HOSTNAME_STRICT
+    value: "false"
+  - name: KC_HTTP_PORT
+    value: "8080"
+  - name: KC_BOOTSTRAP_ADMIN_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: keycloak-secrets
+        key: admin-user
+  - name: KC_BOOTSTRAP_ADMIN_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: keycloak-secrets
+        key: admin-password
+
+# -- Hostname relative path: clean issuer (no /auth prefix) ---------------------
+http:
+  relativePath: "/"
+
+# -- Reverse proxy: disabled (direct ClusterIP access, no Traefik) -------------
+# proxy.http.enabled still sets KC_HTTP_ENABLED=true so Keycloak serves HTTP.
+proxy:
+  enabled: false
+  mode: forwarded
+  http:
+    enabled: true
+
+# -- Database: reuse the existing cluster Postgres -----------------------------
+# postgres.utilities.svc.cluster.local:5432, database 'keycloak'.
+# Password comes from the SealedSecret 'keycloak-secrets' (key db-password).
+database:
+  vendor: postgres
+  hostname: postgres.utilities.svc.cluster.local
+  port: 5432
+  database: keycloak
+  username: keycloak
+  existingSecret: keycloak-secrets
+  existingSecretKey: db-password
+
+dbchecker:
+  enabled: true
+
+# -- Service: ClusterIP, HTTP on 5080 (no HTTPS) -------------------------------
+service:
+  type: ClusterIP
+  httpPort: 5080
+  httpsPort: null          # no TLS port — HTTP only on 5080
+
+# -- Realm import volume -------------------------------------------------------
+# The configmap 'hetu-realm' (created from infra/hetu/keycloak/realm-hetu.json)
+# is mounted into the import dir; --import-realm picks it up on first boot.
+extraVolumes: |
+  - name: hetu-realm
+    configMap:
+      name: hetu-realm
+extraVolumeMounts: |
+  - name: hetu-realm
+    mountPath: /opt/keycloak/data/import
+    readOnly: true
+
+# -- Ingress: disabled (served directly on 5080, not via Traefik) --------------
+ingress:
+  enabled: false
+
+# -- Resources -----------------------------------------------------------------
+resources:
+  requests:
+    cpu: 200m
+    memory: 512Mi
+  limits:
+    cpu: 1000m
+    memory: 1024Mi
+
+# -- Health + metrics (Keycloak management port 9000) --------------------------
+metrics:
+  enabled: true
+health:
+  enabled: true
+
+# -- ServiceMonitor: lives in the keycloak namespace ---------------------------
+serviceMonitor:
+  enabled: true
+  namespace: keycloak
+  labels:
+    release: monitoring     # must match Prometheus serviceMonitorSelector
+
+# -- Security context ----------------------------------------------------------
+podSecurityContext:
+  fsGroup: 1000
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+
+autoscaling:
+  enabled: false

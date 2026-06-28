@@ -104,7 +104,11 @@ func (m *mockSource) generateAndBroadcast() {
 	report := m.generate()
 	m.analyzer.publishReport(report)
 	if report.Scores != nil {
-		m.analyzer.healthScore.Set(float64(report.Scores.Overall))
+		m.analyzer.healthScore.WithLabelValues("overall").Set(float64(report.Scores.Overall))
+		m.analyzer.healthScore.WithLabelValues("reliability").Set(float64(report.Scores.Reliability))
+		m.analyzer.healthScore.WithLabelValues("security").Set(float64(report.Scores.Security))
+		m.analyzer.healthScore.WithLabelValues("cost").Set(float64(report.Scores.Cost))
+		m.analyzer.healthScore.WithLabelValues("architecture").Set(float64(report.Scores.Architecture))
 	}
 }
 

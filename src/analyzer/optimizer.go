@@ -138,6 +138,28 @@ func (r *OptimizerRegistry) RecsForTarget(namespace, service string) []*OptRecom
 	return out
 }
 
+// CategoryCounts returns the number of open recommendations grouped by their
+// normalized (snake_case) category. Only the rightsizing optimizer records a
+// "category" in CurrentState ("over-provisioned"/"under-provisioned"), so
+// these are the only categories hetu actually computes.
+func (r *OptimizerRegistry) CategoryCounts() map[string]int {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	counts := map[string]int{}
+	for _, rec := range r.recommendations {
+		if rec.Status != "open" {
+			continue
+		}
+		cat, _ := rec.CurrentState["category"].(string)
+		if cat == "" {
+			continue
+		}
+		counts[normalizeCategory(cat)]++
+	}
+	return counts
+}
+
 // Register adds an optimizer module.
 func (r *OptimizerRegistry) Register(opt Optimizer) {
 	r.mu.Lock()

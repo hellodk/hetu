@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasource-prometheus
+  namespace: ${MONITORING_NAMESPACE}
+  labels:
+    app.kubernetes.io/part-of: hetu
+    app.kubernetes.io/managed-by: kubectl
+    app: prometheus
+    # Picked up by the kube-prometheus-stack Grafana sidecar.
+    grafana_datasource: "1"
+data:
+  prometheus-datasource.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        uid: ${PROMETHEUS_UID}
+        access: proxy
+        url: ${PROMETHEUS_URL}
+        isDefault: true
+        editable: true
+        jsonData:
+          httpMethod: POST
+          timeInterval: 30s

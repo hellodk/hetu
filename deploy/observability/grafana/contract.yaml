@@ -1,0 +1,40 @@
+# =============================================================================
+# hetu observability — ENVIRONMENT CONTRACT
+# =============================================================================
+# This is the single file you deliver/fill per environment. It holds every
+# cluster-specific endpoint the Grafana datasources need. Nothing else in this
+# bundle should hardcode a URL — edit values HERE, then run ./render.sh to
+# regenerate datasources/*.yaml, then `kubectl apply -k .`.
+#
+# Helm users: the same values live in the chart at
+#   monitoring.namespace, monitoring.prometheus.url, monitoring.loki.url,
+#   monitoring.tempo (url), monitoring.grafana.{prometheus,loki,tempo}DatasourceUid
+# Keep this file and values.yaml in sync.
+# -----------------------------------------------------------------------------
+
+# Namespace where Grafana + its sidecar run (datasource/dashboard ConfigMaps
+# are created here so the sidecar discovers them).
+monitoringNamespace: monitoring
+
+# Single Grafana folder all hetu + METL dashboards are filed into.
+grafanaFolder: hetu
+
+# --- Backend service endpoints (THE part that changes per cluster) ----------
+endpoints:
+  # Prometheus query API (kube-prometheus-stack default service name shown).
+  prometheusUrl: http://monitoring-prometheus.monitoring.svc.cluster.local:9090
+  # Loki query API. <<< CONFIRM your Loki service name/port >>>
+  lokiUrl: http://loki.monitoring.svc:3100
+  # Tempo query API (HTTP, not the OTLP ingest port).
+  tempoUrl: http://tempo.monitoring.svc:3200
+
+# Stable datasource UIDs (panels reference these — keep them constant).
+datasourceUids:
+  prometheus: prometheus
+  loki: loki
+  tempo: tempo
+
+# --- Delivered elsewhere (NOT used by these raw manifests; listed for the
+#     operator's convenience — set these in the Helm chart values) -----------
+# tempoOtlpEndpoint:  http://avika-tempo.monitoring.svc:4317   # OTLP gRPC ingest
+# ollamaExternalIP:   10.0.0.50                                # monitoring.ollama.externalIP

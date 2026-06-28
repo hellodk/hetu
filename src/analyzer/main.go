@@ -128,13 +128,25 @@ type Analyzer struct {
 	// LLM config API
 	llmConfigAPI *LLMConfigAPI
 
+	// Embedding config API + RAG chat engine (AI Chat)
+	embedConfigAPI *EmbeddingConfigAPI
+	kbStore        *KBStore
+	chatEngine     *ChatEngine
+
 	// Prometheus metrics (custom registry)
 	registry         *prometheus.Registry
 	analysisRuns     prometheus.Counter
 	analysisErrors   prometheus.Counter
 	analysisDuration prometheus.Histogram
 	llmTokensUsed    prometheus.Counter
-	healthScore      prometheus.Gauge
+	healthScore      *prometheus.GaugeVec
+
+	// cluster-intel gauges exporting hetu's own computed scan data.
+	// Registered on a.registry via initIntelMetrics(); see intel_metrics.go.
+	podHealthGauge   *prometheus.GaugeVec // cluster_intel_pod_health_total{category}
+	vulnGauge        *prometheus.GaugeVec // cluster_intel_vulnerabilities_total{severity}
+	cisChecksGauge   *prometheus.GaugeVec // cluster_intel_cis_checks_total{status}
+	resourceCatGauge *prometheus.GaugeVec // cluster_intel_resources_category_total{category}
 
 	// Cached per-dimension ScoreResult from the most recent analysis
 	// cycle. Protected by reportMu. Used by the drill-down endpoints to
@@ -168,6 +180,7 @@ func NewAnalyzer(config Config) (*Analyzer, error) {
 
 	// Initialize Prometheus metrics
 	analyzer.initMetrics()
+	analyzer.initIntelMetrics()
 
 	// Initialize mock source; it does nothing until the profile is switched
 	// to mock (either at startup via PROFILE=mock or at runtime via the API).
@@ -367,8 +380,11 @@ func (a *Analyzer) startLLMHealthWatcher(ctx context.Context, llmCfg ucconfig.LL
 					if a.rcaEngine != nil {
 						updatedCfg := llmCfg
 						updatedCfg.Model = model
-						metrics := llmclient.NewMetrics("hetu")
-						newClient := llmclient.NewClient(updatedCfg, metrics)
+						// Reuse the already-registered metrics (created in
+						// NewRCAEngine on the served registry). Creating a fresh
+						// set here previously emitted the wrong namespace
+						// (hetu_llm_*) and risked duplicate registration.
+						newClient := llmclient.NewClient(updatedCfg, a.rcaEngine.metrics)
 						a.rcaEngine.mu.Lock()
 						a.rcaEngine.llmClient = newClient
 						a.rcaEngine.mu.Unlock()
@@ -489,10 +505,10 @@ func (a *Analyzer) initMetrics() {
 		Help: "Total LLM tokens used",
 	})
 
-	a.healthScore = prometheus.NewGauge(prometheus.GaugeOpts{
+	a.healthScore = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "cluster_intel_health_score",
-		Help: "Current cluster health score",
-	})
+		Help: "Current cluster health score by dimension (overall, reliability, security, cost, architecture)",
+	}, []string{"type"})
 
 	a.registry.MustRegister(
 		a.analysisRuns,
@@ -814,13 +830,22 @@ func (a *Analyzer) runSecurityScan(ctx context.Context) {
 	}
 	a.securityScanner.RunScan(ctx)
 
+	// Snapshot findings once under lock, then release before doing work.
+	a.securityScanner.mu.RLock()
+	findings := make([]*SecFinding, 0, len(a.securityScanner.findings))
+	for _, f := range a.securityScanner.findings {
+		findings = append(findings, f)
+	}
+	a.securityScanner.mu.RUnlock()
+
+	// Export vulnerability + CIS failure counts for the cluster-intel dashboard.
+	a.setSecurityMetrics(findings)
+
 	// Bridge findings to Correlator for incident creation.
 	if a.correlator == nil {
 		return
 	}
-	a.securityScanner.mu.RLock()
-	defer a.securityScanner.mu.RUnlock()
-	for _, f := range a.securityScanner.findings {
+	for _, f := range findings {
 		a.correlator.IngestSignal(Signal{
 			ID:        fmt.Sprintf("sec-%d", f.ID),
 			Timestamp: f.DetectedAt,
@@ -847,6 +872,9 @@ func (a *Analyzer) runPodHealthScan(ctx context.Context) {
 	if report == nil {
 		return
 	}
+
+	// Export pod health counts as gauges for the cluster-intel dashboard.
+	a.setPodHealthMetrics(report)
 
 	for _, cat := range report.Categories {
 		if len(cat.Pods) == 0 {
@@ -941,6 +969,9 @@ func (a *Analyzer) runOptimizers() {
 		return
 	}
 	a.optimizerRegistry.RunAll()
+
+	// Export rightsizing categories for the cluster-intel dashboard.
+	a.setResourceCategoryMetrics(a.optimizerRegistry.CategoryCounts())
 }
 
 // extractNamespace tries to pull a namespace from affected resource strings
@@ -1121,9 +1152,14 @@ func (a *Analyzer) runAnalysis(ctx context.Context) {
 	}
 	a.reportMu.Unlock()
 
-	// Update metrics
+	// Update metrics — set every dimension so the dashboard gauges
+	// (cluster_intel_health_score{type="reliability"} etc.) resolve.
 	if report.Scores != nil {
-		a.healthScore.Set(float64(report.Scores.Overall))
+		a.healthScore.WithLabelValues("overall").Set(float64(report.Scores.Overall))
+		a.healthScore.WithLabelValues("reliability").Set(float64(report.Scores.Reliability))
+		a.healthScore.WithLabelValues("security").Set(float64(report.Scores.Security))
+		a.healthScore.WithLabelValues("cost").Set(float64(report.Scores.Cost))
+		a.healthScore.WithLabelValues("architecture").Set(float64(report.Scores.Architecture))
 	}
 	a.analysisDuration.Observe(time.Since(start).Seconds())
 
@@ -1887,6 +1923,14 @@ func (a *Analyzer) serveAPI() {
 	// LLM config API
 	if a.llmConfigAPI != nil {
 		a.llmConfigAPI.RegisterRoutes(mux)
+	}
+
+	// Embedding config API + AI Chat (RAG) routes
+	if a.embedConfigAPI != nil {
+		a.embedConfigAPI.RegisterRoutes(mux)
+	}
+	if a.chatEngine != nil {
+		a.chatEngine.RegisterRoutes(mux)
 	}
 
 	// v7 Phase 5: Correlator + RCA routes
@@ -3168,7 +3212,7 @@ func main() {
 	// Smart model router: probe the endpoint and auto-select the best
 	// available model if the configured one doesn't exist.
 	rcaLLMCfg.Model = AutoDetectModel(rcaLLMCfg.Provider, rcaLLMCfg.Endpoint, rcaLLMCfg.Model, rcaLLMCfg.APIKey)
-	analyzer.rcaEngine = NewRCAEngine(rcaLLMCfg, analyzer.correlator)
+	analyzer.rcaEngine = NewRCAEngine(rcaLLMCfg, analyzer.correlator, analyzer.registry)
 	analyzer.rcaEngine.SetHealthReporter(func() *types.ClusterHealthReport {
 		analyzer.reportMu.RLock()
 		defer analyzer.reportMu.RUnlock()
@@ -3250,6 +3294,65 @@ func main() {
 			analyzer.rcaEngine.SetVectorStore(vs)
 			log.Info().Str("qdrant", qdrantURL).Str("embedModel", embedModel).Msg("Vector store enabled")
 		}
+	}
+
+	// AI Chat (RAG): embedding config, knowledge base, and chat engine.
+	// The embedding endpoint/key default to the chat LLM's when not set
+	// separately (common when one Ollama server hosts both models).
+	{
+		qdrantURL := coalesce(os.Getenv("QDRANT_URL"), "")
+		embedEndpoint := coalesce(os.Getenv("EMBEDDING_ENDPOINT"), "")
+		embedModel := coalesce(os.Getenv("EMBEDDING_MODEL"), os.Getenv("QDRANT_EMBED_MODEL"), "nomic-embed-text")
+		embedProvider := coalesce(os.Getenv("EMBEDDING_API"), "auto")
+		embedKey := coalesce(os.Getenv("EMBEDDING_API_KEY"), "")
+
+		analyzer.embedConfigAPI = NewEmbeddingConfigAPI(embedProvider, embedEndpoint, embedModel, embedKey)
+
+		buildKB := func() *KBStore {
+			st := analyzer.embedConfigAPI.State()
+			emb := buildKBEmbedder(st, analyzer.embedConfigAPI.APIKey(), rcaLLMCfg.Endpoint, rcaLLMCfg.APIKey)
+			if emb == nil || qdrantURL == "" {
+				return nil
+			}
+			return NewKBStore(qdrantURL, emb)
+		}
+		analyzer.kbStore = buildKB()
+
+		if analyzer.workloadHandler != nil {
+			analyzer.chatEngine = NewChatEngine(analyzer, analyzer.kbStore, analyzer.workloadHandler.Clientset(), promURL, analyzer.embedConfigAPI)
+		} else {
+			analyzer.chatEngine = NewChatEngine(analyzer, analyzer.kbStore, nil, promURL, analyzer.embedConfigAPI)
+		}
+
+		reindex := func(kb *KBStore) {
+			if kb == nil {
+				return
+			}
+			go func() {
+				ictx, icancel := context.WithTimeout(context.Background(), 10*time.Minute)
+				defer icancel()
+				if _, err := kb.IndexRepoDocs(ictx, getEnvOrDefault("KB_DOCS_DIR", "docs")); err != nil {
+					log.Warn().Err(err).Msg("chat: KB index failed")
+				}
+			}()
+		}
+
+		analyzer.embedConfigAPI.onUpdate = func(state EmbeddingConfigState, apiKey string) {
+			kb := buildKB()
+			analyzer.kbStore = kb
+			if analyzer.chatEngine != nil {
+				analyzer.chatEngine.SetKB(kb)
+			}
+			reindex(kb)
+		}
+
+		// Best-effort startup index of repo docs (no-op if the dir is absent).
+		reindex(analyzer.kbStore)
+
+		log.Info().
+			Bool("kbEnabled", analyzer.kbStore != nil).
+			Str("embedModel", embedModel).
+			Msg("AI chat engine initialised")
 	}
 
 	// Setup context

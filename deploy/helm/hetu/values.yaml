@@ -184,6 +184,75 @@ dashboard:
     enabled: false
     minAvailable: 1
 
+# -- Chatbot (LLM-powered assistant) -------------------------------------------
+chatbot:
+  enabled: true              # Set to false to skip chatbot deployment
+  image:
+    repository: hellodk/hetu-chatbot
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent
+  replicas: 2
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  service:
+    type: ClusterIP
+    nodePort: null
+
+  # LLM / embedding configuration
+  llm:
+    # REQUIRED — full chat-completions URL, e.g. "http://192.168.1.19:8080/v1/chat/completions"
+    endpoint: ""
+    model: "mistral"
+    provider: "ollama"
+    # REQUIRED — base URL of the embedding server, e.g. "http://192.168.1.19:11434"
+    embeddingEndpoint: ""
+    embeddingModel: "all-MiniLM-L6-v2"
+
+  # OIDC / authentication
+  oidc:
+    issuer: "http://keycloak.local:5080/realms/hetu"
+    clientId: "hetu-chatbot"
+    audience: "hetu-chatbot"
+    authEnabled: true
+
+  # OpenTelemetry
+  otel:
+    endpoint: "http://avika-tempo.monitoring.svc:4317"
+    serviceName: "hetu-chatbot"
+
+  # RBAC and ServiceAccount
+  rbac:
+    create: true
+  serviceAccount:
+    create: true
+
+  # Metrics / observability
+  metrics:
+    port: 8000
+    serviceMonitor:
+      enabled: true
+
+  # Additional env vars (appended after the structured vars above)
+  env:
+    # Internal service URLs
+    - name: QDRANT_URL
+      value: "http://hetu-qdrant:6333"
+    - name: ANALYZER_URL
+      value: "http://hetu-analyzer:8081"
+
+  # Chatbot doesn't need a writable FS
+  securityContext: {}  # Uses defaults from global securityContext
+  affinity: {}
+  topologySpreadConstraints: []
+  pdb:
+    enabled: false
+    minAvailable: 1
+
 # =============================================================================
 # Persistent stores
 # =============================================================================
@@ -191,7 +260,7 @@ dashboard:
 # false` and populate `external.*` to point at an existing managed instance.
 stores:
   postgres:
-    bundled: true
+    bundled: false
     # standalone: deploy a lean postgres:16-alpine StatefulSet instead of Bitnami sub-chart.
     # Set bundled=false and standalone=true to use it.
     standalone: false
@@ -201,7 +270,7 @@ stores:
     storage: "5Gi"
     storageClass: ""   # empty = cluster default
     external:
-      host: ""
+      host: postgres.utilities.svc.cluster.local
       port: 5432
       db: cluster_intel
       user: cluster_intel
@@ -211,10 +280,10 @@ stores:
     sslMode: disable
 
   redis:
-    bundled: true
+    bundled: false
     # standalone: deploy a lean redis:7-alpine StatefulSet instead of Bitnami sub-chart.
     # Set bundled=false and standalone=true to use it.
-    standalone: false
+    standalone: true
     image:
       repository: redis
       tag: "7-alpine"
@@ -398,12 +467,39 @@ monitoring:
       ollama:   "#ollama-alerts"
       llm:      "#llm-alerts"
 
+  # Prometheus backend the Grafana datasource (and METL dashboards) point at.
+  prometheus:
+    url: "http://monitoring-prometheus.monitoring.svc.cluster.local:9090"
+
+  # Loki backend the Grafana datasource (and METL log dashboards) point at.
+  # `{{ }}` is rendered with tpl, so $.monitoring.namespace is available.
+  loki:
+    url: "http://loki.{{ .Values.monitoring.namespace }}.svc:3100"
+
   grafana:
     # Grafana dashboard ConfigMaps. Requires Grafana's sidecar to auto-
-    # provision ConfigMaps with the `grafana_dashboard: "1"` label.
+    # provision ConfigMaps with the `grafana_dashboard: "1"` label. Folder
+    # placement is driven by the `grafana_folder` annotation (below).
     dashboards:
-      clusterIntel: true    # Cluster Intelligence health scores
-      ollama:       true
-      llmTraces:    true    # requires Tempo
+      clusterIntel: true    # Cluster Intelligence health scores  (hetu folder)
+      ollama:       true     #                                     (hetu folder)
+      llmTraces:    true     # requires Tempo                      (hetu folder)
+      # METL pillar overviews (also land in the hetu folder)
+      metlMetrics:  true     # cluster CPU/mem/pods (Prometheus)
+      metlLogs:     true     # log volume / error rate (Loki)
+      metlTraces:   true     # request rate / latency / error rate (Prometheus + Tempo)
+      metlEvents:   true     # warning/normal event rate (kube_event / cluster_intel_*)
+    # Grafana folder the sidecar files dashboards into, via `grafana_folder`.
+    # Everything lands in a single "hetu" folder; both keys point at it so the
+    # METL overviews live alongside the app dashboards. Change to split them.
+    folders:
+      hetu: "hetu"           # app dashboards
+      metl: "hetu"           # METL pillar overviews (same folder by default)
+    # Datasource ConfigMaps provisioned by the chart. Tempo is gated by
+    # monitoring.tempo.enabled instead of a toggle here.
+    datasources:
+      prometheus: true       # default datasource (isDefault: true)
+      loki:       true
     tempoDatasourceUid: tempo
     prometheusDatasourceUid: prometheus
+    lokiDatasourceUid: loki

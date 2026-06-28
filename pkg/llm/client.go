@@ -102,41 +102,46 @@ type ollamaResponse struct {
 
 // --- Constructors -----------------------------------------------------------
 
-// NewMetrics creates and registers all LLM Prometheus metrics.
-func NewMetrics(namespace string) *Metrics {
+// NewMetrics creates and registers all LLM Prometheus metrics against reg.
+//
+// reg MUST be the same registry that the analyzer serves on /metrics (the
+// analyzer's custom registry), otherwise the series are created but never
+// scraped. Pass nil only in tests where you do not need the series exposed.
+func NewMetrics(reg prometheus.Registerer, namespace string) *Metrics {
+	f := promauto.With(reg)
 	return &Metrics{
-		RequestTotal: promauto.NewCounterVec(
+		RequestTotal: f.NewCounterVec(
 			prometheus.CounterOpts{Namespace: namespace, Name: "llm_request_total", Help: "Total number of LLM requests"},
 			[]string{"model", "task", "status", "provider"},
 		),
-		RequestDuration: promauto.NewHistogramVec(
+		RequestDuration: f.NewHistogramVec(
 			prometheus.HistogramOpts{Namespace: namespace, Name: "llm_request_duration_seconds", Help: "LLM request duration in seconds", Buckets: []float64{0.5, 1, 2, 5, 10, 20, 30, 45, 60, 90, 120}},
 			[]string{"model", "task", "provider"},
 		),
-		RequestInFlight: promauto.NewGauge(
+		RequestInFlight: f.NewGauge(
 			prometheus.GaugeOpts{Namespace: namespace, Name: "llm_request_in_flight", Help: "Number of LLM requests currently in flight"},
 		),
-		TokensInputTotal: promauto.NewCounterVec(
+		TokensInputTotal: f.NewCounterVec(
 			prometheus.CounterOpts{Namespace: namespace, Name: "llm_tokens_input_total", Help: "Total input tokens sent to LLM"},
 			[]string{"model", "task", "provider"},
 		),
-		TokensOutputTotal: promauto.NewCounterVec(
+		TokensOutputTotal: f.NewCounterVec(
 			prometheus.CounterOpts{Namespace: namespace, Name: "llm_tokens_output_total", Help: "Total output tokens received from LLM"},
 			[]string{"model", "task", "provider"},
 		),
-		TimeToFirstToken: promauto.NewHistogramVec(
+		TimeToFirstToken: f.NewHistogramVec(
 			prometheus.HistogramOpts{Namespace: namespace, Name: "llm_time_to_first_token_seconds", Help: "Time to first token in seconds", Buckets: []float64{0.1, 0.25, 0.5, 1, 2, 5, 10, 20}},
 			[]string{"model", "provider"},
 		),
-		TokensPerSecond: promauto.NewGaugeVec(
+		TokensPerSecond: f.NewGaugeVec(
 			prometheus.GaugeOpts{Namespace: namespace, Name: "llm_tokens_per_second", Help: "Token generation rate"},
 			[]string{"model", "provider"},
 		),
-		ErrorsTotal: promauto.NewCounterVec(
+		ErrorsTotal: f.NewCounterVec(
 			prometheus.CounterOpts{Namespace: namespace, Name: "llm_errors_total", Help: "Total number of LLM errors"},
 			[]string{"model", "task", "error_type", "provider"},
 		),
-		QueueWaitTime: promauto.NewHistogramVec(
+		QueueWaitTime: f.NewHistogramVec(
 			prometheus.HistogramOpts{Namespace: namespace, Name: "llm_queue_wait_seconds", Help: "Time spent waiting in queue", Buckets: []float64{0.01, 0.05, 0.1, 0.5, 1, 2, 5, 10}},
 			[]string{"provider"},
 		),

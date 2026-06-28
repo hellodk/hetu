@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Hetu — Feature Concept Mockups</title>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;600;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="app.css"/>
+<style>
+body{display:block}
+.wrap{max-width:980px;margin:0 auto;padding:48px 24px}
+.title{font-size:30px;font-weight:600;margin-bottom:6px}
+.sub{color:var(--muted);font-size:15px;margin-bottom:32px;line-height:1.6}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.mk{display:block;background:var(--s1);border:1px solid var(--outline);border-radius:16px;padding:22px;transition:.15s}
+.mk:hover{border-color:var(--primary);transform:translateY(-2px)}
+.mk .ic{width:42px;height:42px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:20px;background:var(--primary-container);color:var(--on-primary-container);margin-bottom:14px}
+.mk h3{font-size:17px;font-weight:600;margin-bottom:6px}
+.mk p{font-size:13px;color:var(--muted);line-height:1.55}
+.foot{margin-top:36px;color:var(--muted);font-size:12.5px;line-height:1.7}
+.kbd{font-family:'Roboto Mono',monospace;font-size:11px;background:var(--s3);border:1px solid var(--outline);border-radius:4px;padding:1px 6px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="title"><span style="display:inline-block;width:24px;height:24px;border-radius:8px;background:linear-gradient(135deg,var(--primary),#8B5CF6);vertical-align:-3px;margin-right:8px"></span>hetu — feature concepts</div>
+  <div class="sub">Interactive mockups for the new platform features. These are non-functional design samples to review before we build.</div>
+  <div class="grid">
+    <a class="mk" href="01-namespace-sync.html"><div class="ic">⧉</div><h3>Reusable Resources (Namespace Sync)</h3><p>Replicate secrets, service accounts, TLS, pull-secrets, configmaps across namespaces via Kyverno generate / Reflector. Drift detection + policy preview.</p></a>
+    <a class="mk" href="02-email-settings.html"><div class="ic">✉</div><h3>Email &amp; Alerts (Brevo SMTP)</h3><p>SMTP settings stored as one secret, distributed by Namespace Sync. Notification rules, delivery health, test send, incident email preview.</p></a>
+    <a class="mk" href="03-policy-governance.html"><div class="ic">⚖</div><h3>Policies &amp; Governance (Kyverno)</h3><p>Embed Kyverno PolicyReport / Policy Reporter data: pass/fail, audit→enforce rollout, generate-policies for reusable resources.</p></a>
+    <a class="mk" href="04-resilience.html"><div class="ic">❤</div><h3>Resilience (JVM &amp; Network)</h3><p>Detect the "restart-to-heal" pattern: OOM/heap headroom, GC, probe vs warm-up, DNS/connect-at-boot. Concrete spec patches.</p></a>
+    <a class="mk" href="05-grafana-dashboards.html"><div class="ic">▦</div><h3>Observability (Grafana Dashboards)</h3><p>Auto-provisioned METL + Hetu dashboards in a single "hetu" Grafana folder via the kube-prometheus-stack sidecar. Metrics, Logs, Traces, Events — Prometheus, Loki, Tempo.</p></a>
+  </div>
+  <div class="foot">
+    Served from <span class="kbd">192.168.1.10:8899</span>. Open the cards above. Full-bleed pages render best at desktop width.
+  </div>
+</div>
+</body>
+</html>

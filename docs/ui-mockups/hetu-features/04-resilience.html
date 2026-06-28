@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Hetu — Resilience (JVM & Network)</title>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;600;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="app.css"/>
+</head>
+<body>
+<nav class="nav">
+  <div class="brand"><span class="dot"></span> hetu</div>
+  <div class="nav-sec">Analyze</div>
+  <div class="nav-item">▦ Overview</div>
+  <div class="nav-item">◈ Incidents</div>
+  <div class="nav-item">⚠ Errors</div>
+  <div class="nav-item">▤ Workloads</div>
+  <div class="nav-item">↘ Optimization</div>
+  <div class="nav-item">⛨ Security</div>
+  <div class="nav-sec">Platform</div>
+  <div class="nav-item">⧉ Reusable Resources <span class="tag">NEW</span></div>
+  <div class="nav-item">⚖ Policies <span class="tag">NEW</span></div>
+  <div class="nav-item active">❤ Resilience <span class="tag">NEW</span></div>
+  <div class="nav-item">✉ Email & Alerts <span class="tag">NEW</span></div>
+  <div class="nav-item">✦ AI Chat <span class="tag">NEW</span></div>
+  <div class="nav-item">⚙ Settings</div>
+</nav>
+
+<header class="top">
+  <span class="cluster">prod-eu-1</span>
+  <span class="live"><i></i> LIVE</span>
+  <span class="spacer"></span>
+  <span class="meta">Signals: kube events · Prometheus · JMX/actuator · CoreDNS</span>
+  <span class="avatar">DK</span>
+</header>
+
+<main class="main">
+  <div class="head">
+    <div>
+      <div class="h-title">Resilience — JVM &amp; Network</div>
+      <div class="h-sub">Targets the "pod dies / gets restarted / then works fine" pattern. Hetu correlates restart events with JVM memory/GC and network/DNS signals to tell you <b>why the first start failed</b> and the exact spec change that stops it recurring — instead of relying on a manual restart.</div>
+    </div>
+    <div style="display:flex;gap:10px"><button class="btn btn-g">Scan now</button><button class="btn btn-p">Export fixes (YAML)</button></div>
+  </div>
+
+  <div class="tiles">
+    <div class="tile crit"><div class="n">9</div><div class="l">Restart-to-heal pods</div></div>
+    <div class="tile warn"><div class="n">5</div><div class="l">OOMKilled (24h)</div></div>
+    <div class="tile warn"><div class="n">14</div><div class="l">DNS/connect errors at boot</div></div>
+    <div class="tile info"><div class="n">7</div><div class="l">Auto-fixable</div></div>
+  </div>
+
+  <div class="callout warn">"Restart-to-heal" = a pod that <b>CrashLoops or fails readiness on first start but is healthy after one or more restarts</b>. Almost always a <b>startup race</b> (dependency/DNS not ready, JVM warm-up longer than the probe) or <b>memory headroom</b> (heap vs limit). These are fixable in the spec — manual restarts just paper over it.</div>
+
+  <div class="row">
+    <div class="card">
+      <div class="card-t">Detected patterns</div>
+
+      <div class="list-item">
+        <div class="li-ic" style="background:var(--crit-c);color:var(--crit)">JVM</div>
+        <div class="li-body">
+          <div class="li-title">checkout-api — OOMKilled then stable <span class="chip c-crit">exit 137</span></div>
+          <div class="li-desc">Heap <span class="kbd">-Xmx512m</span> ≈ container limit <span class="kbd">512Mi</span> → no headroom for non-heap (metaspace, threads, direct buffers). GC thrash 1.8s pauses before kill. Heals after restart because traffic is lower on the fresh pod.</div>
+          <div style="margin-top:8px" class="note"><b style="color:var(--ok)">Fix:</b> set limit 768Mi &amp; <span class="kbd">-XX:MaxRAMPercentage=70</span> (drop fixed -Xmx); add <span class="kbd">startupProbe</span>.</div>
+          <div style="margin-top:8px;display:flex;gap:8px"><button class="btn btn-g btn-sm">View evidence</button><button class="btn btn-p btn-sm">Apply patch</button></div>
+        </div>
+      </div>
+
+      <div class="list-item">
+        <div class="li-ic" style="background:var(--info-c);color:var(--info)">NET</div>
+        <div class="li-body">
+          <div class="li-title">payments-gw — connection refused to postgres at boot</div>
+          <div class="li-desc">First start logs: <span class="mono">dial tcp 10.0.x:5432: connect: connection refused</span> ×6, then succeeds. DB/sidecar not ready when app starts. Readiness flaps for ~40s.</div>
+          <div style="margin-top:8px" class="note"><b style="color:var(--ok)">Fix:</b> add <span class="kbd">startupProbe</span> + init-container wait-for-dep, or app-level retry/backoff on dependency connect.</div>
+          <div style="margin-top:8px;display:flex;gap:8px"><button class="btn btn-g btn-sm">View evidence</button><button class="btn btn-p btn-sm">Apply patch</button></div>
+        </div>
+      </div>
+
+      <div class="list-item">
+        <div class="li-ic" style="background:var(--info-c);color:var(--info)">DNS</div>
+        <div class="li-body">
+          <div class="li-title">notify-worker — intermittent SERVFAIL resolving smtp-relay.brevo.com</div>
+          <div class="li-desc">CoreDNS latency spikes + <span class="kbd">ndots:5</span> causing 4 lookups per query at startup. Resolves after retry → "works after restart". Correlates with CoreDNS CPU throttling.</div>
+          <div style="margin-top:8px" class="note"><b style="color:var(--ok)">Fix:</b> set Pod <span class="kbd">dnsConfig ndots:2</span>; bump CoreDNS replicas/limits; enable NodeLocal DNSCache.</div>
+          <div style="margin-top:8px;display:flex;gap:8px"><button class="btn btn-g btn-sm">View evidence</button><button class="btn btn-p btn-sm">Apply patch</button></div>
+        </div>
+      </div>
+
+      <div class="list-item">
+        <div class="li-ic" style="background:var(--warn-c);color:var(--warn)">PRB</div>
+        <div class="li-body">
+          <div class="li-title">search-api — liveness killing slow JVM warm-up</div>
+          <div class="li-desc">App needs ~38s to warm (class-load + cache prime) but <span class="kbd">livenessProbe initialDelaySeconds:15</span> → kubelet kills it mid-boot → CrashLoop until node is warm/cached.</div>
+          <div style="margin-top:8px" class="note"><b style="color:var(--ok)">Fix:</b> move warm-up to <span class="kbd">startupProbe (failureThreshold×period ≥ 60s)</span>; keep liveness lean.</div>
+          <div style="margin-top:8px;display:flex;gap:8px"><button class="btn btn-g btn-sm">View evidence</button><button class="btn btn-p btn-sm">Apply patch</button></div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="card">
+        <div class="card-t">JVM heap vs limit (checkout-api)</div>
+        <div class="note">heap used / -Xmx / container limit</div>
+        <div class="bar" style="margin:10px 0"><i style="width:96%;background:var(--crit)"></i></div>
+        <div class="note">498Mi / 512Mi / 512Mi — <b style="color:var(--crit)">no headroom</b></div>
+        <div class="note" style="margin-top:14px">GC pause p99: <b style="color:var(--warn)">1.82s</b> · Full GCs/min: <b style="color:var(--crit)">7</b></div>
+        <div class="note" style="margin-top:6px">Source: micrometer/actuator <span class="kbd">jvm_memory_used_bytes</span></div>
+      </div>
+
+      <div class="card">
+        <div class="card-t">Suggested patch</div>
+        <pre class="mono" style="white-space:pre-wrap;line-height:1.55;color:var(--muted)">resources:
+  requests: {memory: 768Mi}
+  limits:   {memory: 768Mi}
+env:
+- name: JAVA_TOOL_OPTIONS
+  value: "-XX:MaxRAMPercentage=70
+          -XX:+ExitOnOutOfMemoryError"
+startupProbe:
+  httpGet: {path: /healthz, port: 8080}
+  periodSeconds: 5
+  failureThreshold: 12   # up to 60s</pre>
+        <div style="margin-top:10px;display:flex;gap:8px"><button class="btn btn-p btn-sm">Open PR (GitOps)</button><button class="btn btn-g btn-sm">Copy</button></div>
+      </div>
+
+      <div class="card">
+        <div class="card-t">Auto-remediation</div>
+        <div class="flow" style="margin-bottom:8px"><span class="tgl on"></span><span class="note">Suggest fixes (always on)</span></div>
+        <div class="flow" style="margin-bottom:8px"><span class="tgl"></span><span class="note">Auto-apply probe/headroom fixes in <span class="kbd">utilities</span> only</span></div>
+        <div class="note">Writes are gated by the same namespace boundaries &amp; require confirmation elsewhere.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-t">What hetu watches for this</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 24px">
+      <div class="note">• Exit code 137 / OOMKilled events + reason</div>
+      <div class="note">• Restart count vs time-to-stable (restart-to-heal signal)</div>
+      <div class="note">• JVM heap/GC/metaspace (micrometer, JMX exporter)</div>
+      <div class="note">• -Xmx / MaxRAMPercentage vs container limit mismatch</div>
+      <div class="note">• Probe config vs observed warm-up time</div>
+      <div class="note">• CoreDNS latency, SERVFAIL, ndots amplification</div>
+      <div class="note">• connect refused/timeout to deps during first N seconds</div>
+      <div class="note">• conntrack table / TCP retransmit spikes (node)</div>
+    </div>
+  </div>
+</main>
+</body>
+</html>

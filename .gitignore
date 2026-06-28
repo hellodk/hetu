@@ -135,6 +135,10 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 
+# ---- Local agent / tooling artifacts (not source) -------------------------
+graphify-out/
+pytest-op
+
 # ---- Helm / Kustomize build output ---------------------------------------
 # NOTE: we DO track the bundled Helm sub-chart tarballs under
 # deploy/helm/cluster-intel/charts/ because they're the vendored chart
