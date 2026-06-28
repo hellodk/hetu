@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Hetu — Email & Alerts (Brevo SMTP)</title>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;600;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="app.css"/>
+</head>
+<body>
+<nav class="nav">
+  <div class="brand"><span class="dot"></span> hetu</div>
+  <div class="nav-sec">Analyze</div>
+  <div class="nav-item">▦ Overview</div>
+  <div class="nav-item">◈ Incidents</div>
+  <div class="nav-item">⚠ Errors</div>
+  <div class="nav-item">▤ Workloads</div>
+  <div class="nav-item">↘ Optimization</div>
+  <div class="nav-item">⛨ Security</div>
+  <div class="nav-sec">Platform</div>
+  <div class="nav-item">⧉ Reusable Resources <span class="tag">NEW</span></div>
+  <div class="nav-item">⚖ Policies <span class="tag">NEW</span></div>
+  <div class="nav-item">❤ Resilience <span class="tag">NEW</span></div>
+  <div class="nav-item active">✉ Email & Alerts <span class="tag">NEW</span></div>
+  <div class="nav-item">✦ AI Chat <span class="tag">NEW</span></div>
+  <div class="nav-item">⚙ Settings</div>
+</nav>
+
+<header class="top">
+  <span class="cluster">prod-eu-1</span>
+  <span class="live"><i></i> LIVE</span>
+  <span class="spacer"></span>
+  <span class="meta">SMTP: <b style="color:var(--ok)">connected</b> · last test 2m ago</span>
+  <span class="avatar">DK</span>
+</header>
+
+<main class="main">
+  <div class="head">
+    <div>
+      <div class="h-title">Email &amp; Alerts</div>
+      <div class="h-sub">Send health digests, incident alerts and threshold breaches over SMTP. Credentials live in one secret (<span class="kbd">utilities/brevo-smtp</span>) and are distributed by Reusable Resources, so any namespace's jobs can send mail without copy-pasting keys.</div>
+    </div>
+    <button class="btn btn-p">Send test email</button>
+  </div>
+
+  <div class="row">
+    <div>
+      <div class="card">
+        <div class="card-t">SMTP provider</div>
+        <div class="flow" style="margin-bottom:14px">
+          <span class="chip c-info">Brevo ✓</span><span class="chip c-mut">Amazon SES</span><span class="chip c-mut">SMTP (generic)</span><span class="chip c-mut">SendGrid</span>
+        </div>
+        <div class="grid2">
+          <div class="field"><label>SMTP host</label><input class="input mono" value="smtp-relay.brevo.com"/></div>
+          <div class="field"><label>Port</label><input class="input mono" value="587"/></div>
+        </div>
+        <div class="grid2">
+          <div class="field"><label>Login (Brevo SMTP login)</label><input class="input mono" value="8a1f9c001@smtp-brevo.com"/></div>
+          <div class="field"><label>Encryption</label><select class="input"><option>STARTTLS</option><option>SSL/TLS</option><option>None</option></select></div>
+        </div>
+        <div class="field"><label>SMTP key (Brevo)</label>
+          <div class="flow"><input class="input mono" type="password" value="xsmtpsib-************************" style="flex:1"/><span class="chip c-ok">stored in secret</span></div>
+        </div>
+        <div class="callout">Saved to <span class="kbd">Secret utilities/brevo-smtp</span>. Toggle below to fan it out to other namespaces via Reusable Resources (Kyverno generate) so app jobs can reuse it.</div>
+        <div class="flow"><span class="tgl on"></span><span class="note">Distribute this secret to namespaces labelled <span class="kbd">hetu/sync=true</span></span></div>
+      </div>
+
+      <div class="card">
+        <div class="card-t">Sender &amp; routing</div>
+        <div class="grid2">
+          <div class="field"><label>From name</label><input class="input" value="Hetu — prod-eu-1"/></div>
+          <div class="field"><label>From address</label><input class="input mono" value="alerts@example.com"/></div>
+        </div>
+        <div class="field"><label>Default recipients</label><input class="input mono" value="sre-oncall@example.com, platform@example.com"/></div>
+      </div>
+
+      <div class="card">
+        <div class="card-t">Notification rules</div>
+        <table>
+          <thead><tr><th>Trigger</th><th>Condition</th><th>Channel</th><th>Recipients</th><th>State</th></tr></thead>
+          <tbody>
+            <tr><td><b>Critical incident</b></td><td class="mono">severity = critical</td><td><span class="chip c-info">Email</span></td><td class="note">sre-oncall</td><td><span class="tgl on"></span></td></tr>
+            <tr><td><b>Health score drop</b></td><td class="mono">overall &lt; 60</td><td><span class="chip c-info">Email</span></td><td class="note">platform</td><td><span class="tgl on"></span></td></tr>
+            <tr><td><b>Daily digest</b></td><td class="mono">cron 08:00</td><td><span class="chip c-info">Email</span></td><td class="note">platform</td><td><span class="tgl on"></span></td></tr>
+            <tr><td><b>OOMKilled spike</b></td><td class="mono">restarts/OOM &gt; 5 / 15m</td><td><span class="chip c-info">Email</span></td><td class="note">app-owners</td><td><span class="tgl"></span></td></tr>
+            <tr><td><b>Cert expiry</b></td><td class="mono">cert &lt; 14d (cert-manager)</td><td><span class="chip c-info">Email</span></td><td class="note">platform</td><td><span class="tgl on"></span></td></tr>
+          </tbody>
+        </table>
+        <div style="margin-top:14px;display:flex;gap:10px"><button class="btn btn-p">Save</button><button class="btn btn-g">+ Add rule</button></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="card">
+        <div class="card-t">Delivery health</div>
+        <div class="tiles" style="grid-template-columns:1fr 1fr;margin-bottom:0">
+          <div class="tile ok"><div class="n">312</div><div class="l">Sent (24h)</div></div>
+          <div class="tile warn"><div class="n">3</div><div class="l">Bounced</div></div>
+        </div>
+        <div style="margin-top:14px" class="note">Daily quota (Brevo): <b style="color:var(--on-surface)">312 / 300k</b></div>
+        <div class="bar" style="margin-top:6px"><i style="width:6%;background:var(--ok)"></i></div>
+      </div>
+
+      <div class="card">
+        <div class="card-t">Test result</div>
+        <div class="callout">✓ 250 OK — message accepted by <span class="kbd">smtp-relay.brevo.com</span> in 412 ms. Message-ID &lt;a93f…@brevo&gt;.</div>
+        <div class="note">Recipient: dk@example.com · TLS 1.3 · auth OK</div>
+      </div>
+
+      <div class="card">
+        <div class="card-t">Preview — incident email</div>
+        <div style="background:var(--surface);border:1px solid var(--outline);border-radius:8px;padding:14px">
+          <div style="font-weight:600;margin-bottom:6px">🔴 Critical incident #482 — checkout-api</div>
+          <div class="note">prod-eu-1 · detected 19:42 UTC<br/>Root cause (hetu RCA, 0.86 conf): readiness probe failing after pod start — JVM heap warm-up exceeds <span class="kbd">initialDelaySeconds</span>.<br/>Affected: checkout-api (3 pods), payments-gw.<br/>Suggested fix: raise probe delay to 45s / add startupProbe.</div>
+          <div style="margin-top:10px"><span class="chip c-info">Open in hetu →</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+</body>
+</html>

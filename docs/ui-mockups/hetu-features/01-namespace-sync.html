@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Hetu — Reusable Resources (Namespace Sync)</title>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;600;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="app.css"/>
+</head>
+<body>
+<nav class="nav">
+  <div class="brand"><span class="dot"></span> hetu</div>
+  <div class="nav-sec">Analyze</div>
+  <div class="nav-item">▦ Overview</div>
+  <div class="nav-item">◈ Incidents</div>
+  <div class="nav-item">⚠ Errors</div>
+  <div class="nav-item">▤ Workloads</div>
+  <div class="nav-item">↘ Optimization</div>
+  <div class="nav-item">⛨ Security</div>
+  <div class="nav-sec">Platform</div>
+  <div class="nav-item active">⧉ Reusable Resources <span class="tag">NEW</span></div>
+  <div class="nav-item">⚖ Policies <span class="tag">NEW</span></div>
+  <div class="nav-item">❤ Resilience <span class="tag">NEW</span></div>
+  <div class="nav-item">✉ Email & Alerts <span class="tag">NEW</span></div>
+  <div class="nav-item">✦ AI Chat <span class="tag">NEW</span></div>
+  <div class="nav-item">⚙ Settings</div>
+</nav>
+
+<header class="top">
+  <span class="cluster">prod-eu-1</span>
+  <span class="live"><i></i> LIVE</span>
+  <span class="spacer"></span>
+  <span class="meta">Sync engine: <b style="color:var(--on-surface)">Kyverno generate</b></span>
+  <span class="avatar">DK</span>
+</header>
+
+<main class="main">
+  <div class="head">
+    <div>
+      <div class="h-title">Reusable Resources</div>
+      <div class="h-sub">Define a resource once in a source namespace and keep copies in sync across target namespaces — secrets, service accounts, configmaps, TLS, pull-secrets and more. Hetu generates the underlying Kyverno <span class="kbd">generate</span> policy (or Reflector annotations) and watches drift.</div>
+    </div>
+    <button class="btn btn-p">+ New sync rule</button>
+  </div>
+
+  <div class="tiles">
+    <div class="tile ok"><div class="n">23</div><div class="l">Resources in sync</div></div>
+    <div class="tile warn"><div class="n">2</div><div class="l">Drifted (target edited)</div></div>
+    <div class="tile crit"><div class="n">1</div><div class="l">Failed / missing target</div></div>
+    <div class="tile info"><div class="n">14</div><div class="l">Target namespaces covered</div></div>
+  </div>
+
+  <div class="callout">Backed by <b>Kyverno generate + synchronize</b>. Hetu owns the policy lifecycle: edit here → it renders a <span class="kbd">ClusterPolicy</span> with <span class="kbd">generateExisting: true</span> and <span class="kbd">synchronize: true</span> so target copies self-heal if deleted or edited. cert-manager still issues the TLS cert in one namespace; this distributes it.</div>
+
+  <div class="card">
+    <div class="card-t">Active sync rules</div>
+    <table>
+      <thead><tr><th>Resource</th><th>Kind</th><th>Source</th><th>Targets</th><th>Engine</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+        <tr>
+          <td><b>brevo-smtp</b><div class="note">SMTP creds for email/alerts</div></td>
+          <td><span class="chip c-mut">Secret</span></td>
+          <td class="mono">utilities</td>
+          <td><span class="pill-src">app-*</span><span class="pill-src">jobs</span><span class="pill-src">+9</span></td>
+          <td><span class="chip c-info">Kyverno</span></td>
+          <td><span class="chip c-ok">● in sync (11/11)</span></td>
+          <td><button class="btn btn-g btn-sm">Manage</button></td>
+        </tr>
+        <tr>
+          <td><b>wildcard-tls</b><div class="note">*.apps.example.com (cert-manager)</div></td>
+          <td><span class="chip c-mut">Secret / TLS</span></td>
+          <td class="mono">cert-manager</td>
+          <td><span class="pill-src">ingress-*</span><span class="pill-src">+3</span></td>
+          <td><span class="chip c-info">Reflector</span></td>
+          <td><span class="chip c-ok">● in sync (4/4)</span></td>
+          <td><button class="btn btn-g btn-sm">Manage</button></td>
+        </tr>
+        <tr>
+          <td><b>regcred</b><div class="note">Image pull secret (GHCR)</div></td>
+          <td><span class="chip c-mut">Secret / dockercfg</span></td>
+          <td class="mono">utilities</td>
+          <td><span class="pill-src">all (label: hetu/pull=ghcr)</span></td>
+          <td><span class="chip c-info">Kyverno</span></td>
+          <td><span class="chip c-warn">● drift on 2 targets</span></td>
+          <td><button class="btn btn-g btn-sm">Reconcile</button></td>
+        </tr>
+        <tr>
+          <td><b>otel-collector-sa</b><div class="note">ServiceAccount + RoleBinding</div></td>
+          <td><span class="chip c-mut">ServiceAccount</span></td>
+          <td class="mono">monitoring</td>
+          <td><span class="pill-src">app-*</span></td>
+          <td><span class="chip c-info">Kyverno</span></td>
+          <td><span class="chip c-ok">● in sync (6/6)</span></td>
+          <td><button class="btn btn-g btn-sm">Manage</button></td>
+        </tr>
+        <tr>
+          <td><b>app-defaults</b><div class="note">Shared config (timezone, log level)</div></td>
+          <td><span class="chip c-mut">ConfigMap</span></td>
+          <td class="mono">utilities</td>
+          <td><span class="pill-src">app-*</span></td>
+          <td><span class="chip c-info">Kyverno</span></td>
+          <td><span class="chip c-crit">● target missing</span></td>
+          <td><button class="btn btn-g btn-sm">Fix</button></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="row">
+    <div class="card">
+      <div class="card-t">Create sync rule</div>
+      <div class="grid2">
+        <div class="field"><label>Source namespace</label><select class="input"><option>utilities</option><option>cert-manager</option><option>monitoring</option></select></div>
+        <div class="field"><label>Resource kind</label><select class="input"><option>Secret</option><option>Secret (TLS)</option><option>Secret (dockercfg)</option><option>ConfigMap</option><option>ServiceAccount</option><option>RoleBinding</option><option>NetworkPolicy</option><option>LimitRange / ResourceQuota</option><option>PriorityClass (cluster)</option></select></div>
+      </div>
+      <div class="field"><label>Resource name</label><input class="input mono" value="brevo-smtp"/></div>
+      <div class="field"><label>Target selection</label>
+        <div class="flow">
+          <span class="chip c-info">By label</span>
+          <input class="input mono" style="max-width:340px" value="hetu/sync=true, environment!=prod-isolated"/>
+        </div>
+      </div>
+      <div class="field"><label>Sync engine</label>
+        <div class="flow">
+          <span class="chip c-info">Kyverno generate ✓</span>
+          <span class="chip c-mut">Reflector annotations</span>
+          <span class="chip c-mut">Native (hetu controller)</span>
+        </div>
+      </div>
+      <div class="flow" style="margin-top:6px">
+        <span class="tgl on"></span><span class="note">Keep copies synchronized (self-heal on edit/delete)</span>
+      </div>
+      <div class="flow" style="margin-top:10px">
+        <span class="tgl on"></span><span class="note">Generate for existing namespaces too</span>
+      </div>
+      <div style="margin-top:16px;display:flex;gap:10px"><button class="btn btn-p">Preview policy</button><button class="btn btn-g">Dry-run</button></div>
+    </div>
+
+    <div class="card">
+      <div class="card-t">Generated policy (preview)</div>
+      <pre class="mono" style="white-space:pre-wrap;line-height:1.55;color:var(--muted)">apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: hetu-sync-brevo-smtp
+spec:
+  generateExisting: true
+  rules:
+  - name: copy-brevo-smtp
+    match:
+      any:
+      - resources:
+          kinds: [Namespace]
+          selector:
+            matchLabels: {hetu/sync: "true"}
+    generate:
+      apiVersion: v1
+      kind: Secret
+      name: brevo-smtp
+      namespace: "{{request.object.metadata.name}}"
+      synchronize: true
+      clone:
+        namespace: utilities
+        name: brevo-smtp</pre>
+      <div class="note" style="margin-top:12px">Hetu reconciles drift every 60s and surfaces it on this page + as an issue in <b>Overview</b>.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-t">Suggested reusable items to centralize</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 24px">
+      <div class="note">• Image pull secrets (registry creds)</div>
+      <div class="note">• TLS / CA bundles (cert-manager, internal CA)</div>
+      <div class="note">• SMTP / alerting credentials (Brevo)</div>
+      <div class="note">• Observability SAs + RoleBindings (OTel, Prom scrape)</div>
+      <div class="note">• Shared ConfigMaps (timezone, log level, feature flags)</div>
+      <div class="note">• Default NetworkPolicies (deny-all baseline)</div>
+      <div class="note">• ResourceQuota / LimitRange templates</div>
+      <div class="note">• PriorityClasses, RuntimeClasses (cluster-scoped)</div>
+      <div class="note">• Trusted-registry / proxy CA configmaps</div>
+      <div class="note">• External-secrets SecretStore references</div>
+    </div>
+  </div>
+</main>
+</body>
+</html>
