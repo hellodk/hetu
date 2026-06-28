@@ -1,0 +1,77 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "schemaVersion": 38,
+  "version": 1,
+  "uid": "metl-events-overview",
+  "title": "METL · Events Overview",
+  "tags": ["metl", "events", "kubernetes"],
+  "refresh": "30s",
+  "time": {"from": "now-6h", "to": "now"},
+  "templating": {"list": []},
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Warning Pods (current)",
+      "description": "Current count of warning-equivalent problem pods from hetu's pod health scan (crashloop, oomkilled, failed, evicted).",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 4, "w": 8, "x": 0, "y": 0},
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "unit": "short", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 1}, {"color": "red", "value": 10}]}}},
+      "options": {"colorMode": "background", "graphMode": "area", "reduceOptions": {"calcs": ["lastNotNull"]}},
+      "targets": [
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "sum(cluster_intel_pod_health_total{category=~\"crashloop|oomkilled|failed|evicted\"})", "legendFormat": "warning pods"}
+      ]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Pending Pods (current)",
+      "description": "Current count of pending pods from hetu's pod health scan.",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 4, "w": 8, "x": 8, "y": 0},
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "unit": "short", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 1}, {"color": "red", "value": 5}]}}},
+      "options": {"colorMode": "background", "graphMode": "area", "reduceOptions": {"calcs": ["lastNotNull"]}},
+      "targets": [
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "sum(cluster_intel_pod_health_total{category=\"pending\"})", "legendFormat": "pending"}
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Problem Pods (current)",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 4, "w": 8, "x": 16, "y": 0},
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "unit": "short", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 1}, {"color": "red", "value": 10}]}}},
+      "options": {"colorMode": "background", "graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"]}},
+      "targets": [
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "sum(cluster_intel_pod_health_total{category=~\"crashloop|oomkilled|failed|evicted|pending\"})", "legendFormat": "problem pods"}
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Event Rate by Type (optional · requires kube-events exporter)",
+      "description": "Secondary/optional panel. kube_event_count is produced by a Kubernetes events exporter that may not be installed; this panel is empty when that exporter is absent. The primary panels on this dashboard use hetu's own cluster_intel_pod_health_total data.",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 9, "w": 12, "x": 0, "y": 4},
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "unit": "short", "custom": {"drawStyle": "line", "fillOpacity": 15, "lineWidth": 2}}},
+      "options": {"legend": {"displayMode": "table", "placement": "bottom", "showLegend": true, "calcs": ["sum"]}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "sum by (type) (rate(kube_event_count[5m]))", "legendFormat": "{{type}}"}
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Pod Health Problems by Category (hetu)",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 9, "w": 12, "x": 12, "y": 4},
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "unit": "short", "custom": {"drawStyle": "bars", "fillOpacity": 60, "lineWidth": 1, "stacking": {"group": "A", "mode": "normal"}}}},
+      "options": {"legend": {"displayMode": "table", "placement": "right", "showLegend": true, "calcs": ["lastNotNull"]}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "sum by (category) (cluster_intel_pod_health_total{category=~\"crashloop|oomkilled|failed|evicted|pending\"})", "legendFormat": "{{category}}"}
+      ]
+    }
+  ]
+}

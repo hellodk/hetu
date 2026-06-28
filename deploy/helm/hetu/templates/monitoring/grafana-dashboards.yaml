@@ -5,8 +5,15 @@ provision ConfigMaps with `grafana_dashboard: "1"`.
 
 The JSON blobs are loaded from files bundled with the chart at
 dashboards/*.json. Each one is gated by its own toggle.
+
+Grafana folder placement is controlled by the `grafana_folder` annotation
+on the ConfigMap (honoured by the kube-prometheus-stack sidecar). By default
+all dashboards — the app dashboards and the four METL pillar overviews — land
+in a single "hetu" folder (both folder keys point at it in values.yaml).
 */}}
 {{- $ns := include "hetu.monitoringNamespace" . }}
+{{- $hetuFolder := .Values.monitoring.grafana.folders.hetu }}
+{{- $metlFolder := .Values.monitoring.grafana.folders.metl }}
 
 {{- if .Values.monitoring.grafana.dashboards.clusterIntel }}
 ---
@@ -18,9 +25,11 @@ metadata:
   labels:
     {{- include "hetu.labels" . | nindent 4 }}
     grafana_dashboard: "1"
+  annotations:
+    grafana_folder: {{ $hetuFolder | quote }}
 data:
-  hetu.json: |-
-    {{- .Files.Get "dashboards/hetu.json" | nindent 4 }}
+  cluster-intel.json: |-
+    {{- .Files.Get "dashboards/cluster-intel.json" | nindent 4 }}
 {{- end }}
 
 {{- if .Values.monitoring.grafana.dashboards.ollama }}
@@ -33,6 +42,8 @@ metadata:
   labels:
     {{- include "hetu.labels" . | nindent 4 }}
     grafana_dashboard: "1"
+  annotations:
+    grafana_folder: {{ $hetuFolder | quote }}
 data:
   ollama.json: |-
     {{- .Files.Get "dashboards/ollama.json" | nindent 4 }}
@@ -48,9 +59,79 @@ metadata:
   labels:
     {{- include "hetu.labels" . | nindent 4 }}
     grafana_dashboard: "1"
+  annotations:
+    grafana_folder: {{ $hetuFolder | quote }}
 data:
   llm-traces.json: |-
     {{- .Files.Get "dashboards/llm-traces.json" | nindent 4 }}
+{{- end }}
+
+{{- if .Values.monitoring.grafana.dashboards.metlMetrics }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-metl-metrics
+  namespace: {{ $ns }}
+  labels:
+    {{- include "hetu.labels" . | nindent 4 }}
+    grafana_dashboard: "1"
+  annotations:
+    grafana_folder: {{ $metlFolder | quote }}
+data:
+  metl-metrics-overview.json: |-
+    {{- .Files.Get "dashboards/metl/metl-metrics-overview.json" | nindent 4 }}
+{{- end }}
+
+{{- if .Values.monitoring.grafana.dashboards.metlLogs }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-metl-logs
+  namespace: {{ $ns }}
+  labels:
+    {{- include "hetu.labels" . | nindent 4 }}
+    grafana_dashboard: "1"
+  annotations:
+    grafana_folder: {{ $metlFolder | quote }}
+data:
+  metl-logs-overview.json: |-
+    {{- .Files.Get "dashboards/metl/metl-logs-overview.json" | nindent 4 }}
+{{- end }}
+
+{{- if .Values.monitoring.grafana.dashboards.metlTraces }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-metl-traces
+  namespace: {{ $ns }}
+  labels:
+    {{- include "hetu.labels" . | nindent 4 }}
+    grafana_dashboard: "1"
+  annotations:
+    grafana_folder: {{ $metlFolder | quote }}
+data:
+  metl-traces-overview.json: |-
+    {{- .Files.Get "dashboards/metl/metl-traces-overview.json" | nindent 4 }}
+{{- end }}
+
+{{- if .Values.monitoring.grafana.dashboards.metlEvents }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-metl-events
+  namespace: {{ $ns }}
+  labels:
+    {{- include "hetu.labels" . | nindent 4 }}
+    grafana_dashboard: "1"
+  annotations:
+    grafana_folder: {{ $metlFolder | quote }}
+data:
+  metl-events-overview.json: |-
+    {{- .Files.Get "dashboards/metl/metl-events-overview.json" | nindent 4 }}
 {{- end }}
 
 {{- end }}

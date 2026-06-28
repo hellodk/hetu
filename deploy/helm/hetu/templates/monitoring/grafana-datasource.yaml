@@ -1,12 +1,83 @@
-{{- if and .Values.monitoring.enabled .Values.monitoring.tempo.enabled }}
+{{- if .Values.monitoring.enabled }}
 {{/*
-Grafana Tempo datasource. Auto-provisioned by Grafana's sidecar when
+Grafana datasource ConfigMaps. Auto-provisioned by Grafana's sidecar when
 labeled `grafana_datasource: "1"`.
 
-Ported from manifests/monitoring/tempo/grafana-datasource.yaml; the
-prometheus/loki datasource UIDs are configurable.
+Three datasources are managed here, each behind its own toggle:
+  - Prometheus (uid: prometheus, marked isDefault) — metrics
+  - Loki       (uid: loki)                          — logs
+  - Tempo      (uid: tempo)                          — traces
+
+The cross-links (Tempo tracesToLogs → Loki, tracesToMetrics → Prometheus,
+Loki derivedFields trace_id → Tempo) wire the METL pillars together.
+
+Mirrors deploy/observability/grafana/datasources/*.yaml so the chart and
+the raw kubectl manifests stay in sync.
 */}}
 {{- $ns := include "hetu.monitoringNamespace" . }}
+{{- $promUid := .Values.monitoring.grafana.prometheusDatasourceUid }}
+{{- $lokiUid := .Values.monitoring.grafana.lokiDatasourceUid }}
+{{- $tempoUid := .Values.monitoring.grafana.tempoDatasourceUid }}
+
+{{- if .Values.monitoring.grafana.datasources.prometheus }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasource-prometheus
+  namespace: {{ $ns }}
+  labels:
+    {{- include "hetu.labels" . | nindent 4 }}
+    grafana_datasource: "1"
+    app: prometheus
+data:
+  prometheus-datasource.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        uid: {{ $promUid | quote }}
+        access: proxy
+        url: {{ .Values.monitoring.prometheus.url | quote }}
+        isDefault: true
+        editable: true
+        jsonData:
+          httpMethod: POST
+          timeInterval: 30s
+{{- end }}
+
+{{- if .Values.monitoring.grafana.datasources.loki }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasource-loki
+  namespace: {{ $ns }}
+  labels:
+    {{- include "hetu.labels" . | nindent 4 }}
+    grafana_datasource: "1"
+    app: loki
+data:
+  loki-datasource.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Loki
+        type: loki
+        uid: {{ $lokiUid | quote }}
+        access: proxy
+        url: {{ tpl .Values.monitoring.loki.url . | quote }}
+        isDefault: false
+        editable: true
+        jsonData:
+          maxLines: 1000
+          derivedFields:
+            - name: TraceID
+              matcherRegex: '"?trace_id"?[:=]"?(\w+)"?'
+              url: '$${__value.raw}'
+              datasourceUid: {{ $tempoUid | quote }}
+{{- end }}
+
+{{- if .Values.monitoring.tempo.enabled }}
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -23,34 +94,32 @@ data:
     datasources:
       - name: Tempo
         type: tempo
-        uid: {{ .Values.monitoring.grafana.tempoDatasourceUid | quote }}
+        uid: {{ $tempoUid | quote }}
         access: proxy
         url: http://tempo.{{ $ns }}.svc:3200
         jsonData:
           httpMethod: GET
           tracesToLogs:
-            datasourceUid: loki
+            datasourceUid: {{ $lokiUid | quote }}
             filterBySpanID: true
             filterByTraceID: true
             tags: [service.name]
           tracesToMetrics:
-            datasourceUid: {{ .Values.monitoring.grafana.prometheusDatasourceUid | quote }}
+            datasourceUid: {{ $promUid | quote }}
             spanStartTimeShift: '-1h'
             spanEndTimeShift: '1h'
-            tags:
-              - { key: service.name, value: service }
-              - { key: http.method,  value: method }
             queries:
               - name: 'Request rate'
-                query: 'sum(rate(llm_request_total{$$__tags}[5m]))'
+                query: 'sum(rate(cluster_intel_llm_request_total[5m]))'
               - name: 'Error rate'
-                query: 'sum(rate(llm_request_total{$$__tags,status="error"}[5m])) / sum(rate(llm_request_total{$$__tags}[5m]))'
+                query: 'sum(rate(cluster_intel_llm_request_total{status="error"}[5m])) / sum(rate(cluster_intel_llm_request_total[5m]))'
           serviceMap:
-            datasourceUid: {{ .Values.monitoring.grafana.prometheusDatasourceUid | quote }}
+            datasourceUid: {{ $promUid | quote }}
           search:
             hide: false
           nodeGraph:
             enabled: true
         isDefault: false
         editable: true
+{{- end }}
 {{- end }}

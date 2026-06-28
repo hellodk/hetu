@@ -1,0 +1,74 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "schemaVersion": 38,
+  "version": 1,
+  "uid": "metl-logs-overview",
+  "title": "METL · Logs Overview",
+  "tags": ["metl", "logs", "loki"],
+  "refresh": "30s",
+  "time": {"from": "now-1h", "to": "now"},
+  "templating": {"list": []},
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Total Log Rate (lines/s)",
+      "datasource": {"type": "loki", "uid": "loki"},
+      "gridPos": {"h": 4, "w": 8, "x": 0, "y": 0},
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "unit": "logs", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]}}},
+      "options": {"colorMode": "value", "graphMode": "area", "reduceOptions": {"calcs": ["lastNotNull"]}},
+      "targets": [
+        {"refId": "A", "datasource": {"type": "loki", "uid": "loki"}, "expr": "sum(rate({namespace=~\".+\"}[5m]))", "queryType": "range"}
+      ]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Error Log Rate (lines/s)",
+      "datasource": {"type": "loki", "uid": "loki"},
+      "gridPos": {"h": 4, "w": 8, "x": 8, "y": 0},
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "unit": "logs", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 1}, {"color": "red", "value": 10}]}}},
+      "options": {"colorMode": "background", "graphMode": "area", "reduceOptions": {"calcs": ["lastNotNull"]}},
+      "targets": [
+        {"refId": "A", "datasource": {"type": "loki", "uid": "loki"}, "expr": "sum(rate({namespace=~\".+\"} |~ \"(?i)(error|err|fatal|panic)\" [5m]))", "queryType": "range"}
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Active Namespaces (logging)",
+      "datasource": {"type": "loki", "uid": "loki"},
+      "gridPos": {"h": 4, "w": 8, "x": 16, "y": 0},
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "unit": "short", "thresholds": {"mode": "absolute", "steps": [{"color": "blue", "value": null}]}}},
+      "options": {"colorMode": "value", "graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"]}},
+      "targets": [
+        {"refId": "A", "datasource": {"type": "loki", "uid": "loki"}, "expr": "count(count by (namespace) (rate({namespace=~\".+\"}[5m])))", "queryType": "instant"}
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Log Volume by Namespace",
+      "datasource": {"type": "loki", "uid": "loki"},
+      "gridPos": {"h": 9, "w": 12, "x": 0, "y": 4},
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "unit": "logs", "custom": {"drawStyle": "bars", "fillOpacity": 60, "lineWidth": 1, "stacking": {"group": "A", "mode": "normal"}}}},
+      "options": {"legend": {"displayMode": "table", "placement": "right", "showLegend": true, "calcs": ["sum"]}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [
+        {"refId": "A", "datasource": {"type": "loki", "uid": "loki"}, "expr": "sum by (namespace) (rate({namespace=~\".+\"}[5m]))", "legendFormat": "{{namespace}}", "queryType": "range"}
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Error Log Rate by Namespace",
+      "datasource": {"type": "loki", "uid": "loki"},
+      "gridPos": {"h": 9, "w": 12, "x": 12, "y": 4},
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "unit": "logs", "custom": {"drawStyle": "line", "fillOpacity": 10, "lineWidth": 2}}},
+      "options": {"legend": {"displayMode": "table", "placement": "bottom", "showLegend": true, "calcs": ["sum"]}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [
+        {"refId": "A", "datasource": {"type": "loki", "uid": "loki"}, "expr": "sum by (namespace) (rate({namespace=~\".+\"} |~ \"(?i)(error|err|fatal|panic)\" [5m]))", "legendFormat": "{{namespace}}", "queryType": "range"}
+      ]
+    }
+  ]
+}

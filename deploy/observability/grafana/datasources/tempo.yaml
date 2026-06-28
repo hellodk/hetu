@@ -1,0 +1,46 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasource-tempo
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/part-of: hetu
+    app.kubernetes.io/managed-by: kubectl
+    app: tempo
+    # Picked up by the kube-prometheus-stack Grafana sidecar.
+    grafana_datasource: "1"
+data:
+  tempo-datasource.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Tempo
+        type: tempo
+        uid: tempo
+        access: proxy
+        url: http://tempo.monitoring.svc:3200
+        isDefault: false
+        editable: true
+        jsonData:
+          httpMethod: GET
+          # Jump from a span to its logs in Loki.
+          tracesToLogs:
+            datasourceUid: loki
+            filterBySpanID: true
+            filterByTraceID: true
+            tags: [service.name]
+          # Jump from a span to request/error-rate metrics in Prometheus.
+          tracesToMetrics:
+            datasourceUid: prometheus
+            spanStartTimeShift: '-1h'
+            spanEndTimeShift: '1h'
+            queries:
+              - name: 'Request rate'
+                query: 'sum(rate(cluster_intel_llm_request_total[5m]))'
+              - name: 'Error rate'
+                query: 'sum(rate(cluster_intel_llm_request_total{status="error"}[5m])) / sum(rate(cluster_intel_llm_request_total[5m]))'
+          serviceMap:
+            datasourceUid: prometheus
+          search:
+            hide: false
+          nodeGraph:
+            enabled: true

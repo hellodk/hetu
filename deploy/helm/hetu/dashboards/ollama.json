@@ -24,8 +24,41 @@
       "gridPos": {"h": 1, "w": 24, "x": 0, "y": 0},
       "id": 100,
       "panels": [],
-      "title": "Ollama Overview",
+      "title": "Ollama Provider Overview (hetu client view)",
       "type": "row"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "mappings": [],
+          "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 1},
+      "id": 1,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "textMode": "auto"
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "expr": "sum(rate(cluster_intel_llm_request_total{provider=\"ollama\"}[5m]))",
+          "legendFormat": "req/s",
+          "refId": "A"
+        }
+      ],
+      "title": "Request Rate",
+      "type": "stat"
     },
     {
       "datasource": {"type": "prometheus", "uid": "${datasource}"},
@@ -37,50 +70,18 @@
             "mode": "absolute",
             "steps": [
               {"color": "red", "value": null},
-              {"color": "green", "value": 1}
+              {"color": "yellow", "value": 0.9},
+              {"color": "green", "value": 0.95}
             ]
           },
-          "unit": "short"
+          "unit": "percentunit"
         },
         "overrides": []
       },
-      "gridPos": {"h": 4, "w": 4, "x": 0, "y": 1},
-      "id": 1,
-      "options": {
-        "colorMode": "background",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
-        "textMode": "auto"
-      },
-      "pluginVersion": "10.0.0",
-      "targets": [
-        {
-          "datasource": {"type": "prometheus", "uid": "${datasource}"},
-          "expr": "up{job=\"ollama\"}",
-          "legendFormat": "Status",
-          "refId": "A"
-        }
-      ],
-      "title": "Ollama Status",
-      "type": "stat"
-    },
-    {
-      "datasource": {"type": "prometheus", "uid": "${datasource}"},
-      "fieldConfig": {
-        "defaults": {
-          "color": {"mode": "palette-classic"},
-          "mappings": [],
-          "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": {"h": 4, "w": 4, "x": 4, "y": 1},
+      "gridPos": {"h": 4, "w": 6, "x": 6, "y": 1},
       "id": 2,
       "options": {
-        "colorMode": "value",
+        "colorMode": "background",
         "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "auto",
@@ -90,44 +91,12 @@
       "targets": [
         {
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
-          "expr": "ollama_models_loaded",
-          "legendFormat": "Models",
+          "expr": "sum(rate(cluster_intel_llm_request_total{provider=\"ollama\",status=\"success\"}[5m])) / sum(rate(cluster_intel_llm_request_total{provider=\"ollama\"}[5m]))",
+          "legendFormat": "Success Rate",
           "refId": "A"
         }
       ],
-      "title": "Models Loaded",
-      "type": "stat"
-    },
-    {
-      "datasource": {"type": "prometheus", "uid": "${datasource}"},
-      "fieldConfig": {
-        "defaults": {
-          "color": {"mode": "palette-classic"},
-          "mappings": [],
-          "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": {"h": 4, "w": 4, "x": 8, "y": 1},
-      "id": 3,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
-        "textMode": "auto"
-      },
-      "targets": [
-        {
-          "datasource": {"type": "prometheus", "uid": "${datasource}"},
-          "expr": "ollama_running_requests",
-          "legendFormat": "Running",
-          "refId": "A"
-        }
-      ],
-      "title": "Active Requests",
+      "title": "Success Rate",
       "type": "stat"
     },
     {
@@ -140,15 +109,47 @@
             "mode": "absolute",
             "steps": [
               {"color": "green", "value": null},
-              {"color": "yellow", "value": 5},
-              {"color": "red", "value": 10}
+              {"color": "orange", "value": 0.05},
+              {"color": "red", "value": 0.1}
             ]
           },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 4, "w": 6, "x": 12, "y": 1},
+      "id": 3,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "expr": "sum(rate(cluster_intel_llm_request_total{provider=\"ollama\",status=\"error\"}[5m])) / sum(rate(cluster_intel_llm_request_total{provider=\"ollama\"}[5m]))",
+          "legendFormat": "Error Rate",
+          "refId": "A"
+        }
+      ],
+      "title": "Error Rate",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "mappings": [],
+          "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
           "unit": "short"
         },
         "overrides": []
       },
-      "gridPos": {"h": 4, "w": 4, "x": 12, "y": 1},
+      "gridPos": {"h": 4, "w": 6, "x": 18, "y": 1},
       "id": 4,
       "options": {
         "colorMode": "value",
@@ -161,84 +162,13 @@
       "targets": [
         {
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
-          "expr": "ollama_queued_requests",
-          "legendFormat": "Queued",
+          "expr": "sum(cluster_intel_llm_request_in_flight)",
+          "legendFormat": "In Flight",
           "refId": "A"
         }
       ],
-      "title": "Queued Requests",
+      "title": "Requests In Flight",
       "type": "stat"
-    },
-    {
-      "datasource": {"type": "prometheus", "uid": "${datasource}"},
-      "fieldConfig": {
-        "defaults": {
-          "color": {"mode": "palette-classic"},
-          "mappings": [],
-          "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
-          "unit": "bytes"
-        },
-        "overrides": []
-      },
-      "gridPos": {"h": 4, "w": 4, "x": 16, "y": 1},
-      "id": 5,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
-        "textMode": "auto"
-      },
-      "targets": [
-        {
-          "datasource": {"type": "prometheus", "uid": "${datasource}"},
-          "expr": "ollama_gpu_memory_used_bytes",
-          "legendFormat": "VRAM Used",
-          "refId": "A"
-        }
-      ],
-      "title": "GPU Memory Used",
-      "type": "stat"
-    },
-    {
-      "datasource": {"type": "prometheus", "uid": "${datasource}"},
-      "fieldConfig": {
-        "defaults": {
-          "color": {"mode": "thresholds"},
-          "mappings": [],
-          "max": 100,
-          "min": 0,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {"color": "green", "value": null},
-              {"color": "yellow", "value": 70},
-              {"color": "red", "value": 90}
-            ]
-          },
-          "unit": "percent"
-        },
-        "overrides": []
-      },
-      "gridPos": {"h": 4, "w": 4, "x": 20, "y": 1},
-      "id": 6,
-      "options": {
-        "orientation": "auto",
-        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
-        "showThresholdLabels": false,
-        "showThresholdMarkers": true
-      },
-      "targets": [
-        {
-          "datasource": {"type": "prometheus", "uid": "${datasource}"},
-          "expr": "(ollama_gpu_memory_used_bytes / ollama_gpu_memory_total_bytes) * 100",
-          "legendFormat": "VRAM %",
-          "refId": "A"
-        }
-      ],
-      "title": "VRAM Utilization",
-      "type": "gauge"
     },
     {
       "collapsed": false,
@@ -287,7 +217,7 @@
       "targets": [
         {
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
-          "expr": "rate(ollama_requests_total[5m])",
+          "expr": "sum by (model, status) (rate(cluster_intel_llm_request_total{provider=\"ollama\"}[5m]))",
           "legendFormat": "{{model}} - {{status}}",
           "refId": "A"
         }
@@ -334,19 +264,19 @@
       "targets": [
         {
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
-          "expr": "histogram_quantile(0.50, rate(ollama_request_duration_seconds_bucket[5m]))",
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(cluster_intel_llm_request_duration_seconds_bucket{provider=\"ollama\"}[5m])))",
           "legendFormat": "P50",
           "refId": "A"
         },
         {
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
-          "expr": "histogram_quantile(0.95, rate(ollama_request_duration_seconds_bucket[5m]))",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(cluster_intel_llm_request_duration_seconds_bucket{provider=\"ollama\"}[5m])))",
           "legendFormat": "P95",
           "refId": "B"
         },
         {
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
-          "expr": "histogram_quantile(0.99, rate(ollama_request_duration_seconds_bucket[5m]))",
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(cluster_intel_llm_request_duration_seconds_bucket{provider=\"ollama\"}[5m])))",
           "legendFormat": "P99",
           "refId": "C"
         }
@@ -359,55 +289,8 @@
       "gridPos": {"h": 1, "w": 24, "x": 0, "y": 14},
       "id": 102,
       "panels": [],
-      "title": "Token Generation",
+      "title": "Token Throughput",
       "type": "row"
-    },
-    {
-      "datasource": {"type": "prometheus", "uid": "${datasource}"},
-      "fieldConfig": {
-        "defaults": {
-          "color": {"mode": "palette-classic"},
-          "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {"legend": false, "tooltip": false, "viz": false},
-            "lineInterpolation": "smooth",
-            "lineWidth": 2,
-            "pointSize": 5,
-            "scaleDistribution": {"type": "linear"},
-            "showPoints": "never",
-            "spanNulls": false,
-            "stacking": {"group": "A", "mode": "none"},
-            "thresholdsStyle": {"mode": "off"}
-          },
-          "mappings": [],
-          "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 15},
-      "id": 20,
-      "options": {
-        "legend": {"calcs": ["sum"], "displayMode": "table", "placement": "bottom", "showLegend": true},
-        "tooltip": {"mode": "multi", "sort": "desc"}
-      },
-      "targets": [
-        {
-          "datasource": {"type": "prometheus", "uid": "${datasource}"},
-          "expr": "rate(ollama_tokens_generated_total[5m])",
-          "legendFormat": "{{model}}",
-          "refId": "A"
-        }
-      ],
-      "title": "Token Generation Rate",
-      "type": "timeseries"
     },
     {
       "datasource": {"type": "prometheus", "uid": "${datasource}"},
@@ -439,8 +322,8 @@
         },
         "overrides": []
       },
-      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 15},
-      "id": 21,
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 15},
+      "id": 20,
       "options": {
         "legend": {"calcs": ["mean"], "displayMode": "table", "placement": "bottom", "showLegend": true},
         "tooltip": {"mode": "multi", "sort": "desc"}
@@ -448,13 +331,13 @@
       "targets": [
         {
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
-          "expr": "histogram_quantile(0.50, rate(ollama_time_to_first_token_seconds_bucket[5m]))",
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(cluster_intel_llm_time_to_first_token_seconds_bucket{provider=\"ollama\"}[5m])))",
           "legendFormat": "P50 TTFT",
           "refId": "A"
         },
         {
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
-          "expr": "histogram_quantile(0.95, rate(ollama_time_to_first_token_seconds_bucket[5m]))",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(cluster_intel_llm_time_to_first_token_seconds_bucket{provider=\"ollama\"}[5m])))",
           "legendFormat": "P95 TTFT",
           "refId": "B"
         }
@@ -492,8 +375,8 @@
         },
         "overrides": []
       },
-      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 15},
-      "id": 22,
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 15},
+      "id": 21,
       "options": {
         "legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true},
         "tooltip": {"mode": "multi", "sort": "desc"}
@@ -501,7 +384,7 @@
       "targets": [
         {
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
-          "expr": "rate(ollama_tokens_generated_total[1m]) / (rate(ollama_request_duration_seconds_sum[1m]) > 0)",
+          "expr": "cluster_intel_llm_tokens_per_second{provider=\"ollama\"}",
           "legendFormat": "{{model}} tokens/sec",
           "refId": "A"
         }
@@ -510,14 +393,6 @@
       "type": "timeseries"
     },
     {
-      "collapsed": false,
-      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 23},
-      "id": 103,
-      "panels": [],
-      "title": "Application LLM Metrics",
-      "type": "row"
-    },
-    {
       "datasource": {"type": "prometheus", "uid": "${datasource}"},
       "fieldConfig": {
         "defaults": {
@@ -539,106 +414,6 @@
             "showPoints": "never",
             "spanNulls": false,
             "stacking": {"group": "A", "mode": "none"},
-            "thresholdsStyle": {"mode": "off"}
-          },
-          "mappings": [],
-          "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
-          "unit": "reqps"
-        },
-        "overrides": []
-      },
-      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24},
-      "id": 30,
-      "options": {
-        "legend": {"calcs": ["mean", "sum"], "displayMode": "table", "placement": "bottom", "showLegend": true},
-        "tooltip": {"mode": "multi", "sort": "desc"}
-      },
-      "targets": [
-        {
-          "datasource": {"type": "prometheus", "uid": "${datasource}"},
-          "expr": "rate(llm_request_total{job=\"cluster-intel\"}[5m])",
-          "legendFormat": "{{model}} - {{task}} - {{status}}",
-          "refId": "A"
-        }
-      ],
-      "title": "LLM Requests by Task Type",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {"type": "prometheus", "uid": "${datasource}"},
-      "fieldConfig": {
-        "defaults": {
-          "color": {"mode": "palette-classic"},
-          "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {"legend": false, "tooltip": false, "viz": false},
-            "lineInterpolation": "smooth",
-            "lineWidth": 2,
-            "pointSize": 5,
-            "scaleDistribution": {"type": "linear"},
-            "showPoints": "never",
-            "spanNulls": false,
-            "stacking": {"group": "A", "mode": "none"},
-            "thresholdsStyle": {"mode": "off"}
-          },
-          "mappings": [],
-          "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
-          "unit": "s"
-        },
-        "overrides": []
-      },
-      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24},
-      "id": 31,
-      "options": {
-        "legend": {"calcs": ["mean", "p95"], "displayMode": "table", "placement": "bottom", "showLegend": true},
-        "tooltip": {"mode": "multi", "sort": "desc"}
-      },
-      "targets": [
-        {
-          "datasource": {"type": "prometheus", "uid": "${datasource}"},
-          "expr": "histogram_quantile(0.50, rate(llm_request_duration_seconds_bucket{job=\"cluster-intel\"}[5m]))",
-          "legendFormat": "P50 - {{task}}",
-          "refId": "A"
-        },
-        {
-          "datasource": {"type": "prometheus", "uid": "${datasource}"},
-          "expr": "histogram_quantile(0.95, rate(llm_request_duration_seconds_bucket{job=\"cluster-intel\"}[5m]))",
-          "legendFormat": "P95 - {{task}}",
-          "refId": "B"
-        }
-      ],
-      "title": "LLM Request Duration by Task",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {"type": "prometheus", "uid": "${datasource}"},
-      "fieldConfig": {
-        "defaults": {
-          "color": {"mode": "palette-classic"},
-          "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "bars",
-            "fillOpacity": 80,
-            "gradientMode": "none",
-            "hideFrom": {"legend": false, "tooltip": false, "viz": false},
-            "lineInterpolation": "smooth",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {"type": "linear"},
-            "showPoints": "never",
-            "spanNulls": false,
-            "stacking": {"group": "A", "mode": "normal"},
             "thresholdsStyle": {"mode": "off"}
           },
           "mappings": [],
@@ -647,8 +422,101 @@
         },
         "overrides": []
       },
-      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 32},
-      "id": 32,
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 15},
+      "id": 22,
+      "options": {
+        "legend": {"calcs": ["mean", "sum"], "displayMode": "table", "placement": "bottom", "showLegend": true},
+        "tooltip": {"mode": "multi", "sort": "desc"}
+      },
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "expr": "sum by (model) (rate(cluster_intel_llm_tokens_input_total{provider=\"ollama\"}[5m]))",
+          "legendFormat": "Input - {{model}}",
+          "refId": "A"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "expr": "sum by (model) (rate(cluster_intel_llm_tokens_output_total{provider=\"ollama\"}[5m]))",
+          "legendFormat": "Output - {{model}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Token Throughput (tokens/sec)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 23},
+      "id": 103,
+      "panels": [],
+      "title": "Error Analysis",
+      "type": "row"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "custom": {
+            "hideFrom": {"legend": false, "tooltip": false, "viz": false}
+          },
+          "mappings": [],
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24},
+      "id": 30,
+      "options": {
+        "legend": {"displayMode": "table", "placement": "right", "showLegend": true},
+        "pieType": "pie",
+        "reduceOptions": {"calcs": ["sum"], "fields": "", "values": false},
+        "tooltip": {"mode": "single", "sort": "none"}
+      },
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "expr": "sum by (error_type) (increase(cluster_intel_llm_errors_total{provider=\"ollama\"}[24h]))",
+          "legendFormat": "{{error_type}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Errors by Type (24h)",
+      "type": "piechart"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${datasource}"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {"legend": false, "tooltip": false, "viz": false},
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {"type": "linear"},
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {"group": "A", "mode": "none"},
+            "thresholdsStyle": {"mode": "off"}
+          },
+          "mappings": [],
+          "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24},
+      "id": 31,
       "options": {
         "legend": {"calcs": ["sum"], "displayMode": "table", "placement": "bottom", "showLegend": true},
         "tooltip": {"mode": "multi", "sort": "desc"}
@@ -656,58 +524,13 @@
       "targets": [
         {
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
-          "expr": "increase(llm_tokens_input_total{job=\"cluster-intel\"}[1h])",
-          "legendFormat": "Input - {{model}}",
+          "expr": "sum by (error_type) (rate(cluster_intel_llm_errors_total{provider=\"ollama\"}[5m]))",
+          "legendFormat": "{{error_type}}",
           "refId": "A"
-        },
-        {
-          "datasource": {"type": "prometheus", "uid": "${datasource}"},
-          "expr": "increase(llm_tokens_output_total{job=\"cluster-intel\"}[1h])",
-          "legendFormat": "Output - {{model}}",
-          "refId": "B"
         }
       ],
-      "title": "Token Usage (Hourly)",
+      "title": "Error Rate by Type",
       "type": "timeseries"
-    },
-    {
-      "datasource": {"type": "prometheus", "uid": "${datasource}"},
-      "fieldConfig": {
-        "defaults": {
-          "color": {"mode": "thresholds"},
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {"color": "green", "value": null},
-              {"color": "yellow", "value": 0.9},
-              {"color": "red", "value": 0.95}
-            ]
-          },
-          "unit": "percentunit"
-        },
-        "overrides": []
-      },
-      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 32},
-      "id": 33,
-      "options": {
-        "displayMode": "lcd",
-        "minVizHeight": 10,
-        "minVizWidth": 0,
-        "orientation": "horizontal",
-        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
-        "showUnfilled": true
-      },
-      "targets": [
-        {
-          "datasource": {"type": "prometheus", "uid": "${datasource}"},
-          "expr": "sum(rate(llm_request_total{job=\"cluster-intel\",status=\"success\"}[5m])) / sum(rate(llm_request_total{job=\"cluster-intel\"}[5m]))",
-          "legendFormat": "Success Rate",
-          "refId": "A"
-        }
-      ],
-      "title": "LLM Success Rate",
-      "type": "bargauge"
     }
   ],
   "refresh": "30s",
@@ -736,8 +559,9 @@
   "time": {"from": "now-1h", "to": "now"},
   "timepicker": {},
   "timezone": "",
-  "title": "Ollama LLM Monitoring",
+  "title": "LLM Client — Ollama Provider (hetu)",
   "uid": "ollama-monitoring",
+  "description": "Hetu's client-side view of LLM requests routed to the Ollama provider. All series come from hetu's own cluster_intel_llm_* metrics filtered to provider=\"ollama\"; hetu does not scrape the Ollama server, so no GPU/VRAM/model-resident panels are available.",
   "version": 1,
   "weekStart": ""
 }

@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasource-loki
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/part-of: hetu
+    app.kubernetes.io/managed-by: kubectl
+    app: loki
+    # Picked up by the kube-prometheus-stack Grafana sidecar.
+    grafana_datasource: "1"
+data:
+  loki-datasource.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Loki
+        type: loki
+        uid: loki
+        access: proxy
+        url: http://loki.monitoring.svc:3100
+        isDefault: false
+        editable: true
+        jsonData:
+          maxLines: 1000
+          # Link a log line's trace_id field straight into Tempo.
+          derivedFields:
+            - name: TraceID
+              matcherRegex: '"?trace_id"?[:=]"?(\w+)"?'
+              url: '${__value.raw}'
+              datasourceUid: tempo

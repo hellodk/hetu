@@ -1,8 +1,15 @@
 {{- if and .Values.monitoring.enabled .Values.monitoring.alerts.enabled }}
 {{/*
-PrometheusRule — Ollama + LLM application alerts. Ported verbatim from
-manifests/monitoring/alerts/ollama-alerts.yaml. Operators can append extra
-rules via monitoring.alerts.extraRules (rendered as an additional group).
+PrometheusRule — hetu LLM client alerts.
+
+All rules are based on hetu's OWN client-side metrics (cluster_intel_llm_*),
+NOT on scraping an Ollama/vLLM server. hetu never scrapes the model server, so
+there are no `ollama_*` series, no `up{job="ollama"}`, and no GPU/VRAM/queue
+server gauges to alert on. Provider-specific rules filter on the `provider`
+label (e.g. provider="ollama").
+
+Operators can append extra rules via monitoring.alerts.extraRules (rendered as
+an additional group).
 */}}
 {{- $ns := include "hetu.monitoringNamespace" . }}
 ---
@@ -17,89 +24,61 @@ metadata:
     prometheus: kube-prometheus
 spec:
   groups:
-    - name: ollama.rules
+    - name: llm-provider-ollama.rules
       rules:
-        - alert: OllamaDown
-          expr: up{job="ollama"} == 0
+        - alert: OllamaProviderUnreachable
+          expr: sum(rate(cluster_intel_llm_errors_total{provider="ollama",error_type="connection_refused"}[5m])) > 0
           for: 2m
           labels: { severity: critical, team: platform }
           annotations:
-            summary: "Ollama service is down"
-            description: "Ollama at {{ `{{ $labels.instance }}` }} has been down for more than 2 minutes."
+            summary: "Ollama provider appears unreachable"
+            description: "hetu is seeing connection_refused errors when calling the Ollama provider for more than 2 minutes. The Ollama endpoint may be down or misconfigured."
         - alert: OllamaHighLatency
-          expr: histogram_quantile(0.95, rate(ollama_request_duration_seconds_bucket[5m])) > 30
+          expr: histogram_quantile(0.95, sum by (le) (rate(cluster_intel_llm_request_duration_seconds_bucket{provider="ollama"}[5m]))) > 30
           for: 5m
           labels: { severity: warning, team: platform }
           annotations:
             summary: "Ollama request latency is high"
-            description: "Ollama P95 latency is {{ `{{ $value | humanizeDuration }}` }} (threshold: 30s)"
+            description: "hetu's P95 LLM latency for the Ollama provider is {{ `{{ $value | humanizeDuration }}` }} (threshold: 30s)"
         - alert: OllamaCriticalLatency
-          expr: histogram_quantile(0.95, rate(ollama_request_duration_seconds_bucket[5m])) > 60
+          expr: histogram_quantile(0.95, sum by (le) (rate(cluster_intel_llm_request_duration_seconds_bucket{provider="ollama"}[5m]))) > 60
           for: 5m
           labels: { severity: critical, team: platform }
           annotations:
             summary: "Ollama request latency is critically high"
-            description: "Ollama P95 latency is {{ `{{ $value | humanizeDuration }}` }} (threshold: 60s). Users are experiencing severe delays."
-        - alert: OllamaQueueBacklog
-          expr: ollama_queued_requests > 10
-          for: 5m
-          labels: { severity: warning, team: platform }
-          annotations:
-            summary: "Ollama request queue is backing up"
-            description: "Ollama has {{ `{{ $value }}` }} queued requests."
-        - alert: OllamaVRAMWarning
-          expr: (ollama_gpu_memory_used_bytes / ollama_gpu_memory_total_bytes) * 100 > 80
-          for: 5m
-          labels: { severity: warning, team: platform }
-          annotations:
-            summary: "Ollama VRAM usage is high"
-            description: "Ollama GPU memory usage is {{ `{{ $value | printf \"%.1f\" }}` }}%."
-        - alert: OllamaVRAMCritical
-          expr: (ollama_gpu_memory_used_bytes / ollama_gpu_memory_total_bytes) * 100 > 95
-          for: 2m
-          labels: { severity: critical, team: platform }
-          annotations:
-            summary: "Ollama VRAM is nearly exhausted"
-            description: "Ollama GPU memory usage is {{ `{{ $value | printf \"%.1f\" }}` }}%. OOM imminent."
-        - alert: OllamaNoModelsLoaded
-          expr: ollama_models_loaded == 0
-          for: 5m
-          labels: { severity: warning, team: platform }
-          annotations:
-            summary: "No Ollama models are loaded"
-            description: "Ollama has no models loaded. First request will have high latency."
+            description: "hetu's P95 LLM latency for the Ollama provider is {{ `{{ $value | humanizeDuration }}` }} (threshold: 60s). Users are experiencing severe delays."
         - alert: OllamaHighErrorRate
           expr: |
             (
-              sum(rate(ollama_requests_total{status="error"}[5m]))
+              sum(rate(cluster_intel_llm_request_total{provider="ollama",status="error"}[5m]))
               /
-              sum(rate(ollama_requests_total[5m]))
+              sum(rate(cluster_intel_llm_request_total{provider="ollama"}[5m]))
             ) > 0.05
           for: 5m
           labels: { severity: warning, team: platform }
           annotations:
             summary: "Ollama error rate is high"
-            description: "Ollama error rate is {{ `{{ $value | humanizePercentage }}` }}."
+            description: "hetu's LLM error rate for the Ollama provider is {{ `{{ $value | humanizePercentage }}` }}."
         - alert: OllamaErrorRateCritical
           expr: |
             (
-              sum(rate(ollama_requests_total{status="error"}[5m]))
+              sum(rate(cluster_intel_llm_request_total{provider="ollama",status="error"}[5m]))
               /
-              sum(rate(ollama_requests_total[5m]))
+              sum(rate(cluster_intel_llm_request_total{provider="ollama"}[5m]))
             ) > 0.20
           for: 3m
           labels: { severity: critical, team: platform }
           annotations:
             summary: "Ollama error rate is critically high"
-            description: "Ollama error rate is {{ `{{ $value | humanizePercentage }}` }}. Service is degraded."
+            description: "hetu's LLM error rate for the Ollama provider is {{ `{{ $value | humanizePercentage }}` }}. Service is degraded."
     - name: llm-application.rules
       rules:
         - alert: LLMRequestFailureRate
           expr: |
             (
-              sum(rate(llm_request_total{status="error"}[5m]))
+              sum(rate(cluster_intel_llm_request_total{status="error"}[5m]))
               /
-              sum(rate(llm_request_total[5m]))
+              sum(rate(cluster_intel_llm_request_total[5m]))
             ) > 0.10
           for: 5m
           labels: { severity: warning, team: platform }
@@ -107,24 +86,31 @@ spec:
             summary: "LLM request failure rate is high"
             description: "Application LLM failure rate is {{ `{{ $value | humanizePercentage }}` }}."
         - alert: LLMSlowResponses
-          expr: histogram_quantile(0.95, rate(llm_request_duration_seconds_bucket[5m])) > 45
+          expr: histogram_quantile(0.95, sum by (le) (rate(cluster_intel_llm_request_duration_seconds_bucket[5m]))) > 45
           for: 10m
           labels: { severity: warning, team: platform }
           annotations:
             summary: "LLM responses are slow"
             description: "LLM P95 response time is {{ `{{ $value | humanizeDuration }}` }}."
+        - alert: LLMErrorSpike
+          expr: sum(rate(cluster_intel_llm_errors_total[5m])) > 1
+          for: 5m
+          labels: { severity: warning, team: platform }
+          annotations:
+            summary: "LLM error spike detected"
+            description: "hetu is emitting {{ `{{ $value | printf \"%.2f\" }}` }} LLM errors/sec across all providers."
         - alert: LLMTokenUsageSpike
           expr: |
             (
-              sum(rate(llm_tokens_input_total[5m])) + sum(rate(llm_tokens_output_total[5m]))
+              sum(rate(cluster_intel_llm_tokens_input_total[5m])) + sum(rate(cluster_intel_llm_tokens_output_total[5m]))
             ) > 10000
           for: 10m
           labels: { severity: info, team: platform }
           annotations:
             summary: "High LLM token usage detected"
-            description: "Token usage rate is {{ `{{ $value | printf \"%.0f\" }}` }} tokens/5min."
+            description: "Token usage rate is {{ `{{ $value | printf \"%.0f\" }}` }} tokens/sec."
         - alert: LLMNoRequests
-          expr: sum(rate(llm_request_total[15m])) == 0
+          expr: sum(rate(cluster_intel_llm_request_total[15m])) == 0
           for: 30m
           labels: { severity: warning, team: platform }
           annotations:

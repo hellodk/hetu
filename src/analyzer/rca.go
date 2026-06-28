@@ -14,6 +14,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog/log"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -71,10 +72,14 @@ type Evidence struct {
 
 // RCAEngine orchestrates LLM-powered root cause analysis.
 type RCAEngine struct {
-	mu          sync.RWMutex
-	reports     map[int64]*RCAReport // incidentID -> latest report
-	nextID      int64
-	llmClient   *llmclient.Client
+	mu        sync.RWMutex
+	reports   map[int64]*RCAReport // incidentID -> latest report
+	nextID    int64
+	llmClient *llmclient.Client
+	// metrics is created once (registered on the analyzer's served registry) and
+	// reused when the client is rebuilt after an endpoint reconnect, so the
+	// cluster_intel_llm_* series stay stable and we never double-register.
+	metrics     *llmclient.Metrics
 	llmConfig   config.LLMConfig
 	correlator  *Correlator
 	tokensUsed  atomic.Int64
@@ -138,8 +143,10 @@ func (e *RCAEngine) SetVectorStore(vs *VectorStore) {
 	e.vectorStore = vs
 }
 
-// NewRCAEngine creates an RCA engine with the given LLM client.
-func NewRCAEngine(llmCfg config.LLMConfig, correlator *Correlator) *RCAEngine {
+// NewRCAEngine creates an RCA engine with the given LLM client. reg is the
+// analyzer's served Prometheus registry; the cluster_intel_llm_* metrics are
+// registered on it once here and reused on reconnect.
+func NewRCAEngine(llmCfg config.LLMConfig, correlator *Correlator, reg prometheus.Registerer) *RCAEngine {
 	engine := &RCAEngine{
 		reports:      make(map[int64]*RCAReport),
 		fingerprints: make(map[int64]*rcaFingerprint),
@@ -147,12 +154,15 @@ func NewRCAEngine(llmCfg config.LLMConfig, correlator *Correlator) *RCAEngine {
 		llmConfig:    llmCfg,
 		correlator:   correlator,
 		dailyBudget:  int64(llmCfg.DailyTokenBudget),
+		// Register the LLM metrics once, on the served registry, so they are
+		// actually scraped (previously promauto sent them to the default
+		// registry, which /metrics never serves).
+		metrics: llmclient.NewMetrics(reg, "cluster_intel"),
 	}
 
 	// Only create client if we have a provider configured
 	if llmCfg.Provider != "" && llmCfg.Endpoint != "" {
-		metrics := llmclient.NewMetrics("cluster_intel")
-		engine.llmClient = llmclient.NewClient(llmCfg, metrics)
+		engine.llmClient = llmclient.NewClient(llmCfg, engine.metrics)
 	}
 
 	return engine
