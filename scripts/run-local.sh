@@ -60,6 +60,7 @@ mkdir -p "$LOG_DIR"
 ANALYZER_PIDFILE="$LOG_DIR/analyzer.pid"
 DASHBOARD_PIDFILE="$LOG_DIR/dashboard.pid"
 COLLECTOR_PIDFILE="$LOG_DIR/collector.pid"
+CHATBOT_PIDFILE="$LOG_DIR/chatbot.pid"
 
 # ── Prompt helpers (avk pattern) ─────────────────────────────────────────────
 # All prompts read from /dev/tty so a piped invocation doesn't accidentally
@@ -387,6 +388,7 @@ apply_defaults() {
   COLLECTOR_PORT="${COLLECTOR_PORT:-18080}"
   COLLECTOR_METRICS_PORT="${COLLECTOR_METRICS_PORT:-19090}"
   DASHBOARD_PORT="${DASHBOARD_PORT:-3003}"
+  CHATBOT_PORT="${CHATBOT_PORT:-8000}"
   # Sensible default: the local collector on its known port. Operators
   # who run the collector elsewhere (in-cluster service, remote host) can
   # override via env file or CLI.
@@ -443,7 +445,7 @@ collect_runtime_config() {
 collect_ports() {
   header "Ports"
 
-  for var in ANALYZER_PORT METRICS_PORT DASHBOARD_PORT COLLECTOR_PORT COLLECTOR_METRICS_PORT; do
+  for var in ANALYZER_PORT METRICS_PORT DASHBOARD_PORT COLLECTOR_PORT COLLECTOR_METRICS_PORT CHATBOT_PORT; do
     while true; do
       _prompt_input "$var" "${!var}"
       printf -v "$var" '%s' "$PROMPT_RESULT"
@@ -457,7 +459,7 @@ collect_ports() {
 
 validate_ports_free() {
   local var
-  for var in ANALYZER_PORT METRICS_PORT DASHBOARD_PORT COLLECTOR_PORT COLLECTOR_METRICS_PORT; do
+  for var in ANALYZER_PORT METRICS_PORT DASHBOARD_PORT COLLECTOR_PORT COLLECTOR_METRICS_PORT CHATBOT_PORT; do
     validate_port_free "$var" "${!var}" || fatal "port collision — change $var or stop the listener"
   done
 }
@@ -839,6 +841,30 @@ stop_pidfile() {
   fi
 }
 
+start_chatbot() {
+  if [[ -f "$CHATBOT_PIDFILE" ]] && kill -0 "$(cat "$CHATBOT_PIDFILE")" 2>/dev/null; then
+    fatal "Chatbot already running (PID $(cat "$CHATBOT_PIDFILE"))."
+  fi
+  info "Starting chatbot on $BIND_ADDRESS:$CHATBOT_PORT..."
+
+  (
+    cd "$REPO_ROOT/src/chatbot"
+    export PYTHONUNBUFFERED=1
+    export LLM_ENDPOINT="${LLM_ENDPOINT}"
+    export QDRANT_URL="http://localhost:6333"
+    exec python -m uvicorn main:app --host "$BIND_ADDRESS" --port "$CHATBOT_PORT"
+  ) > "$LOG_DIR/chatbot.log" 2>&1 &
+  local pid=$!
+  echo "$pid" > "$CHATBOT_PIDFILE"
+
+  if ! wait_for_http "http://localhost:$CHATBOT_PORT/health" "chatbot" 30; then
+    error "Chatbot failed to become reachable. Last log lines:"
+    tail -20 "$LOG_DIR/chatbot.log" >&2 || true
+    fatal "abort"
+  fi
+  success "Chatbot ready (PID $pid)"
+}
+
 # ── Sub-commands ─────────────────────────────────────────────────────────────
 cmd_start() {
   resolve_env_file
@@ -856,11 +882,13 @@ cmd_start() {
   start_collector
   start_analyzer
   start_dashboard
+  start_chatbot
 
   echo "" >&2
   success "Stack ready"
   echo "  dashboard: http://localhost:$DASHBOARD_PORT/" >&2
   echo "  analyzer : http://localhost:$ANALYZER_PORT/" >&2
+  echo "  chatbot  : http://localhost:$CHATBOT_PORT/health" >&2
   if [[ "$PROFILE" == "live" ]] && collector_is_local; then
     echo "  collector: http://localhost:$COLLECTOR_PORT/healthz" >&2
   fi
@@ -868,6 +896,7 @@ cmd_start() {
 }
 
 cmd_stop() {
+  stop_pidfile "$CHATBOT_PIDFILE"   "chatbot"
   stop_pidfile "$DASHBOARD_PIDFILE" "dashboard"
   stop_pidfile "$ANALYZER_PIDFILE"  "analyzer"
   stop_pidfile "$COLLECTOR_PIDFILE" "collector"
@@ -884,6 +913,7 @@ cmd_status() {
 
   for triple in "analyzer:$ANALYZER_PIDFILE:$ANALYZER_PORT:healthz" \
                 "dashboard:$DASHBOARD_PIDFILE:$DASHBOARD_PORT:" \
+                "chatbot:$CHATBOT_PIDFILE:$CHATBOT_PORT:health" \
                 "collector:$COLLECTOR_PIDFILE:$COLLECTOR_PORT:healthz"; do
     IFS=: read -r name pidfile port probe <<< "$triple"
     local pidfile_state pid http
@@ -915,9 +945,10 @@ cmd_logs() {
   case "$target" in
     analyzer)  tail -F "$LOG_DIR/analyzer.log" ;;
     dashboard) tail -F "$LOG_DIR/dashboard.log" ;;
+    chatbot)   tail -F "$LOG_DIR/chatbot.log" ;;
     collector) tail -F "$LOG_DIR/collector.log" 2>/dev/null || fatal "no collector log yet" ;;
-    all)       tail -F "$LOG_DIR/analyzer.log" "$LOG_DIR/dashboard.log" 2>/dev/null ;;
-    *)         fatal "unknown target: $target (use analyzer|dashboard|collector|all)" ;;
+    all)       tail -F "$LOG_DIR/analyzer.log" "$LOG_DIR/dashboard.log" "$LOG_DIR/chatbot.log" 2>/dev/null ;;
+    *)         fatal "unknown target: $target (use analyzer|dashboard|chatbot|collector|all)" ;;
   esac
 }
 

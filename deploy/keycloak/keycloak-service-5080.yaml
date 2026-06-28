@@ -1,0 +1,37 @@
+# =============================================================================
+# Pinned-ClusterIP Service for Keycloak on port 5080.
+#
+# The codecentric/keycloakx chart's Service template does not expose a
+# `clusterIP` field, so we cannot pin the IP through Helm values. This separate
+# Service fixes the ClusterIP to 10.103.70.200 (the address the operator has
+# already mapped to keycloak.local) and exposes Keycloak's HTTP port as 5080.
+#
+# Selector matches the keycloakx pods:
+#   app.kubernetes.io/name: keycloakx     (chart name)
+#   app.kubernetes.io/instance: keycloak  (helm release name — keep it "keycloak")
+#
+# Apply AFTER `helm upgrade --install keycloak ... -n keycloak`:
+#   kubectl apply -f deploy/keycloak/keycloak-service-5080.yaml
+#
+# Reachable at:  http://keycloak.local:5080/   (DNS keycloak.local -> 10.103.70.200)
+# Issuer:        http://keycloak.local:5080/realms/hetu
+# =============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak-5080
+  namespace: keycloak
+  labels:
+    app.kubernetes.io/name: keycloakx
+    app.kubernetes.io/instance: keycloak
+spec:
+  type: ClusterIP
+  clusterIP: 10.103.70.200
+  selector:
+    app.kubernetes.io/name: keycloakx
+    app.kubernetes.io/instance: keycloak
+  ports:
+    - name: http
+      port: 5080
+      targetPort: http     # pod containerPort 8080 (named "http")
+      protocol: TCP

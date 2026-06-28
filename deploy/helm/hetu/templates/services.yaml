@@ -65,3 +65,27 @@ spec:
   selector:
     {{- include "hetu.selectorLabels" . | nindent 4 }}
     app.kubernetes.io/component: dashboard
+---
+{{- if .Values.chatbot.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "hetu.fullname" . }}-chatbot
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "hetu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: chatbot
+spec:
+  type: {{ .Values.chatbot.service.type | default "ClusterIP" }}
+  ports:
+    - port: 8000
+      targetPort: http
+      protocol: TCP
+      name: http
+      {{- if and (eq (.Values.chatbot.service.type | default "ClusterIP") "NodePort") .Values.chatbot.service.nodePort }}
+      nodePort: {{ .Values.chatbot.service.nodePort }}
+      {{- end }}
+  selector:
+    {{- include "hetu.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: chatbot
+{{- end }}

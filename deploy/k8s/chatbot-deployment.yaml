@@ -1,0 +1,271 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: chatbot
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: chatbot-config
+  namespace: chatbot
+data:
+  models.yaml: |
+    embedding:
+      provider: "local"
+      local:
+        endpoint: "http://192.168.1.19:8080/embeddings"
+        model_name: "all-MiniLM-L6-v2"
+        timeout_seconds: 10
+      cache:
+        enabled: true
+        ttl_seconds: 86400
+        backend: "redis"
+        host: "redis.chatbot.svc.cluster.local"
+        port: 6379
+
+    llm:
+      provider: "local"
+      local:
+        endpoint: "http://192.168.1.19:8080/v1/chat/completions"
+        model_name: "mistral-7b"
+        timeout_seconds: 30
+        max_tokens: 2048
+        temperature: 0.7
+      cloud:
+        enabled: true
+        provider: "anthropic"
+        api_key: ""  # Set via secret
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: chatbot-secrets
+  namespace: chatbot
+type: Opaque
+stringData:
+  anthropic_api_key: ""  # Replace with actual key if using fallback
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chatbot-api
+  namespace: chatbot
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: chatbot-api
+  template:
+    metadata:
+      labels:
+        app: chatbot-api
+    spec:
+      serviceAccountName: chatbot-sa
+      containers:
+      - name: chatbot-api
+        image: k8s-cluster-health/chatbot:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8000
+          name: http
+        env:
+        - name: LLM_ENDPOINT
+          valueFrom:
+            configMapKeyRef:
+              name: chatbot-config
+              key: models.yaml
+        - name: PYTHONUNBUFFERED
+          value: "1"
+        volumeMounts:
+        - name: config
+          mountPath: /app/config
+        - name: kubeconfig
+          mountPath: /root/.kube
+          readOnly: true
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "256Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 2
+      volumes:
+      - name: config
+        configMap:
+          name: chatbot-config
+      - name: kubeconfig
+        secret:
+          secretName: chatbot-kubeconfig
+          optional: true
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: chatbot-api
+  namespace: chatbot
+spec:
+  type: ClusterIP
+  selector:
+    app: chatbot-api
+  ports:
+  - port: 8000
+    targetPort: 8000
+    name: http
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: chatbot-sa
+  namespace: chatbot
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: chatbot-reader
+rules:
+- apiGroups: [""]
+  resources: ["pods", "pods/log", "events"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "statefulsets", "daemonsets"]
+  verbs: ["get", "list"]
+- apiGroups: [""]
+  resources: ["namespaces"]
+  verbs: ["get", "list"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: chatbot-reader-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: chatbot-reader
+subjects:
+- kind: ServiceAccount
+  name: chatbot-sa
+  namespace: chatbot
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: redis-config
+  namespace: chatbot
+data:
+  redis.conf: |
+    maxmemory 256mb
+    maxmemory-policy allkeys-lru
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: chatbot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+      - name: redis
+        image: redis:7.2-alpine
+        ports:
+        - containerPort: 6379
+          name: redis
+        resources:
+          requests:
+            cpu: "50m"
+            memory: "64Mi"
+          limits:
+            cpu: "100m"
+            memory: "256Mi"
+        volumeMounts:
+        - name: redis-config
+          mountPath: /usr/local/etc/redis
+        livenessProbe:
+          exec:
+            command: ["redis-cli", "ping"]
+          initialDelaySeconds: 10
+          periodSeconds: 30
+      volumes:
+      - name: redis-config
+        configMap:
+          name: redis-config
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: chatbot
+spec:
+  selector:
+    app: redis
+  ports:
+  - port: 6379
+    targetPort: 6379
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: chatbot-network-policy
+  namespace: chatbot
+spec:
+  podSelector:
+    matchLabels:
+      app: chatbot-api
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: default
+    ports:
+    - protocol: TCP
+      port: 8000
+  egress:
+  - to:
+    - namespaceSelector: {}
+    ports:
+    - protocol: TCP
+      port: 6379  # Redis
+    - protocol: TCP
+      port: 8080  # Local model server
+    - protocol: TCP
+      port: 9090  # Prometheus
+    - protocol: TCP
+      port: 3000  # Dashboard
+    - protocol: TCP
+      port: 6333  # Qdrant
