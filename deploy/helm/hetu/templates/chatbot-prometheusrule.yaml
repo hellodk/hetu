@@ -1,0 +1,59 @@
+{{- if .Values.chatbot.enabled }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "hetu.fullname" . }}-chatbot
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "hetu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: chatbot
+    release: monitoring
+spec:
+  groups:
+    - name: hetu-chatbot
+      rules:
+        # Dead-man's-switch — always firing; silence this alert means alerting is broken
+        - alert: HetuChatbotWatchdog
+          expr: vector(1)
+          labels:
+            severity: none
+          annotations:
+            summary: "Hetu Chatbot watchdog — alerting is operational"
+            description: "This alert always fires. If it stops, the alerting pipeline is broken."
+
+        - alert: HetuChatbotDown
+          expr: up{job=~".*chatbot.*"} == 0
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Hetu Chatbot is down"
+            description: "Hetu Chatbot instance {{ `{{ $labels.instance }}` }} has been unreachable for more than 2 minutes."
+
+        - alert: HetuChatbotHighErrorRate
+          expr: >
+            (
+              rate(chatbot_request_errors_total[5m])
+              /
+              rate(chatbot_requests_total[5m])
+            ) > 0.05
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Hetu Chatbot error rate is elevated"
+            description: "Chatbot error rate is {{ `{{ $value | humanizePercentage }}` }} (threshold: 5%) over the last 5 minutes."
+
+        - alert: HetuChatbotLatencyP99
+          expr: >
+            histogram_quantile(0.99,
+              sum(rate(chatbot_request_latency_seconds_bucket[5m])) by (le)
+            ) > 2
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Hetu Chatbot p99 latency exceeds 2 s"
+            description: "Chatbot p99 response latency is {{ `{{ $value | humanizeDuration }}` }} (threshold: 2 s) over the last 10 minutes."
+{{- end }}

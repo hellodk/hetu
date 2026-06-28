@@ -1,0 +1,23 @@
+{{- if .Values.chatbot.enabled }}
+{{- if .Values.chatbot.metrics.serviceMonitor.enabled }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "hetu.fullname" . }}-chatbot
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "hetu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: chatbot
+    release: monitoring
+spec:
+  selector:
+    matchLabels:
+      {{- include "hetu.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: chatbot
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+{{- end }}
+{{- end }}
