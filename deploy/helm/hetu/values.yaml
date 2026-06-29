@@ -146,6 +146,10 @@ analyzer:
   # Runtime config defaults that land in the unified config ConfigMap.
   # The UI can override these at runtime via the override ConfigMap layer.
   collectorUrl: "http://hetu-collector:8080"
+  # Prometheus the analyzer queries for the rightsizing/HPA/CoreDNS/GC/cluster
+  # optimizers. Empty disables those optimizers (they log "prometheus URL not
+  # configured" and are skipped).
+  prometheusUrl: "http://monitoring-prometheus.monitoring.svc.cluster.local:9090"
   corsAllowedOrigins:
     - "*"
 
