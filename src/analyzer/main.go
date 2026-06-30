@@ -1052,6 +1052,22 @@ func (a *Analyzer) runAnalysis(ctx context.Context) {
 	// Both collector calls succeeded.
 	a.recordCollectorSuccess()
 
+	// Publish a preliminary report built purely from collector telemetry
+	// and the deterministic rule-based scoring engine immediately after the
+	// (fast) events+metrics fetch — BEFORE the correlated-events fetch and
+	// the (potentially slow or unavailable) LLM call below. The cluster
+	// summary (node/pod/namespace counts) and rule scores do not depend on
+	// the LLM or correlated events, so blocking their publication on those
+	// meant the dashboard showed empty data (totalNodes:0, scores:null) for
+	// minutes — or indefinitely when the LLM was saturated/timing out.
+	// Publishing here guarantees real cluster data appears within seconds of
+	// a successful collector fetch; the LLM enrichment below republishes an
+	// augmented report when/if it returns.
+	prelim := a.buildHealthReport(events, metrics, nil)
+	prelim.Status = a.buildReportStatus(prelim.Scores != nil)
+	a.recordAnalysisOutcome(nil)
+	a.publishReport(prelim)
+
 	// Feed warning events into the ErrorAggregator so the Errors page shows
 	// K8s-native error patterns (CrashLoopBackOff, OOMKilled, etc.) without
 	// needing NATS or collector-podlogs.
@@ -1799,6 +1815,11 @@ func (a *Analyzer) buildHealthReport(events []types.TelemetryEvent, metrics []ty
 	// Pod/node counts from deduplicated maps
 	report.Summary.TotalPods = len(latestPods)
 	report.Summary.TotalNodes = len(latestNodes)
+	// TotalNamespaces reflects every namespace seen in the collector
+	// telemetry (pods scraped + namespaces with warning events). It was
+	// previously left at its zero value in live mode, so the dashboard
+	// always showed totalNamespaces:0 even with a populated report.
+	report.Summary.TotalNamespaces = len(report.Summary.Namespaces)
 	report.Summary.HealthyPods = report.Summary.TotalPods - len(report.TopIssues)
 	if report.Summary.HealthyPods < 0 {
 		report.Summary.HealthyPods = 0

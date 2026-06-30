@@ -14,6 +14,9 @@ data:
 
     analyzer:
       collectorUrl: {{ .Values.analyzer.collectorUrl | quote }}
+      {{- if .Values.analyzer.prometheusUrl }}
+      prometheusUrl: {{ .Values.analyzer.prometheusUrl | quote }}
+      {{- end }}
       corsAllowedOrigins:
         {{- toYaml .Values.analyzer.corsAllowedOrigins | nindent 8 }}
 
@@ -25,12 +28,18 @@ data:
         database: {{ .Values.stores.postgres.external.db | quote }}
         user: {{ .Values.stores.postgres.external.user | quote }}
         sslMode: {{ .Values.stores.postgres.sslMode | quote }}
+        {{- if or .Values.stores.postgres.standalone .Values.stores.postgres.external.existingSecret }}
         passwordFile: /etc/hetu/secrets/postgres/password
+        {{- else if .Values.stores.postgres.external.password }}
+        password: {{ .Values.stores.postgres.external.password | quote }}
+        {{- end }}
 
       redis:
         enabled: true
         addr: {{ include "hetu.redis.addr" . | quote }}
+        {{- if .Values.stores.redis.external.existingSecret }}
         passwordFile: /etc/hetu/secrets/redis/password
+        {{- end }}
 
     bus:
       nats:

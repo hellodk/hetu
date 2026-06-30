@@ -1,0 +1,49 @@
+# =============================================================================
+# Environment overlay for the `hetu` release on the k0s homelab cluster.
+#
+# Context: worker node `typhoon` has a BROKEN ClusterIP dataplane — traffic to
+# pods hosted on typhoon via a Service ClusterIP times out, and the CoreDNS
+# replica that lives on typhoon black-holes ~half of all DNS lookups made from
+# other nodes. That made the analyzer (previously scheduled on typhoon) unable
+# to reach the collector, so every analysis cycle bailed out and the dashboard
+# showed empty cluster data (totalNodes:0, totalPods:0, scores:null).
+#
+# Durable workaround until typhoon's dataplane is repaired:
+#   * Pin the collector AND analyzer to the healthy control-plane node `cylon`
+#     so the analyzer→collector hop stays on-node.
+#   * Point the analyzer at the collector Service ClusterIP directly to bypass
+#     the flaky cross-node CoreDNS path entirely (the ClusterIP's only endpoint
+#     is the collector pod, co-located on cylon).
+#   * Add an aggressive dnsConfig so the analyzer's remaining DNS lookups
+#     (postgres/redis) fail over quickly to the healthy CoreDNS replica.
+#
+# Apply with --reuse-values so the existing release values (LLM/embedding
+# endpoints, stores, etc.) are preserved:
+#   helm upgrade hetu deploy/helm/hetu -n hetu --reuse-values -f values-hetu-cylon.yaml
+# =============================================================================
+
+collector:
+  nodeSelector:
+    kubernetes.io/hostname: cylon
+
+analyzer:
+  image:
+    # Local image built on cylon (docker build + ctr import into k0s
+    # containerd) carrying the runAnalysis fix that publishes the
+    # collector-derived summary + rule-based scores before the slow LLM call,
+    # plus the TotalNamespaces fix. Pull policy IfNotPresent so the node uses
+    # the imported image instead of trying to pull a non-registry tag.
+    repository: hellodk/hetu-analyzer
+    tag: "7.0.0-fix-empty-data2"
+    pullPolicy: IfNotPresent
+  nodeSelector:
+    kubernetes.io/hostname: cylon
+  # Bypass flaky cross-node CoreDNS: hit the collector Service ClusterIP.
+  collectorUrl: "http://10.96.218.169:8080"
+  dnsConfig:
+    options:
+      - name: timeout
+        value: "1"
+      - name: attempts
+        value: "5"
+      - name: rotate

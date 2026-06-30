@@ -35,6 +35,17 @@ spec:
       topologySpreadConstraints:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- with (default .Values.nodeSelector .Values.analyzer.nodeSelector) }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.analyzer.dnsConfig }}
+      dnsConfig:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.analyzer.dnsPolicy }}
+      dnsPolicy: {{ . }}
+      {{- end }}
       containers:
         - name: analyzer
           image: "{{ .Values.analyzer.image.repository }}:{{ .Values.analyzer.image.tag }}"
@@ -46,6 +57,19 @@ spec:
               value: /etc/hetu/config.yaml
             - name: CI_CONFIG_OVERRIDE
               value: /etc/hetu-runtime/runtime.yaml
+            # Bind the app to the ports the Deployment/Service/probes use
+            # (analyzer = 8081/9091; the binary otherwise defaults to
+            # 8080/9090, which made the :8081 health probe connection-refused).
+            - name: API_PORT
+              value: "8081"
+            - name: METRICS_PORT
+              value: "9091"
+            {{- if .Values.analyzer.prometheusUrl }}
+            # The optimizer/anomaly/RCA enrichment paths read Prometheus from
+            # this env (main.go), not from config.yaml.
+            - name: PROMETHEUS_URL
+              value: {{ .Values.analyzer.prometheusUrl | quote }}
+            {{- end }}
             {{- with .Values.analyzer.env }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -77,7 +101,7 @@ spec:
             - name: runtime-config
               mountPath: /etc/hetu-runtime
               readOnly: true
-            {{- if .Values.stores.postgres.external.existingSecret }}
+            {{- if or .Values.stores.postgres.external.existingSecret .Values.stores.postgres.standalone }}
             - name: postgres-secret
               mountPath: /etc/hetu/secrets/postgres
               readOnly: true
@@ -106,6 +130,13 @@ spec:
             secretName: {{ .Values.stores.postgres.external.existingSecret }}
             items:
               - key: {{ .Values.stores.postgres.external.existingSecretPasswordKey }}
+                path: password
+        {{- else if .Values.stores.postgres.standalone }}
+        - name: postgres-secret
+          secret:
+            secretName: {{ include "hetu.fullname" . }}-postgres-secret
+            items:
+              - key: password
                 path: password
         {{- end }}
         {{- if .Values.stores.redis.external.existingSecret }}
