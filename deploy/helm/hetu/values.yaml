@@ -79,6 +79,12 @@ topologySpreadConstraints:
       matchLabels:
         app.kubernetes.io/name: hetu
 
+# Default nodeSelector applied to all component Deployments. Per-component
+# overrides under <component>.nodeSelector take precedence. Empty ⇒ schedule
+# anywhere. Useful to pin hetu workloads to a healthy node when a worker has a
+# broken ClusterIP dataplane (cross-node Service/DNS traffic times out).
+nodeSelector: {}
+
 # =============================================================================
 # Collector (Go binary — reads Kubernetes API + Prometheus)
 # =============================================================================
@@ -115,6 +121,13 @@ collector:
   # Empty ⇒ inherit.
   affinity: {}
   topologySpreadConstraints: []
+  # Per-component nodeSelector override (falls back to top-level nodeSelector).
+  nodeSelector: {}
+  # Optional pod dnsConfig / dnsPolicy. Useful on clusters where one CoreDNS
+  # replica sits on a node with a broken dataplane: more aggressive retry
+  # (timeout/attempts) lets the resolver fail over to a healthy replica.
+  dnsConfig: {}
+  dnsPolicy: ""
   # PodDisruptionBudget
   pdb:
     enabled: false
@@ -140,11 +153,22 @@ analyzer:
   securityContext: {}
   affinity: {}
   topologySpreadConstraints: []
+  # Per-component nodeSelector override (falls back to top-level nodeSelector).
+  nodeSelector: {}
+  # Optional pod dnsConfig / dnsPolicy (see top-level notes).
+  dnsConfig: {}
+  dnsPolicy: ""
   pdb:
     enabled: false
     minAvailable: 1
   # Runtime config defaults that land in the unified config ConfigMap.
   # The UI can override these at runtime via the override ConfigMap layer.
+  #
+  # NOTE: this is the Service DNS name by default. On clusters with a broken
+  # node dataplane (where cross-node CoreDNS lookups intermittently time out)
+  # set this to the collector Service ClusterIP instead, and pin both the
+  # collector and analyzer to the healthy node via nodeSelector, so the
+  # analyzer→collector hop never leaves that node or depends on flaky DNS.
   collectorUrl: "http://hetu-collector:8080"
   # Prometheus the analyzer queries for the rightsizing/HPA/CoreDNS/GC/cluster
   # optimizers. Empty disables those optimizers (they log "prometheus URL not

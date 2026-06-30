@@ -35,6 +35,17 @@ spec:
       topologySpreadConstraints:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- with (default .Values.nodeSelector .Values.analyzer.nodeSelector) }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.analyzer.dnsConfig }}
+      dnsConfig:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.analyzer.dnsPolicy }}
+      dnsPolicy: {{ . }}
+      {{- end }}
       containers:
         - name: analyzer
           image: "{{ .Values.analyzer.image.repository }}:{{ .Values.analyzer.image.tag }}"
