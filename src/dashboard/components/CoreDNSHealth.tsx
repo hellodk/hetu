@@ -4,11 +4,7 @@ import { useState, useEffect } from 'react'
 import { Server, Activity, AlertTriangle, CheckCircle } from 'lucide-react'
 import clsx from 'clsx'
 
-// API URL: read from runtime config injected by server layout, or fall back to build-time env
-const getApiUrl = () =>
-    typeof window !== 'undefined'
-        ? ((window as any).__HETU_API__ || '')
-        : (process.env.NEXT_PUBLIC_API_URL || '')
+import { getApiUrl } from '@/lib/api'
 
 // Matches the analyzer's DNSHealth response shape
 interface DNSHealthData {

@@ -8,6 +8,7 @@ import {
   Server, Database, LayoutDashboard, TrendingDown, Settings,
   BarChart2, Bug, Globe, Skull, RefreshCw, CircleDot, Cpu
 } from 'lucide-react'
+import { getApiUrl } from '@/lib/api'
 
 // ─── types ────────────────────────────────────────────────────────────────────
 
@@ -157,7 +158,7 @@ export function GlobalSearch() {
 
   // Pre-fetch namespace list once when component mounts (so search is instant)
   useEffect(() => {
-    fetch('/api/v1/k8s/namespaces')
+    fetch(`${getApiUrl()}/api/v1/k8s/namespaces`)
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         const list: string[] = Array.isArray(data) ? data : (data?.namespaces ?? [])
@@ -214,8 +215,8 @@ export function GlobalSearch() {
 
     const k8sFetches = k8sTargets.map(t => {
       const url = t.kind === 'node'
-        ? `/api/v1/k8s/cluster/${t.group}/${t.version}/${t.path}?search=${encodeURIComponent(cleanQ)}&limit=4`
-        : `/api/v1/k8s/ns/${ns}/${t.group}/${t.version}/${t.path}?search=${encodeURIComponent(cleanQ)}&limit=4`
+        ? `${getApiUrl()}/api/v1/k8s/cluster/${t.group}/${t.version}/${t.path}?search=${encodeURIComponent(cleanQ)}&limit=4`
+        : `${getApiUrl()}/api/v1/k8s/ns/${ns}/${t.group}/${t.version}/${t.path}?search=${encodeURIComponent(cleanQ)}&limit=4`
       return fetch(url, { signal })
         .then(r => r.ok ? r.json() : null)
         .then(data => ({ target: t, items: (data?.items ?? data ?? []) as K8sItem[] }))
@@ -224,9 +225,9 @@ export function GlobalSearch() {
 
     try {
       const [errorsRes, incidentsRes, ...k8sResults] = await Promise.all([
-        fetch(`/api/v1/errors/groups?search=${encodeURIComponent(cleanQ)}&limit=5&status=open`, { signal })
+        fetch(`${getApiUrl()}/api/v1/errors/groups?search=${encodeURIComponent(cleanQ)}&limit=5&status=open`, { signal })
           .then(r => r.ok ? r.json() : null).catch(() => null),
-        fetch(`/api/v1/incidents?limit=100`, { signal })
+        fetch(`${getApiUrl()}/api/v1/incidents?limit=100`, { signal })
           .then(r => r.ok ? r.json() : null).catch(() => null),
         ...k8sFetches,
       ])

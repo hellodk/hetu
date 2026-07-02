@@ -208,6 +208,10 @@ dashboard:
     readOnlyRootFilesystem: false
   affinity: {}
   topologySpreadConstraints: []
+  # Per-component nodeSelector override (falls back to top-level nodeSelector).
+  # Pin to the node whose kubelet the NodePort is reached through AND that can
+  # reach the analyzer ClusterIP for the server-side API proxy route.
+  nodeSelector: {}
   pdb:
     enabled: false
     minAvailable: 1
@@ -297,6 +301,10 @@ stores:
       tag: "16-alpine"
     storage: "5Gi"
     storageClass: ""   # empty = cluster default
+    # Per-store nodeSelector for the standalone StatefulSet (falls back to the
+    # top-level nodeSelector). Pin near the analyzer when a node's ClusterIP
+    # dataplane is unreliable.
+    nodeSelector: {}
     external:
       host: postgres.utilities.svc.cluster.local
       port: 5432
@@ -317,6 +325,9 @@ stores:
       tag: "7-alpine"
     storage: "1Gi"
     storageClass: ""   # empty = cluster default
+    # Per-store nodeSelector for the standalone StatefulSet (falls back to the
+    # top-level nodeSelector).
+    nodeSelector: {}
     external:
       addr: ""
       existingSecret: ""
@@ -371,6 +382,29 @@ ingress:
   # - secretName: cluster-intel-tls
   #   hosts:
   #     - cluster-intel.example.com
+
+# =============================================================================
+# SSO Ingress (HTTPS + Keycloak OIDC via a shared oauth2-proxy ForwardAuth)
+# =============================================================================
+# Exposes the dashboard at https://<host><dashboard.basePath> through Traefik's
+# websecure entrypoint, protected by a cluster-wide oauth2-proxy (Keycloak
+# OIDC). This does NOT deploy its own oauth2-proxy — it reuses an existing SSO
+# gateway (oauth2-proxy + Keycloak exposed on the same host under /oauth2 and
+# /auth) by referencing its two Traefik middlewares, exactly like the other
+# apps on the host. TLS uses Traefik's built-in default cert (no `spec.tls`
+# secret is declared), so no custom certificate is created or managed here.
+#
+# `middlewares` is the Traefik cross-namespace middleware reference list in the
+# form "<namespace>-<name>@kubernetescrd". Order matters: the errors middleware
+# (401->302 redirect to the sign-in flow) must precede forward-auth.
+ssoIngress:
+  enabled: false
+  className: traefik
+  entrypoint: websecure
+  host: hetu.example.com
+  dashboardPort: 3000
+  middlewares: "utilities-oauth-errors@kubernetescrd,utilities-oauth-forward-auth@kubernetescrd"
+  annotations: {}
 
 # =============================================================================
 # Prometheus ServiceMonitor (for the app's own metrics)

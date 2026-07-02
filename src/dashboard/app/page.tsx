@@ -22,6 +22,7 @@ import { DiagnosticPanel } from '@/components/DiagnosticPanel'
 import { ProfileBadge } from '@/components/ProfileBadge'
 import { ScoreBreakdown } from '@/components/ScoreBreakdown'
 import { MockWatermark } from '@/components/MockWatermark'
+import { BASE_PATH } from '@/lib/api'
 
 // Types
 interface HealthScores {
@@ -129,10 +130,11 @@ interface Toast {
   message: string
 }
 
-// API URL: read from runtime config injected by server layout, or fall back to build-time env
-const API_URL = typeof window !== 'undefined'
-  ? ((window as any).__HETU_API__ || '')
-  : (process.env.NEXT_PUBLIC_API_URL || '')
+// REST calls go through the dashboard's own Next.js proxy route (which forwards
+// to the analyzer server-side), so they must be relative and prefixed with the
+// basePath. window.__HETU_API__ points at the in-cluster analyzer URL, which is
+// NOT resolvable from the browser — using it here caused the data load to fail.
+const API_URL = BASE_PATH
 
 // Tab configuration
 const TABS = [

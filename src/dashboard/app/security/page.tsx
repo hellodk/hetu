@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react'
 import Link from 'next/link'
-import { apiFetch } from '@/lib/api'
+import { apiFetch, getApiUrl } from '@/lib/api'
 import {
   RefreshCw, Loader2, Shield, AlertCircle, AlertTriangle,
   Info, Play, ChevronDown, ChevronRight, CheckCircle, Clock, XCircle
@@ -125,7 +125,7 @@ export default function SecurityPage() {
     setScanning(true)
     setScanMsg('Scan triggered — waiting for results…')
     try {
-      await fetch('/api/v1/security/scan', { method: 'POST' })
+      await fetch(`${getApiUrl()}/api/v1/security/scan`, { method: 'POST' })
     } catch (e: unknown) {
       setError((e as Error).message)
       setScanning(false)

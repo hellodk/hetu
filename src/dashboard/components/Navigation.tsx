@@ -8,6 +8,7 @@ import {
   Shield, Gauge, ChevronDown, ChevronRight, Menu, X, Bug, Globe, Zap, TrendingDown,
   Activity, Settings, BarChart2, Search, AlertTriangle
 } from 'lucide-react'
+import { getApiUrl } from '@/lib/api'
 
 type ThemeChoice = 'graphite' | 'calm-signal' | 'aurora' | 'prism' | 'auto' | 'md-dark' | 'md-light'
 const THEME_VALUES: readonly ThemeChoice[] = ['graphite', 'calm-signal', 'aurora', 'prism', 'auto', 'md-dark', 'md-light'] as const
@@ -131,8 +132,7 @@ export function Navigation() {
 
   // Fetch open incident count for nav badge
   useEffect(() => {
-    const apiUrl = typeof window !== 'undefined' ? ((window as any).__HETU_API__ || '') : ''
-    fetch(`${apiUrl}/api/v1/incidents`)
+    fetch(`${getApiUrl()}/api/v1/incidents`)
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (!data) return

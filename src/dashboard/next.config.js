@@ -11,6 +11,11 @@ const nextConfig = {
   // Environment variables - empty string means use relative URLs (proxied via rewrites)
   env: {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || '',
+    // Expose the (build-time) basePath to client code so browser fetches can be
+    // prefixed correctly. Raw `fetch('/api/v1/..')` is NOT rewritten by Next's
+    // basePath, so without this the client would hit `/api/v1/*` at the root and
+    // 404 (the route handler is mounted under `${basePath}/api/v1/*`).
+    NEXT_PUBLIC_BASE_PATH: process.env.NEXT_BASE_PATH ?? '/hetu',
   },
   
   // Headers for security

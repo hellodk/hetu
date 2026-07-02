@@ -3,6 +3,7 @@
 import { Modal } from './Modal'
 import { PlayCircle, Activity, Save, Download } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
+import { getApiUrl } from '@/lib/api'
 
 type ThemeChoice = 'graphite' | 'calm-signal' | 'aurora' | 'prism' | 'auto' | 'md-dark' | 'md-light'
 const THEME_VALUES: readonly ThemeChoice[] = ['graphite', 'calm-signal', 'aurora', 'prism', 'auto', 'md-dark', 'md-light'] as const
@@ -88,7 +89,7 @@ export function SettingsModal({
     useEffect(() => {
         if (!isOpen) return
         // Load current runtime override YAML so operators can GitOps it if needed.
-        const apiBase = typeof window !== 'undefined' ? ((window as any).__HETU_API__ || '') : ''
+        const apiBase = getApiUrl()
         setOverrideLoadError('')
         fetch(`${apiBase}/api/v1/config`)
             .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
@@ -234,7 +235,7 @@ export function SettingsModal({
                                 }`}
                             disabled={!overrideYamlLoaded || savingOverride}
                             onClick={async () => {
-                                const apiBase = typeof window !== 'undefined' ? ((window as any).__HETU_API__ || '') : ''
+                                const apiBase = getApiUrl()
                                 setSavingOverride(true)
                                 setOverrideLoadError('')
                                 try {

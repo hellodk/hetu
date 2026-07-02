@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { apiFetch } from '@/lib/api'
+import { apiFetch, getApiUrl } from '@/lib/api'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell
@@ -356,7 +356,7 @@ export default function ErrorsPage() {
     e.preventDefault()
     setUpdatingStatus(id)
     try {
-      await fetch(`/api/v1/errors/groups/${id}/status`, {
+      await fetch(`${getApiUrl()}/api/v1/errors/groups/${id}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus }),
@@ -381,7 +381,7 @@ export default function ErrorsPage() {
     setAnalyzing(true)
     setAnalysisResult(null)
     try {
-      const res = await fetch('/api/v1/errors/analyze', { method: 'POST' })
+      const res = await fetch(`${getApiUrl()}/api/v1/errors/analyze`, { method: 'POST' })
       if (!res.ok) {
         const text = await res.text()
         setAnalysisResult({ error: text })

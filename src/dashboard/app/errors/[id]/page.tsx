@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
-import { apiFetch } from '@/lib/api'
+import { apiFetch, getApiUrl } from '@/lib/api'
 import {
   ArrowLeft, Loader2, Clock, Boxes, AlertCircle, Check, EyeOff, RotateCcw,
   Search, GitMerge, Sparkles, AlertTriangle, Info, ExternalLink, Filter,
@@ -171,7 +171,7 @@ export default function ErrorDetailPage() {
   }, [id])
 
   const updateStatus = async (status: string) => {
-    await fetch(`/api/v1/errors/groups/${id}/status`, {
+    await fetch(`${getApiUrl()}/api/v1/errors/groups/${id}/status`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status }),
@@ -188,7 +188,7 @@ export default function ErrorDetailPage() {
       `Score: ${group.mergeSuggestion.score.toFixed(2)} (${group.mergeSuggestion.reason})`
     )
     if (!ok) return
-    const res = await fetch(`/api/v1/errors/groups/${group.id}/merge-into/${target}`, { method: 'POST' })
+    const res = await fetch(`${getApiUrl()}/api/v1/errors/groups/${group.id}/merge-into/${target}`, { method: 'POST' })
     if (res.ok) {
       window.location.href = `/errors/${target}`
     } else {

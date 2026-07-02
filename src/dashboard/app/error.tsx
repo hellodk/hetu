@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import { AlertTriangle, RefreshCw } from 'lucide-react'
+import { BASE_PATH } from '@/lib/api'
 
 export default function ErrorBoundary({
     error,
@@ -12,7 +13,7 @@ export default function ErrorBoundary({
 }) {
     useEffect(() => {
         console.error('Dashboard Application Error:', error)
-        fetch('/api/log-client-error', {
+        fetch(`${BASE_PATH}/api/log-client-error`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

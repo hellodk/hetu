@@ -6,9 +6,18 @@
 // connect directly to the analyzer. The analyzer URL is injected at runtime
 // by the server layout into window.__HETU_API__.
 
+// BASE_PATH is the Next.js basePath the app is served under (e.g. "/hetu").
+// It is inlined at build time from next.config.js `env`. All browser REST calls
+// must be prefixed with it: Next.js does NOT rewrite raw `fetch('/api/..')`
+// paths, so an unprefixed call hits the origin root and 404s (the API route
+// handler lives under `${BASE_PATH}/api/v1/*`).
+export const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? ''
+
 export function getApiUrl(): string {
-  // For REST calls, use relative URLs (proxied by Next.js)
-  return ''
+  // REST calls are served by the Next.js proxy route handler mounted under the
+  // basePath, so return the basePath (relative to the current origin). Callers
+  // build `${getApiUrl()}/api/v1/...`.
+  return BASE_PATH
 }
 
 // getWsUrl returns the WebSocket base URL for direct analyzer connections.
@@ -24,7 +33,7 @@ export function getWsUrl(): string {
 }
 
 export async function apiFetch<T>(path: string): Promise<T> {
-  const res = await fetch(path)
+  const res = await fetch(`${BASE_PATH}${path}`)
   if (!res.ok) {
     throw new Error(`API ${path}: ${res.status} ${res.statusText}`)
   }
@@ -32,7 +41,7 @@ export async function apiFetch<T>(path: string): Promise<T> {
 }
 
 export async function apiFetchText(path: string): Promise<string> {
-  const res = await fetch(path)
+  const res = await fetch(`${BASE_PATH}${path}`)
   if (!res.ok) {
     throw new Error(`API ${path}: ${res.status} ${res.statusText}`)
   }

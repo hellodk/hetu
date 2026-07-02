@@ -45,6 +45,10 @@ spec:
         {{- include "hetu.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: postgresql
     spec:
+      {{- with (default .Values.nodeSelector .Values.stores.postgres.nodeSelector) }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       securityContext:
         fsGroup: 999
       containers:
@@ -65,11 +69,22 @@ spec:
               value: /var/lib/postgresql/data/pgdata
           ports:
             - containerPort: 5432
+          # The server listens on TCP; the default pg_isready check probes the
+          # unix socket at /var/run/postgresql which the server does not serve
+          # here (reports "no response") — so probe the TCP port directly. This
+          # also avoids `exec` into the container, which can fail on this node
+          # with stale-namespace OCI runtime errors.
           readinessProbe:
-            exec:
-              command: ["pg_isready", "-U", {{ .Values.stores.postgres.external.user | quote }}]
+            tcpSocket:
+              port: 5432
             initialDelaySeconds: 5
             periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 5432
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            failureThreshold: 6
           resources:
             requests:
               cpu: 100m
@@ -156,6 +171,10 @@ spec:
         {{- include "hetu.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: redis
     spec:
+      {{- with (default .Values.nodeSelector .Values.stores.redis.nodeSelector) }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       securityContext:
         fsGroup: 999
       containers:
@@ -165,11 +184,20 @@ spec:
           command: ["redis-server", "--appendonly", "yes", "--save", "60", "1"]
           ports:
             - containerPort: 6379
+          # Probe the TCP port directly instead of `exec`-ing redis-cli: the
+          # exec probe fails on this node with OCI runtime "stale namespace"
+          # errors, and a TCP connect is a sufficient liveness/readiness signal.
           readinessProbe:
-            exec:
-              command: ["redis-cli", "ping"]
+            tcpSocket:
+              port: 6379
             initialDelaySeconds: 5
             periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 6379
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            failureThreshold: 6
           resources:
             requests:
               cpu: 50m

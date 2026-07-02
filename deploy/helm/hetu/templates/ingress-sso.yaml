@@ -1,0 +1,46 @@
+{{- if .Values.ssoIngress.enabled }}
+# =============================================================================
+# HTTPS + Keycloak SSO ingress for the dashboard (and its /hetu/api/v1 proxy).
+# =============================================================================
+# Exposes the dashboard at https://<host><basePath> through Traefik's
+# `websecure` entrypoint, protected by the shared cluster oauth2-proxy
+# (Keycloak OIDC) via Traefik ForwardAuth middleware.
+#
+# This does NOT run its own oauth2-proxy: it reuses the cluster-wide
+# `homelab-sso` gateway (oauth2-proxy + Keycloak already exposed on the same
+# host under /oauth2 and /auth). Apps opt in by referencing its two
+# middlewares — the same pattern the persona/openbao apps use.
+#
+# TLS: no `spec.tls` secret is declared, so Traefik serves its built-in
+# default certificate for this router (no custom cert is created/managed here).
+#
+# The existing NodePort path (dashboard.service.type=NodePort) is unaffected;
+# this only ADDS the HTTPS+SSO path.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "hetu.fullname" . }}-sso
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "hetu.labels" . | nindent 4 }}
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: {{ .Values.ssoIngress.entrypoint | quote }}
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    traefik.ingress.kubernetes.io/router.middlewares: {{ .Values.ssoIngress.middlewares | quote }}
+    {{- with .Values.ssoIngress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  ingressClassName: {{ .Values.ssoIngress.className }}
+  rules:
+    - host: {{ .Values.ssoIngress.host }}
+      http:
+        paths:
+          - path: {{ .Values.dashboard.basePath }}
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "hetu.fullname" . }}-dashboard
+                port:
+                  number: {{ .Values.ssoIngress.dashboardPort }}
+{{- end }}

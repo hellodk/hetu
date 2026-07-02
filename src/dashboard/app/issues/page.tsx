@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
-import { apiFetch } from '@/lib/api'
+import { apiFetch, getApiUrl } from '@/lib/api'
 import { DM_Serif_Display, DM_Mono, DM_Sans } from 'next/font/google'
 import {
   RefreshCw, Loader2, Shield, Zap, AlertCircle,
@@ -121,7 +121,7 @@ function CategoryDrilldown({ categoryId, counts, onClose }: {
   useEffect(() => {
     if (categoryId !== 'errors') return
     setLoading(true)
-    fetch('/api/v1/errors/groups?status=open&limit=25')
+    fetch(`${getApiUrl()}/api/v1/errors/groups?status=open&limit=25`)
       .then(r => r.ok ? r.json() : null)
       .then(d => setGroups(d?.groups || []))
       .catch(() => {})
