@@ -4,9 +4,10 @@ const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
 
-  // Serve the app under a subpath (e.g. abc.com/hetu).
-  // Set NEXT_BASE_PATH='' to serve from root (default when not behind a reverse proxy).
-  basePath: process.env.NEXT_BASE_PATH ?? '/hetu',
+  // Serve the app under a subpath (e.g. abc.com/hetu) by building with
+  // NEXT_BASE_PATH=/hetu (basePath is BUILD-TIME in Next.js). Default is root ''
+  // so local/dev/compose/run-local all work at http://host:port/ out of the box.
+  basePath: process.env.NEXT_BASE_PATH ?? '',
 
   // Environment variables - empty string means use relative URLs (proxied via rewrites)
   env: {
@@ -15,7 +16,7 @@ const nextConfig = {
     // prefixed correctly. Raw `fetch('/api/v1/..')` is NOT rewritten by Next's
     // basePath, so without this the client would hit `/api/v1/*` at the root and
     // 404 (the route handler is mounted under `${basePath}/api/v1/*`).
-    NEXT_PUBLIC_BASE_PATH: process.env.NEXT_BASE_PATH ?? '/hetu',
+    NEXT_PUBLIC_BASE_PATH: process.env.NEXT_BASE_PATH ?? '',
   },
   
   // Headers for security

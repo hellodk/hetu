@@ -31,38 +31,38 @@ export function StatusBar({
 
   return (
     <>
-      {/* Intentionally dark-fixed — this bar is theme-independent by design (terminal/status-bar aesthetic). */}
+      {/* Theme-aware: light in graphite, dark in dark themes (uses cluster-* tokens). */}
       <header
-        className="bg-[#14151a] text-[#e5e7eb] px-4 sm:px-6 py-2 flex items-center gap-3 sm:gap-4 text-xs font-mono sticky top-0 z-50"
+        className="bg-cluster-card text-cluster-text border-b border-cluster-border px-4 sm:px-6 py-2 flex items-center gap-3 sm:gap-4 text-xs font-mono sticky top-0 z-50"
         aria-label="Dashboard status bar"
         data-testid="status-bar"
       >
       {/* Brand */}
-      <h1 className="flex items-center gap-2 font-sans font-bold text-white text-sm mr-1 flex-shrink-0">
-        <Activity className="w-4 h-4 text-blue-400" aria-hidden="true" />
+      <h1 className="flex items-center gap-2 font-sans font-bold text-cluster-text text-sm mr-1 flex-shrink-0">
+        <Activity className="w-4 h-4 text-blue-500" aria-hidden="true" />
         <span className="hidden sm:inline">Hetu</span>
         <span className="sm:hidden">K8s Intel</span>
       </h1>
 
-      <span className="text-[#374151] hidden sm:inline" aria-hidden="true">|</span>
+      <span className="text-cluster-border hidden sm:inline" aria-hidden="true">|</span>
 
       <span
-        className="text-[#9ca3af] hidden sm:inline truncate max-w-[120px]"
+        className="text-cluster-muted hidden sm:inline truncate max-w-[120px]"
         aria-label={`Cluster: ${clusterId}`}
         title={clusterId}
       >
         {clusterId}
       </span>
 
-      <span className="text-[#374151] hidden md:inline" aria-hidden="true">|</span>
+      <span className="text-cluster-border hidden md:inline" aria-hidden="true">|</span>
 
       {/* Live / Demo pill */}
       <span
-        className={`flex items-center gap-1.5 flex-shrink-0 ${isLive ? 'text-green-500' : 'text-yellow-300'}`}
+        className={`flex items-center gap-1.5 flex-shrink-0 ${isLive ? 'text-green-600' : 'text-amber-600'}`}
         aria-label={`Profile: ${isLive ? 'live' : 'demo mode'}`}
       >
         <span
-          className={`w-1.5 h-1.5 rounded-full ${isLive ? 'bg-green-500' : 'bg-yellow-300'} animate-pulse`}
+          className={`w-1.5 h-1.5 rounded-full ${isLive ? "bg-green-500" : "bg-amber-500"} animate-pulse`}
           aria-hidden="true"
         />
         {isLive ? 'LIVE' : 'DEMO'}
@@ -70,22 +70,22 @@ export function StatusBar({
 
       {lastUpdated && (
         <>
-          <span className="text-[#374151] hidden md:inline" aria-hidden="true">|</span>
-          <span className="text-[#9ca3af] hidden md:inline">
+          <span className="text-cluster-border hidden md:inline" aria-hidden="true">|</span>
+          <span className="text-cluster-muted hidden md:inline">
             {lastUpdated.toLocaleTimeString()}
           </span>
         </>
       )}
 
-      <span className="text-[#374151] hidden lg:inline" aria-hidden="true">|</span>
-      <span className="text-[#9ca3af] hidden lg:inline">v{version}</span>
+      <span className="text-cluster-border hidden lg:inline" aria-hidden="true">|</span>
+      <span className="text-cluster-muted hidden lg:inline">v{version}</span>
 
       {/* Actions */}
       <div className="ml-auto flex items-center gap-0.5" role="group" aria-label="Dashboard actions">
         <button
           onClick={onRefresh}
           disabled={loading}
-          className="p-1.5 rounded hover:bg-[#1f2937] text-[#9ca3af] hover:text-white transition-colors disabled:opacity-50"
+          className="p-1.5 rounded hover:bg-cluster-bg text-cluster-muted hover:text-cluster-text transition-colors disabled:opacity-50"
           aria-label={loading ? 'Refreshing data…' : 'Refresh dashboard data'}
         >
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
@@ -93,7 +93,7 @@ export function StatusBar({
 
         <button
           onClick={onExport}
-          className="p-1.5 rounded hover:bg-[#1f2937] text-[#9ca3af] hover:text-white transition-colors"
+          className="p-1.5 rounded hover:bg-cluster-bg text-cluster-muted hover:text-cluster-text transition-colors"
           aria-label="Export JSON report"
         >
           <Download className="w-4 h-4" aria-hidden="true" />
@@ -101,7 +101,7 @@ export function StatusBar({
 
         <button
           onClick={onBell}
-          className="relative p-1.5 rounded hover:bg-[#1f2937] text-[#9ca3af] hover:text-white transition-colors"
+          className="relative p-1.5 rounded hover:bg-cluster-bg text-cluster-muted hover:text-cluster-text transition-colors"
           aria-label={`Alerts${criticalCount > 0 ? `, ${criticalCount} critical` : ', none'}`}
         >
           <Bell className="w-4 h-4" aria-hidden="true" />
@@ -117,7 +117,7 @@ export function StatusBar({
 
         <button
           onClick={onSettings}
-          className="p-1.5 rounded hover:bg-[#1f2937] text-[#9ca3af] hover:text-white transition-colors"
+          className="p-1.5 rounded hover:bg-cluster-bg text-cluster-muted hover:text-cluster-text transition-colors"
           aria-label="Settings"
         >
           <Settings className="w-4 h-4" aria-hidden="true" />
