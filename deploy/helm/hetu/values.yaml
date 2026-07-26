@@ -221,74 +221,9 @@ dashboard:
     enabled: false
     minAvailable: 1
 
-# -- Chatbot (LLM-powered assistant) -------------------------------------------
-chatbot:
-  enabled: true              # Set to false to skip chatbot deployment
-  image:
-    repository: hellodk/hetu-chatbot
-    tag: "1.0.0"
-    pullPolicy: IfNotPresent
-  replicas: 2
-  resources:
-    requests:
-      cpu: 100m
-      memory: 256Mi
-    limits:
-      cpu: 500m
-      memory: 512Mi
-  service:
-    type: ClusterIP
-    nodePort: null
-
-  # LLM / embedding configuration
-  llm:
-    # REQUIRED — full chat-completions URL, e.g. "http://192.168.1.19:8080/v1/chat/completions"
-    endpoint: ""
-    model: "mistral"
-    provider: "ollama"
-    # REQUIRED — base URL of the embedding server, e.g. "http://192.168.1.19:11434"
-    embeddingEndpoint: ""
-    embeddingModel: "all-MiniLM-L6-v2"
-
-  # OIDC / authentication
-  oidc:
-    issuer: "http://keycloak.local:5080/realms/hetu"
-    clientId: "hetu-chatbot"
-    audience: "hetu-chatbot"
-    authEnabled: true
-
-  # OpenTelemetry
-  otel:
-    endpoint: "http://avika-tempo.monitoring.svc:4317"
-    serviceName: "hetu-chatbot"
-
-  # RBAC and ServiceAccount
-  rbac:
-    create: true
-  serviceAccount:
-    create: true
-
-  # Metrics / observability
-  metrics:
-    port: 8000
-    serviceMonitor:
-      enabled: true
-
-  # Additional env vars (appended after the structured vars above)
-  env:
-    # Internal service URLs
-    - name: QDRANT_URL
-      value: "http://hetu-qdrant:6333"
-    - name: ANALYZER_URL
-      value: "http://hetu-analyzer:8081"
-
-  # Chatbot doesn't need a writable FS
-  securityContext: {}  # Uses defaults from global securityContext
-  affinity: {}
-  topologySpreadConstraints: []
-  pdb:
-    enabled: false
-    minAvailable: 1
+# NOTE: The standalone chatbot microservice was removed — the agentic AI chat is
+# served in-process by the analyzer at POST /api/v1/chat (see docs/AI_CHAT_RAG_PLAN.md)
+# and surfaced by the dashboard's floating chat widget. No separate deployment.
 
 # =============================================================================
 # Persistent stores
