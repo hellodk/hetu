@@ -98,7 +98,7 @@ func (rl *RateLimiter) Allow(ip string) bool {
 
 	// Refill tokens
 	elapsed := time.Since(v.lastSeen)
-	refill := int(elapsed / rl.interval) * rl.rate
+	refill := int(elapsed/rl.interval) * rl.rate
 	v.tokens += refill
 	if v.tokens > rl.burst {
 		v.tokens = rl.burst
