@@ -1,15 +1,24 @@
 'use client'
 
 import { useRef, useState, useEffect } from 'react'
-import { MessageSquare, X, Send, Square, Wrench } from 'lucide-react'
+import { MessageSquare, X, Send, Square, Wrench, BookMarked } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { streamChat, type ChatToolEvent } from '@/lib/chat'
+
+// Shape emitted by the analyzer's SSE `citation` frames (analyzer/chat_tools.go).
+interface ChatCitation {
+  kind: string
+  ref: string
+  title: string
+  snippet?: string
+}
 
 interface ChatTurn {
   role: 'user' | 'assistant'
   content: string
   tools?: ChatToolEvent[]
+  citations?: ChatCitation[]
   error?: string
 }
 
@@ -78,6 +87,14 @@ export function ChatWidget() {
           },
           onTool: (tool) =>
             appendAssistant((t) => ({ ...t, tools: [...(t.tools ?? []), tool] })),
+          onCitation: (raw) => {
+            const c = raw as ChatCitation | undefined
+            if (!c || !c.ref) return
+            appendAssistant((t) => ({
+              ...t,
+              citations: [...(t.citations ?? []), c],
+            }))
+          },
           onToken: (text) =>
             appendAssistant((t) => ({ ...t, content: t.content + text })),
           onError: (msg) => appendAssistant((t) => ({ ...t, error: msg })),
@@ -167,6 +184,21 @@ export function ChatWidget() {
                     >
                       <Wrench className="w-3 h-3" aria-hidden="true" />
                       {tool.name}
+                    </span>
+                  ))}
+                </div>
+              )}
+              {t.citations && t.citations.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {t.citations.map((c, j) => (
+                    <span
+                      key={j}
+                      data-testid="chat-citation-chip"
+                      title={c.ref}
+                      className="inline-flex items-center gap-1 rounded-full border border-cluster-border bg-cluster-card px-2 py-0.5 text-[11px] font-medium text-cluster-muted"
+                    >
+                      <BookMarked className="w-3 h-3" aria-hidden="true" />
+                      {c.title || c.ref}
                     </span>
                   ))}
                 </div>

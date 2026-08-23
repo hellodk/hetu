@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"text/template"
 	"time"
@@ -69,6 +70,13 @@ type Analyzer struct {
 	stopCh          chan struct{}
 	wg              sync.WaitGroup
 	promptTemplates map[string]*template.Template
+
+	// ready flips monotonically true once the first report has been
+	// published (live analysis or mock generation). /readyz gates on it so
+	// a starting pod stays out of Service endpoints until it can serve
+	// data; a later degraded cycle does NOT flip it back — the process
+	// still serves its API meaningfully then.
+	ready atomic.Bool
 
 	// Profile state: "live" or "mock". Controlled at startup via PROFILE env
 	// var and at runtime via POST /api/v1/profile. The default is "live" —
@@ -1225,6 +1233,7 @@ func (a *Analyzer) publishReport(report *types.ClusterHealthReport) {
 		a.reportHistory = a.reportHistory[1:]
 	}
 	a.reportMu.Unlock()
+	a.ready.Store(true)
 	a.broadcastReport(report)
 }
 
@@ -1242,6 +1251,19 @@ func (a *Analyzer) buildDiagnosticReport() *types.ClusterHealthReport {
 		SecurityFindings: []types.SecurityFinding{},
 		Status:           a.buildReportStatus(false),
 	}
+}
+
+// handleReadyz reports readiness: 503 until the analyzer has published its
+// first report (live analysis or mock generation), 200 monotonically after.
+// The chart's readinessProbe points here; liveness stays on /healthz.
+func (a *Analyzer) handleReadyz(w http.ResponseWriter, r *http.Request) {
+	if !a.ready.Load() {
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(http.StatusServiceUnavailable)
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "starting"})
+		return
+	}
+	writeJSON(w, map[string]string{"status": "ready"})
 }
 
 // subscribe creates a new channel for SSE
@@ -1280,14 +1302,11 @@ func (a *Analyzer) fetchEvents(ctx context.Context) ([]types.TelemetryEvent, err
 
 	resp, err := a.httpClient.Do(req)
 	if err != nil {
-		// Local/demo runs often don't have a collector. If the default K8s DNS
-		// name isn't resolvable, fall back to synthetic events so the UI stays
-		// usable (timeline, incidents) in mock mode.
-		if strings.Contains(err.Error(), "lookup collector") ||
-			strings.Contains(err.Error(), "no such host") {
-			return a.mockTelemetryEvents(), nil
-		}
-		return nil, err
+		// Surface the failure — runAnalysis records collector diagnostics
+		// and publishes a diagnostic report. A synthetic fallback here
+		// would score fabricated telemetry as real cluster state in live
+		// mode (review 2026-08-23, finding C1).
+		return nil, fmt.Errorf("collector unreachable at %s: %w", collectorURL, err)
 	}
 	defer resp.Body.Close()
 
@@ -1879,11 +1898,13 @@ func (a *Analyzer) serveAPI() {
 
 	mux := http.NewServeMux()
 
-	// Health endpoints
+	// Health endpoints. /healthz is liveness only (process up);
+	// /readyz reflects whether the analyzer has published any report yet.
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("ok"))
 	})
+	mux.HandleFunc("/readyz", a.handleReadyz)
 
 	// API endpoints
 	mux.HandleFunc("/api/v1/health", a.handleHealthReport)
@@ -3060,7 +3081,7 @@ func (a *Analyzer) Stop() {
 
 func main() {
 	// Configure logging
-	logger.Init(os.Getenv("LOG_LEVEL"), os.Getenv("LOG_FORMAT"))
+	logger.InitWithService(os.Getenv("LOG_LEVEL"), os.Getenv("LOG_FORMAT"), "hetu-analyzer")
 
 	// v7: Load layered unified config (base + runtime override) in relaxed mode
 	// so the service can start even if config files are missing/invalid.

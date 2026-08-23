@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -23,6 +24,28 @@ var upgrader = websocket.Upgrader{
 	CheckOrigin:     func(r *http.Request) bool { return true },
 	ReadBufferSize:  4096,
 	WriteBufferSize: 4096,
+}
+
+// wsWriter serializes writes on a single websocket connection. gorilla
+// forbids concurrent writers; the pod-log stream has a heartbeat goroutine
+// writing alongside the scanner loop, and exec multiplexes stdout/stderr.
+type wsWriter struct {
+	mu   sync.Mutex
+	conn *websocket.Conn
+}
+
+func newWSWriter(c *websocket.Conn) *wsWriter { return &wsWriter{conn: c} }
+
+func (w *wsWriter) writeJSON(v any) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.conn.WriteJSON(v)
+}
+
+func (w *wsWriter) writeMessage(messageType int, data []byte) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.conn.WriteMessage(messageType, data)
 }
 
 // RegisterWSRoutes registers the WebSocket-based routes (logs, exec)
@@ -84,6 +107,7 @@ func (h *WorkloadHandler) handlePodLogsWS(w http.ResponseWriter, r *http.Request
 		return
 	}
 	defer conn.Close()
+	ww := newWSWriter(conn)
 
 	opts := &corev1.PodLogOptions{
 		Follow:    follow,
@@ -95,7 +119,7 @@ func (h *WorkloadHandler) handlePodLogsWS(w http.ResponseWriter, r *http.Request
 
 	stream, err := h.clientset.CoreV1().Pods(ns).GetLogs(name, opts).Stream(r.Context())
 	if err != nil {
-		_ = conn.WriteJSON(map[string]string{"error": err.Error()})
+		_ = ww.writeJSON(map[string]string{"error": err.Error()})
 		return
 	}
 	defer stream.Close()
@@ -112,7 +136,7 @@ func (h *WorkloadHandler) handlePodLogsWS(w http.ResponseWriter, r *http.Request
 			case <-r.Context().Done():
 				return
 			case <-ticker.C:
-				if err := conn.WriteJSON(map[string]string{
+				if err := ww.writeJSON(map[string]string{
 					"type": "heartbeat",
 					"ts":   time.Now().Format(time.RFC3339),
 				}); err != nil {
@@ -126,12 +150,12 @@ func (h *WorkloadHandler) handlePodLogsWS(w http.ResponseWriter, r *http.Request
 	scanner := bufio.NewScanner(stream)
 	scanner.Buffer(make([]byte, 0, 64*1024), 256*1024)
 	for scanner.Scan() {
-		if err := conn.WriteMessage(websocket.TextMessage, scanner.Bytes()); err != nil {
+		if err := ww.writeMessage(websocket.TextMessage, scanner.Bytes()); err != nil {
 			break // client disconnected
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		_ = conn.WriteJSON(map[string]string{"error": err.Error()})
+		_ = ww.writeJSON(map[string]string{"error": err.Error()})
 	}
 	<-heartbeatDone
 }
@@ -175,6 +199,7 @@ func (h *WorkloadHandler) handlePodExec(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	defer conn.Close()
+	ww := newWSWriter(conn)
 
 	// Write audit log
 	h.writeAudit("system", "pod.exec", map[string]any{
@@ -197,11 +222,11 @@ func (h *WorkloadHandler) handlePodExec(w http.ResponseWriter, r *http.Request) 
 
 	exec, err := remotecommand.NewSPDYExecutor(h.restConfig, "POST", execReq.URL())
 	if err != nil {
-		_ = conn.WriteJSON(map[string]string{"error": err.Error()})
+		_ = ww.writeJSON(map[string]string{"error": err.Error()})
 		return
 	}
 
-	wsStream := &wsStreamAdapter{conn: conn}
+	wsStream := &wsStreamAdapter{conn: conn, ww: ww}
 
 	err = exec.StreamWithContext(r.Context(), remotecommand.StreamOptions{
 		Stdin:  wsStream,
@@ -210,14 +235,16 @@ func (h *WorkloadHandler) handlePodExec(w http.ResponseWriter, r *http.Request) 
 		Tty:    true,
 	})
 	if err != nil {
-		_ = conn.WriteJSON(map[string]string{"error": err.Error()})
+		_ = ww.writeJSON(map[string]string{"error": err.Error()})
 	}
 }
 
 // wsStreamAdapter adapts a WebSocket connection to io.Reader/io.Writer
-// for use with remotecommand.StreamOptions.
+// for use with remotecommand.StreamOptions. Writes go through wsWriter so
+// stdout/stderr frames never race the error-path writeJSON.
 type wsStreamAdapter struct {
 	conn   *websocket.Conn
+	ww     *wsWriter
 	reader io.Reader
 }
 
@@ -238,7 +265,7 @@ func (ws *wsStreamAdapter) Read(p []byte) (int, error) {
 }
 
 func (ws *wsStreamAdapter) Write(p []byte) (int, error) {
-	err := ws.conn.WriteMessage(websocket.BinaryMessage, p)
+	err := ws.ww.writeMessage(websocket.BinaryMessage, p)
 	return len(p), err
 }
 

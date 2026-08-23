@@ -47,6 +47,39 @@ test.describe('Chat widget #10', () => {
     await expect(page.getByTestId('chat-message-assistant')).toContainText('All pods are healthy.')
   })
 
+  // Issue #12 — citation frames emitted by the analyzer must render as
+  // grounding chips under the assistant turn (previously dropped).
+  test('renders citation chips from citation frames', async ({ page }) => {
+    const cited = [
+      'data: {"type":"conversation","conversationId":"conv_cited"}',
+      '',
+      'data: {"type":"citation","citation":{"kind":"doc","ref":"docs/SCORING_SYSTEM.md","title":"Scoring System","snippet":"weighted rules"}}',
+      '',
+      'data: {"type":"token","content":"Scores come from weighted rules [docs/SCORING_SYSTEM.md]."}',
+      '',
+      'data: {"type":"done","conversationId":"conv_cited"}',
+      '',
+      '',
+    ].join('\n')
+
+    await mockHealthReport(page)
+    await page.route('**/api/v1/chat', async (route) => {
+      await route.fulfill({
+        status: 200,
+        headers: { 'content-type': 'text/event-stream', 'x-conversation-id': 'conv_cited' },
+        body: cited,
+      })
+    })
+    await page.goto('/')
+    await page.getByTestId('chat-launcher').click()
+    await page.getByTestId('chat-input').fill('how are scores computed?')
+    await page.getByTestId('chat-send').click()
+
+    const chip = page.getByTestId('chat-citation-chip')
+    await expect(chip).toContainText('Scoring System')
+    await expect(chip).toHaveAttribute('title', 'docs/SCORING_SYSTEM.md')
+  })
+
   test('widget is light-themed in the default theme', async ({ page }) => {
     await mockHealthReport(page)
     await page.goto('/')
