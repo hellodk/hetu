@@ -160,18 +160,6 @@ export function Navigation() {
 
   const nav = (
     <nav className="flex flex-col flex-1 min-h-0">
-      {/* Search trigger */}
-      <div className="p-3 border-b border-cluster-border">
-        <button
-          onClick={openSearch}
-          className="flex items-center gap-2 w-full px-3 py-2 rounded-lg border border-cluster-border/70 bg-cluster-bg/50 text-cluster-muted hover:border-cluster-border hover:text-cluster-text transition-colors text-sm"
-        >
-          <Search className="w-3.5 h-3.5 flex-shrink-0" />
-          <span className="flex-1 text-left text-xs">Search…</span>
-          <kbd className="text-[10px] font-mono opacity-50">⌘K</kbd>
-        </button>
-      </div>
-
       {/* Top links */}
       <div className="p-4 border-b border-cluster-border">
         <div className="text-xs font-semibold tracking-wide text-cluster-muted uppercase mb-2">

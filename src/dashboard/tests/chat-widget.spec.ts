@@ -47,6 +47,37 @@ test.describe('Chat widget #10', () => {
     await expect(page.getByTestId('chat-message-assistant')).toContainText('All pods are healthy.')
   })
 
+  // Issue #14 — the assistant shows a typing indicator while a turn streams.
+  test('shows typing indicator during a streamed answer', async ({ page }) => {
+    // Slow token stream so the streaming window is observable.
+    const slow = [
+      'data: {"type":"conversation","conversationId":"conv_slow"}',
+      '',
+      'data: {"type":"token","content":"Checking"}',
+      '',
+      'data: {"type":"done","conversationId":"conv_slow"}',
+      '',
+      '',
+    ].join('\n')
+    await mockHealthReport(page)
+    await page.route('**/api/v1/chat', async (route) => {
+      await new Promise((r) => setTimeout(r, 400))
+      await route.fulfill({
+        status: 200,
+        headers: { 'content-type': 'text/event-stream' },
+        body: slow,
+      })
+    })
+    await page.goto('/')
+    await page.getByTestId('chat-launcher').click()
+    await page.getByTestId('chat-input').fill('status?')
+    await page.getByTestId('chat-send').click()
+
+    await expect(page.getByTestId('chat-typing')).toBeVisible()
+    await expect(page.getByTestId('chat-message-assistant')).toContainText('Checking', { timeout: 10_000 })
+    await expect(page.getByTestId('chat-typing')).toHaveCount(0)
+  })
+
   // Issue #12 — citation frames emitted by the analyzer must render as
   // grounding chips under the assistant turn (previously dropped).
   test('renders citation chips from citation frames', async ({ page }) => {

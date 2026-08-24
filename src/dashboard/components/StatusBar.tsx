@@ -1,6 +1,6 @@
 'use client'
 
-import { Activity, RefreshCw, Download, Bell, Settings } from 'lucide-react'
+import { Activity, RefreshCw, Download, Bell, Settings, Search } from 'lucide-react'
 
 interface StatusBarProps {
   clusterId:    string
@@ -79,6 +79,18 @@ export function StatusBar({
 
       <span className="text-cluster-border hidden lg:inline" aria-hidden="true">|</span>
       <span className="text-cluster-muted hidden lg:inline">v{version}</span>
+
+      {/* Global search trigger — lives in the status line (issue #14) */}
+      <button
+        onClick={() => window.dispatchEvent(new Event('open-global-search'))}
+        data-testid="topbar-search"
+        aria-label="Open search"
+        className="ml-2 flex items-center gap-2 h-7 px-3 w-44 sm:w-64 md:w-80 lg:w-[28rem] max-w-full rounded-lg border border-cluster-border/70 bg-cluster-bg/60 text-cluster-muted hover:border-cluster-border hover:text-cluster-text transition-colors text-xs font-sans flex-shrink"
+      >
+        <Search className="w-3.5 h-3.5 flex-shrink-0" aria-hidden="true" />
+        <span className="flex-1 text-left truncate">Search…</span>
+        <kbd className="text-[10px] font-mono opacity-50 flex-shrink-0">⌘K</kbd>
+      </button>
 
       {/* Actions */}
       <div className="ml-auto flex items-center gap-0.5" role="group" aria-label="Dashboard actions">

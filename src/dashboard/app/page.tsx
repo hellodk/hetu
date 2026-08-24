@@ -201,7 +201,7 @@ function DashboardSkeleton() {
         {/* Score Cards Skeleton */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 mb-6">
           {[1, 2, 3, 4, 5].map(i => (
-            <div key={i} className="bg-cluster-card rounded-xl border border-cluster-border p-4">
+            <div key={i} className="glass-panel bg-cluster-card/60 rounded-xl border border-cluster-border/70 p-4">
               <div className="flex items-start justify-between mb-3">
                 <div className="skeleton-circle w-10 h-10" />
                 <div className="skeleton h-5 w-12" />
@@ -227,7 +227,7 @@ function DashboardSkeleton() {
         {/* Content Skeleton */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
-            <div className="bg-cluster-card rounded-xl border border-cluster-border p-6">
+            <div className="glass-panel bg-cluster-card/60 rounded-xl border border-cluster-border/70 p-6">
               <div className="skeleton h-6 w-48 mb-4" />
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {[1, 2, 3, 4].map(i => (
@@ -235,7 +235,7 @@ function DashboardSkeleton() {
                 ))}
               </div>
             </div>
-            <div className="bg-cluster-card rounded-xl border border-cluster-border p-6">
+            <div className="glass-panel bg-cluster-card/60 rounded-xl border border-cluster-border/70 p-6">
               <div className="skeleton h-6 w-48 mb-4" />
               <div className="space-y-4">
                 {[1, 2, 3].map(i => (
@@ -244,7 +244,7 @@ function DashboardSkeleton() {
               </div>
             </div>
           </div>
-          <div className="bg-cluster-card rounded-xl border border-cluster-border p-6">
+          <div className="glass-panel bg-cluster-card/60 rounded-xl border border-cluster-border/70 p-6">
             <div className="skeleton h-6 w-32 mb-4" />
             <div className="space-y-3">
               {[1, 2, 3, 4].map(i => (
