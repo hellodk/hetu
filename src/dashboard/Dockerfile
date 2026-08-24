@@ -15,6 +15,12 @@ COPY . .
 # Create public dir if it doesn't exist (Next.js expects it)
 RUN mkdir -p public
 
+# Subpath deploy is opt-in at BUILD time (Next.js basePath is build-time).
+# Default empty => served at root. For the homelab /hetu deploy build with:
+#   docker build --build-arg NEXT_BASE_PATH=/hetu ...
+ARG NEXT_BASE_PATH=""
+ENV NEXT_BASE_PATH=${NEXT_BASE_PATH}
+
 # Build the application
 RUN npm run build
 
@@ -43,7 +49,12 @@ ENV NODE_ENV=production
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
+# Carry the build-time basePath into the runtime image so the healthcheck hits
+# the URL the app actually serves (root by default, /hetu for subpath builds).
+ARG NEXT_BASE_PATH=""
+ENV NEXT_BASE_PATH=${NEXT_BASE_PATH}
+
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:3000/ || exit 1
+    CMD wget --no-verbose --tries=1 --spider "http://localhost:3000${NEXT_BASE_PATH}/" || exit 1
 
 CMD ["node", "server.js"]

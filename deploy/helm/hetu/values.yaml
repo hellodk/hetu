@@ -196,7 +196,12 @@ dashboard:
   service:
     type: ClusterIP      # set to NodePort for direct node access without Ingress
     nodePort: null       # e.g. 30303; only used when type=NodePort
-  basePath: "/hetu"     # subpath the dashboard is served under; must match nginx location
+  # Subpath the dashboard is served under; must match the ingress/nginx location.
+  # NOTE: Next.js basePath is BUILD-TIME. The runtime NEXT_BASE_PATH env alone does
+  # NOT relocate the app — the image must be BUILT for this subpath:
+  #   docker build --build-arg NEXT_BASE_PATH=/hetu -t <repo>/hetu-dashboard:<tag> src/dashboard
+  # Leave the default image (built at root) only if basePath is "" here.
+  basePath: "/hetu"
   env: []
   # Dashboard needs a writable FS for Next.js .next/cache and tmp.
   podSecurityContext:
