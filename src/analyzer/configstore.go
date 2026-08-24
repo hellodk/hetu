@@ -125,7 +125,7 @@ func (s *K8sConfigMapStore) Put(ctx context.Context, yaml string) error {
 				Labels: map[string]string{
 					"app.kubernetes.io/name":      "hetu",
 					"app.kubernetes.io/component": "analyzer",
-					"cluster-intel.io/managed":    "runtime-overrides",
+					"hetu.io/managed":             "runtime-overrides",
 				},
 			},
 			Data: map[string]string{s.Key: yaml},
@@ -139,6 +139,12 @@ func (s *K8sConfigMapStore) Put(ctx context.Context, yaml string) error {
 	if cm.Data == nil {
 		cm.Data = map[string]string{}
 	}
+	if cm.Labels == nil {
+		cm.Labels = map[string]string{}
+	}
+	cm.Labels["app.kubernetes.io/name"] = "hetu"
+	cm.Labels["app.kubernetes.io/component"] = "analyzer"
+	cm.Labels["hetu.io/managed"] = "runtime-overrides"
 	cm.Data[s.Key] = yaml
 	_, err = cms.Update(ctx, cm, metav1.UpdateOptions{})
 	return err
@@ -156,6 +162,24 @@ func inClusterNamespace() string {
 		}
 	}
 	return ""
+}
+
+// runtimeConfigMapName is the ConfigMap the Helm chart renders (and mounts)
+// for runtime overrides, with RBAC granting get/update/patch on exactly this
+// name. Issue #15: this previously said "cluster-intel-runtime", so every
+// settings save hit a forbidden create on a ConfigMap nobody reads.
+const runtimeConfigMapName = "hetu-runtime"
+
+// newInClusterConfigStore builds the API-backed store against an explicit
+// clientset/namespace. Split out from NewDefaultConfigStore so tests can pin
+// the target name and exercise Put/Get without a live cluster.
+func newInClusterConfigStore(client kubernetes.Interface, namespace string) ConfigStore {
+	return &K8sConfigMapStore{
+		Client:    client,
+		Namespace: namespace,
+		Name:      runtimeConfigMapName,
+		Key:       "runtime.yaml",
+	}
 }
 
 // NewDefaultConfigStore returns the best available config store:
@@ -182,10 +206,5 @@ func NewDefaultConfigStore() ConfigStore {
 		return &FileConfigStore{Path: DefaultRuntimeOverridePath()}
 	}
 
-	return &K8sConfigMapStore{
-		Client:    clientset,
-		Namespace: ns,
-		Name:      "cluster-intel-runtime",
-		Key:       "runtime.yaml",
-	}
+	return newInClusterConfigStore(clientset, ns)
 }

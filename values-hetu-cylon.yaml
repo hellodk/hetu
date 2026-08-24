@@ -37,7 +37,7 @@ collector:
 analyzer:
   image:
     repository: docker.io/hellodk/hetu-analyzer
-    tag: "7.5.0-phase1"
+    tag: "7.5.2-persist"
     pullPolicy: IfNotPresent
   nodeSelector:
     kubernetes.io/hostname: cylon
@@ -54,7 +54,7 @@ analyzer:
 dashboard:
   image:
     repository: docker.io/hellodk/hetu-dashboard
-    tag: "7.5.0-phase1"
+    tag: "7.5.3-statusbar"
     pullPolicy: IfNotPresent
     # NOTE: image must be built with --build-arg NEXT_BASE_PATH=/hetu —
     # basePath is a BUILD-TIME Next.js setting. The 7.5.0-phase1 image was.
@@ -94,7 +94,7 @@ bus:
 # Settings UI (runtime config API), or edit this file and upgrade.
 llm:
   provider: ollama
-  endpoint: "http://127.0.0.1:11434"
+  endpoint: "http://192.168.1.5:8000"
   model: llama3
   dailyTokenBudget: 1000000
 
