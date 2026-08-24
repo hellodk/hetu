@@ -5,7 +5,7 @@ import { apiFetch, getApiUrl } from '@/lib/api'
 import {
   RefreshCw, Loader2, CheckCircle, XCircle,
   Server, Brain, Save, RotateCcw, Key, Search, Palette, ChevronDown,
-  Network, Plus, Trash2, Copy, ExternalLink
+  Network, Plus, Trash2, Copy, ExternalLink, Eye, EyeOff
 } from 'lucide-react'
 
 interface LLMConfig {
@@ -65,6 +65,7 @@ export default function SettingsPage() {
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [apiKey, setApiKey] = useState('')
+  const [showApiKey, setShowApiKey] = useState(false)
   const [theme, setThemeState] = useState<ThemeChoice>('graphite')
   const [themeDropdownOpen, setThemeDropdownOpen] = useState(false)
   const themeDropdownRef = useRef<HTMLDivElement>(null)
@@ -371,15 +372,27 @@ export default function SettingsPage() {
               </label>
               <div className="relative">
                 <input
-                  type="password"
+                  data-testid="password-input"
+                  type={showApiKey ? 'text' : 'password'}
                   value={apiKey}
                   onChange={e => setApiKey(e.target.value)}
-                  className="w-full bg-cluster-bg border border-cluster-border rounded-lg px-3 py-2.5 text-cluster-text text-sm font-mono"
+                  className="w-full bg-cluster-bg border border-cluster-border rounded-lg px-3 py-2.5 pr-20 text-cluster-text text-sm font-mono"
                   placeholder={form.apiKeySet ? '••••••••••••••• (already set)' : 'dummy'}
                 />
                 {form.apiKeySet && !apiKey && (
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-green-500">configured</span>
+                  <span className="absolute right-12 top-1/2 -translate-y-1/2 text-xs text-green-500">configured</span>
                 )}
+                <button
+                  type="button"
+                  data-testid="password-reveal"
+                  onClick={() => setShowApiKey(v => !v)}
+                  aria-label={showApiKey ? 'Hide password' : 'Show password'}
+                  aria-pressed={showApiKey}
+                  title={showApiKey ? 'Hide password' : 'Show password'}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded text-cluster-muted hover:text-cluster-text transition-colors"
+                >
+                  {showApiKey ? <EyeOff className="w-4 h-4" aria-hidden="true" /> : <Eye className="w-4 h-4" aria-hidden="true" />}
+                </button>
               </div>
             </div>
 

@@ -25,6 +25,7 @@ interface ChatTurn {
 /**
  * Floating agentic-chat widget wired to the analyzer's POST /api/v1/chat SSE.
  * Mounted once in the app shell so it is available on every page.
+ * Glass styling per issue #14 (light-first, token-driven).
  */
 export function ChatWidget() {
   const [open, setOpen] = useState(false)
@@ -47,6 +48,12 @@ export function ChatWidget() {
     abortRef.current = null
     setStreaming(false)
   }
+
+  // Typing indicator shows while the turn has started but produced no
+  // visible content yet (no tokens, no tool chips).
+  const last = turns[turns.length - 1]
+  const showTyping =
+    streaming && last?.role === 'assistant' && !last.content && !(last.tools && last.tools.length > 0)
 
   const send = async () => {
     const message = input.trim()
@@ -130,7 +137,7 @@ export function ChatWidget() {
         onClick={() => setOpen(true)}
         data-testid="chat-launcher"
         aria-label="Open AI assistant"
-        className="fixed bottom-5 right-5 z-40 w-12 h-12 rounded-full bg-blue-600 hover:bg-blue-700 text-white shadow-lg flex items-center justify-center transition-colors"
+        className="fixed bottom-5 right-5 z-40 w-12 h-12 rounded-full bg-gradient-to-br from-[rgb(var(--accent))] to-[rgb(var(--accent-soft))] text-white shadow-lg flex items-center justify-center transition-transform hover:scale-105"
       >
         <MessageSquare className="w-5 h-5" aria-hidden="true" />
       </button>
@@ -143,11 +150,13 @@ export function ChatWidget() {
       role="dialog"
       aria-modal="false"
       aria-label="AI assistant"
-      className="fixed bottom-5 right-5 z-40 flex flex-col w-[min(24rem,calc(100vw-2.5rem))] h-[min(600px,calc(100vh-2.5rem))] bg-cluster-card text-cluster-text border border-cluster-border rounded-lg shadow-xl overflow-hidden"
+      className="fixed bottom-5 right-5 z-40 flex flex-col w-[min(24rem,calc(100vw-2.5rem))] h-[min(600px,calc(100vh-2.5rem))] rounded-2xl overflow-hidden border border-cluster-border/70 shadow-xl glass-panel bg-cluster-card/70"
     >
       {/* Header */}
-      <header className="flex items-center gap-2 px-4 py-2.5 border-b border-cluster-border bg-cluster-card">
-        <MessageSquare className="w-4 h-4 text-blue-500" aria-hidden="true" />
+      <header className="flex items-center gap-2 px-4 py-2.5 border-b border-cluster-border/60 bg-cluster-card/40">
+        <span className="w-6 h-6 rounded-lg bg-gradient-to-br from-[rgb(var(--accent))] to-[rgb(var(--accent-soft))] flex items-center justify-center text-white text-xs">
+          ✦
+        </span>
         <h2 className="text-sm font-semibold text-cluster-text flex-1">Cluster Assistant</h2>
         <button
           onClick={() => setOpen(false)}
@@ -159,7 +168,7 @@ export function ChatWidget() {
       </header>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-3 py-3 space-y-3">
+      <div role="log" aria-live="polite" className="flex-1 overflow-y-auto px-3 py-3 space-y-3">
         {turns.length === 0 && (
           <p className="text-xs text-cluster-muted px-1 py-4 text-center">
             Ask about cluster health, incidents, pods, metrics, security findings, or recommendations.
@@ -168,7 +177,7 @@ export function ChatWidget() {
         {turns.map((t, i) =>
           t.role === 'user' ? (
             <div key={i} className="flex justify-end">
-              <div className="max-w-[85%] rounded-lg bg-blue-600 text-white px-3 py-1.5 text-sm whitespace-pre-wrap break-words">
+              <div className="msg-rise max-w-[85%] rounded-xl rounded-br-sm bg-gradient-to-br from-[rgb(var(--accent))] to-[rgb(var(--accent-soft))] text-white px-3 py-1.5 text-sm whitespace-pre-wrap break-words shadow-sm">
                 {t.content}
               </div>
             </div>
@@ -180,7 +189,7 @@ export function ChatWidget() {
                     <span
                       key={j}
                       data-testid="chat-tool-chip"
-                      className="inline-flex items-center gap-1 rounded-full border border-cluster-border bg-cluster-bg px-2 py-0.5 text-[11px] font-medium text-cluster-muted"
+                      className="inline-flex items-center gap-1 rounded-full border border-cluster-border/80 bg-cluster-bg/60 backdrop-blur px-2 py-0.5 text-[11px] font-medium text-cluster-muted msg-rise"
                     >
                       <Wrench className="w-3 h-3" aria-hidden="true" />
                       {tool.name}
@@ -188,6 +197,14 @@ export function ChatWidget() {
                   ))}
                 </div>
               )}
+              <div className="msg-rise max-w-[92%] rounded-xl rounded-bl-sm bg-cluster-bg/70 border border-cluster-border/60 px-3 py-2 text-sm text-cluster-text prose-chat break-words shadow-sm">
+                {t.content ? (
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{t.content}</ReactMarkdown>
+                ) : null}
+                {t.error && (
+                  <p className="mt-1 text-xs text-[color:rgb(var(--sev-crit))]">{t.error}</p>
+                )}
+              </div>
               {t.citations && t.citations.length > 0 && (
                 <div className="flex flex-wrap gap-1">
                   {t.citations.map((c, j) => (
@@ -195,7 +212,7 @@ export function ChatWidget() {
                       key={j}
                       data-testid="chat-citation-chip"
                       title={c.ref}
-                      className="inline-flex items-center gap-1 rounded-full border border-cluster-border bg-cluster-card px-2 py-0.5 text-[11px] font-medium text-cluster-muted"
+                      className="inline-flex items-center gap-1 rounded-full border border-cluster-border/80 bg-cluster-bg/60 px-2 py-0.5 text-[11px] font-medium text-cluster-muted msg-rise"
                     >
                       <BookMarked className="w-3 h-3" aria-hidden="true" />
                       {c.title || c.ref}
@@ -203,24 +220,28 @@ export function ChatWidget() {
                   ))}
                 </div>
               )}
-              <div className="max-w-[92%] rounded-lg bg-cluster-bg border border-cluster-border px-3 py-2 text-sm text-cluster-text prose-chat break-words">
-                {t.content ? (
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{t.content}</ReactMarkdown>
-                ) : (
-                  !t.error && <span className="text-cluster-muted">…</span>
-                )}
-                {t.error && (
-                  <p className="mt-1 text-xs text-[color:var(--sev-crit,#DC2626)]">{t.error}</p>
-                )}
-              </div>
             </div>
           ),
+        )}
+        {showTyping && (
+          <div
+            data-testid="chat-typing"
+            className="inline-flex items-center gap-1 rounded-xl rounded-bl-sm bg-cluster-bg/70 border border-cluster-border/60 px-3 py-2.5"
+          >
+            {[0, 1, 2].map((j) => (
+              <i
+                key={j}
+                style={{ animation: `typing-bounce 1.2s ${j * 0.15}s infinite` }}
+                className="w-1.5 h-1.5 rounded-full bg-[rgb(var(--accent-soft))]"
+              />
+            ))}
+          </div>
         )}
         <div ref={endRef} />
       </div>
 
       {/* Input */}
-      <div className="border-t border-cluster-border p-2 flex items-end gap-2">
+      <div className="border-t border-cluster-border/60 p-2 flex items-end gap-2 bg-cluster-card/40">
         <textarea
           data-testid="chat-input"
           value={input}
@@ -229,14 +250,14 @@ export function ChatWidget() {
           rows={1}
           placeholder="Ask the cluster assistant…"
           aria-label="Message"
-          className="flex-1 resize-none rounded-md border border-cluster-border bg-cluster-bg px-2.5 py-1.5 text-sm text-cluster-text placeholder:text-cluster-muted focus:outline-none focus:ring-2 focus:ring-blue-500 max-h-32"
+          className="flex-1 resize-none rounded-md border border-cluster-border/70 bg-cluster-bg/70 px-2.5 py-1.5 text-sm text-cluster-text placeholder:text-cluster-muted focus:outline-none focus:ring-2 focus:ring-[rgb(var(--accent)/0.35)] max-h-32"
         />
         {streaming ? (
           <button
             onClick={stop}
             data-testid="chat-stop"
             aria-label="Stop"
-            className="flex-shrink-0 w-9 h-9 rounded-md bg-cluster-bg border border-cluster-border text-cluster-text hover:bg-cluster-card flex items-center justify-center transition-colors"
+            className="flex-shrink-0 w-9 h-9 rounded-md bg-cluster-bg/70 border border-cluster-border/70 text-cluster-text hover:bg-cluster-card flex items-center justify-center transition-colors"
           >
             <Square className="w-4 h-4" aria-hidden="true" />
           </button>
@@ -246,7 +267,7 @@ export function ChatWidget() {
             disabled={!input.trim()}
             data-testid="chat-send"
             aria-label="Send"
-            className="flex-shrink-0 w-9 h-9 rounded-md bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white flex items-center justify-center transition-colors"
+            className="flex-shrink-0 w-9 h-9 rounded-md bg-gradient-to-br from-[rgb(var(--accent))] to-[rgb(var(--accent-soft))] disabled:opacity-40 text-white flex items-center justify-center transition-transform hover:scale-105"
           >
             <Send className="w-4 h-4" aria-hidden="true" />
           </button>

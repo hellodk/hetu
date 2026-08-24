@@ -124,6 +124,12 @@ export default function RootLayout({
         />
       </head>
       <body className="bg-cluster-bg text-cluster-text min-h-screen">
+        {/* Aurora field — glassmorphism backdrop, purely decorative */}
+        <div className="aurora-field" aria-hidden="true">
+          <span className="aurora-blob" style={{ width: 480, height: 480, top: -140, left: -80 }} />
+          <span className="aurora-blob aurora-b2" style={{ width: 440, height: 440, bottom: -160, right: '10%' }} />
+          <span className="aurora-blob aurora-b3" style={{ width: 400, height: 400, top: '30%', right: -120 }} />
+        </div>
         {/* Skip to main content link for keyboard accessibility */}
         <a href="#main-content" className="skip-link">
           Skip to main content
