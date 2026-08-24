@@ -83,7 +83,7 @@ require_root_dir() { cd "$ROOT_DIR"; }
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
 REGISTRY="${REGISTRY:-hellodk}"
-NAMESPACE="${NAMESPACE:-cluster-intel}"
+NAMESPACE="${NAMESPACE:-hetu}"
 SERVICES=(collector analyzer)
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -97,7 +97,7 @@ cmd_build() {
 
     if [[ -z "$sub" ]]; then
         _prompt_select "What would you like to build?" \
-            "go" "docker" "dashboard" "all"
+            "go" "docker" "image (CI multi-arch)" "dashboard" "all"
         sub="$PROMPT_RESULT"
     fi
 
@@ -105,6 +105,7 @@ cmd_build() {
     case "$sub" in
         go)        cmd_build_go "$@" ;;
         docker)    cmd_build_docker "$@" ;;
+        image)     cmd_image "$@" ;;
         dashboard) cmd_build_dashboard "$@" ;;
         all)       cmd_build_all "$@" ;;
         *)         error "Unknown build target: $sub"; exit 1 ;;
@@ -123,8 +124,73 @@ cmd_build_go() {
 
 cmd_build_dashboard() {
     header "Building Dashboard (Next.js)"
-    run bash -c "cd src/dashboard && npm run build"
+    run bash -c "cd src/dashboard && pnpm install --frozen-lockfile && pnpm run build"
     success "Dashboard built"
+}
+
+# cmd_image — non-interactive multi-arch build+push, driven entirely by env
+# (this is what CI calls). No prompts, no hardcoded registry/version/platforms:
+#   IMAGE_PREFIX    docker hub namespace            (default: DOCKERHUB_USERNAME)
+#   IMAGE_TAG       tag for all images              (default: VERSION file)
+#   IMAGE_PLATFORMS buildx platforms                (default: linux/amd64,linux/arm64)
+#   PUSH_IMAGES     "true" to --push, else local load of the host arch only
+#   NEXT_BASE_PATH  dashboard basePath baked at build time (default /hetu)
+cmd_image() {
+    header "Building Container Images (buildx)"
+
+    local prefix="${IMAGE_PREFIX:-${DOCKERHUB_USERNAME:?IMAGE_PREFIX or DOCKERHUB_USERNAME required}}"
+    local tag="${IMAGE_TAG:-$(version)}"
+    local platforms="${IMAGE_PLATFORMS:-linux/amd64,linux/arm64}"
+    local base_path="${NEXT_BASE_PATH:-/hetu}"
+
+    # Optional additional pointers (e.g. EXTRA_IMAGE_TAGS="latest" on main).
+    # Duplicates of the primary tag are skipped.
+    local extra_tags=()
+    for extra in ${EXTRA_IMAGE_TAGS:-}; do
+        [[ "$extra" != "$tag" ]] && extra_tags+=("$extra")
+    done
+
+    local push_args=()
+    if [[ "${PUSH_IMAGES:-false}" == "true" ]]; then
+        push_args=(--push)
+        info "Publishing ${prefix}/hetu-*:${tag} for ${platforms}"
+    else
+        push_args=(--load)
+        warn "PUSH_IMAGES!=true — building host-arch images locally only (--load)"
+        platforms="linux/${BUILDARCH:-amd64}"
+        [[ -n "${IMAGE_PLATFORMS:-}" ]] && platforms="${IMAGE_PLATFORMS}"
+    fi
+
+    # Go services: plain Dockerfile builds (Go cross-compiles fine under QEMU).
+    for svc in collector analyzer; do
+        local this_svc_tags=()
+        for t in "$tag" "${extra_tags[@]:-}"; do
+            [[ -n "$t" ]] && this_svc_tags+=(-t "docker.io/${prefix}/hetu-${svc}:${t}")
+        done
+        info "image hetu-${svc}:${tag}${extra_tags:+ +${extra_tags[*]}} [${platforms}]"
+        run docker buildx build \
+            --platform "$platforms" \
+            -f "src/${svc}/Dockerfile" \
+            --label "org.opencontainers.image.version=${tag}" \
+            "${this_svc_tags[@]}" \
+            "${push_args[@]}" .
+    done
+
+    # Dashboard: basePath is a BUILD-TIME Next.js setting (see chart values).
+    local dash_tags=()
+    for t in "$tag" "${extra_tags[@]:-}"; do
+        [[ -n "$t" ]] && dash_tags+=(-t "docker.io/${prefix}/hetu-dashboard:${t}")
+    done
+    info "image hetu-dashboard:${tag}${extra_tags:+ +${extra_tags[*]}} [${platforms}] base=${base_path}"
+    run docker buildx build \
+        --platform "$platforms" \
+        -f src/dashboard/Dockerfile src/dashboard \
+        --build-arg "NEXT_BASE_PATH=${base_path}" \
+        --label "org.opencontainers.image.version=${tag}" \
+        "${dash_tags[@]}" \
+        "${push_args[@]}"
+
+    success "Images done: hetu-{collector,analyzer,dashboard}:${tag}"
 }
 
 cmd_build_docker() {
@@ -138,30 +204,30 @@ cmd_build_docker() {
     prompt_confirm "Also tag as :latest?" && tag_latest=true
 
     for svc in "${SERVICES[@]}"; do
-        info "Building cluster-intel-${svc}:${tag}..."
-        run docker build -t "${REGISTRY}/cluster-intel-${svc}:${tag}" \
+        info "Building hetu-${svc}:${tag}..."
+        run docker build -t "${REGISTRY}/hetu-${svc}:${tag}" \
             -f "src/${svc}/Dockerfile" .
         if [[ "$tag_latest" == true ]]; then
-            run docker tag "${REGISTRY}/cluster-intel-${svc}:${tag}" "${REGISTRY}/cluster-intel-${svc}:latest"
+            run docker tag "${REGISTRY}/hetu-${svc}:${tag}" "${REGISTRY}/hetu-${svc}:latest"
         fi
-        success "${REGISTRY}/cluster-intel-${svc}:${tag}"
+        success "${REGISTRY}/hetu-${svc}:${tag}"
     done
 
-    info "Building cluster-intel-dashboard:${tag}..."
-    run docker build -t "${REGISTRY}/cluster-intel-dashboard:${tag}" \
+    info "Building hetu-dashboard:${tag}..."
+    run docker build -t "${REGISTRY}/hetu-dashboard:${tag}" \
         -f src/dashboard/Dockerfile src/dashboard/
     if [[ "$tag_latest" == true ]]; then
-        run docker tag "${REGISTRY}/cluster-intel-dashboard:${tag}" "${REGISTRY}/cluster-intel-dashboard:latest"
+        run docker tag "${REGISTRY}/hetu-dashboard:${tag}" "${REGISTRY}/hetu-dashboard:latest"
     fi
-    success "${REGISTRY}/cluster-intel-dashboard:${tag}"
+    success "${REGISTRY}/hetu-dashboard:${tag}"
 
     if prompt_confirm "Push images to registry?"; then
         for svc in "${SERVICES[@]}"; do
-            run docker push "${REGISTRY}/cluster-intel-${svc}:${tag}"
-            [[ "$tag_latest" == true ]] && run docker push "${REGISTRY}/cluster-intel-${svc}:latest"
+            run docker push "${REGISTRY}/hetu-${svc}:${tag}"
+            [[ "$tag_latest" == true ]] && run docker push "${REGISTRY}/hetu-${svc}:latest"
         done
-        run docker push "${REGISTRY}/cluster-intel-dashboard:${tag}"
-        [[ "$tag_latest" == true ]] && run docker push "${REGISTRY}/cluster-intel-dashboard:latest"
+        run docker push "${REGISTRY}/hetu-dashboard:${tag}"
+        [[ "$tag_latest" == true ]] && run docker push "${REGISTRY}/hetu-dashboard:latest"
         success "All images pushed"
     fi
 }
@@ -225,7 +291,7 @@ cmd_deploy_stack() {
         local llm_endpoint="$PROMPT_RESULT"
 
         if [[ "$llm_provider" != "ollama" && "$llm_provider" != "llamacpp" && "$llm_provider" != "vllm" ]]; then
-            _prompt_input "K8s Secret name with API key (key: api-key)" "cluster-intel-llm"
+            _prompt_input "K8s Secret name with API key (key: api-key)" "hetu-llm"
             llm_secret="$PROMPT_RESULT"
 
             # Create secret if it doesn't exist
@@ -246,7 +312,7 @@ cmd_deploy_stack() {
     local ingress_enabled=false ingress_host=""
     if prompt_confirm "Enable Ingress?"; then
         ingress_enabled=true
-        _prompt_input "Ingress hostname" "cluster-intel.example.com"
+        _prompt_input "Ingress hostname" "hetu.example.com"
         ingress_host="$PROMPT_RESULT"
     fi
 
@@ -255,21 +321,21 @@ cmd_deploy_stack() {
     run_soft helm repo add bitnami https://charts.bitnami.com/bitnami
     run_soft helm repo add nats https://nats-io.github.io/k8s/helm/charts/
     run_soft helm repo update
-    run_soft helm dependency build deploy/helm/cluster-intel/
+    run_soft helm dependency build deploy/helm/hetu/
 
     # Deploy
-    info "Deploying Cluster Intel v${tag} to namespace ${NAMESPACE}..."
+    info "Deploying hetu v${tag} to namespace ${NAMESPACE}..."
 
     local helm_args=(
-        upgrade --install cluster-intel deploy/helm/cluster-intel/
+        upgrade --install hetu deploy/helm/hetu/
         --namespace "$NAMESPACE" --create-namespace
         --set "cluster.id=$(kubectl config current-context 2>/dev/null || echo default)"
-        --set "collector.image.repository=${REGISTRY}/cluster-intel-collector"
+        --set "collector.image.repository=${REGISTRY}/hetu-collector"
         --set "collector.image.tag=${tag}"
         --set "collector.prometheusUrl=${prom_url}"
-        --set "analyzer.image.repository=${REGISTRY}/cluster-intel-analyzer"
+        --set "analyzer.image.repository=${REGISTRY}/hetu-analyzer"
         --set "analyzer.image.tag=${tag}"
-        --set "dashboard.image.repository=${REGISTRY}/cluster-intel-dashboard"
+        --set "dashboard.image.repository=${REGISTRY}/hetu-dashboard"
         --set "dashboard.image.tag=${tag}"
     )
 
@@ -299,7 +365,7 @@ cmd_deploy_stack() {
     if [[ "$ingress_enabled" == true ]]; then
         info "  https://${ingress_host}"
     else
-        info "  kubectl -n $NAMESPACE port-forward svc/cluster-intel-dashboard 3000:3000"
+        info "  kubectl -n $NAMESPACE port-forward svc/hetu-dashboard 3000:3000"
         info "  open http://localhost:3000"
     fi
 }
@@ -313,16 +379,16 @@ cmd_deploy_upgrade() {
 
     for svc in collector analyzer; do
         info "Updating $svc to ${tag}..."
-        run_soft kubectl -n "$NAMESPACE" set image "deployment/cluster-intel-${svc}" \
-            "${svc}=${REGISTRY}/cluster-intel-${svc}:${tag}"
+        run_soft kubectl -n "$NAMESPACE" set image "deployment/hetu-${svc}" \
+            "${svc}=${REGISTRY}/hetu-${svc}:${tag}"
     done
     info "Updating dashboard to ${tag}..."
-    run_soft kubectl -n "$NAMESPACE" set image "deployment/cluster-intel-dashboard" \
-        "dashboard=${REGISTRY}/cluster-intel-dashboard:${tag}"
+    run_soft kubectl -n "$NAMESPACE" set image "deployment/hetu-dashboard" \
+        "dashboard=${REGISTRY}/hetu-dashboard:${tag}"
 
     info "Waiting for rollout..."
     for svc in collector analyzer dashboard; do
-        run_soft kubectl -n "$NAMESPACE" rollout status "deployment/cluster-intel-${svc}" --timeout=120s
+        run_soft kubectl -n "$NAMESPACE" rollout status "deployment/hetu-${svc}" --timeout=120s
     done
     success "Upgrade complete"
 }
@@ -351,11 +417,16 @@ cmd_test_unit() {
     header "Running Go Unit Tests"
     local failed=false
 
-    for d in pkg/config pkg/store pkg/bus pkg/kube pkg/llm pkg/types pkg/middleware \
-             src/collector src/analyzer; do
+    # -race is part of the gate (review 2026-08-23: three data races shipped
+    # because nothing ran the detector). Override with GO_TEST_FLAGS to drop
+    # it on machines where the race detector is unavailable.
+    local race_flag="${GO_TEST_FLAGS:--race}"
+
+    for d in pkg/config pkg/logger pkg/store pkg/bus pkg/kube pkg/llm pkg/types \
+             pkg/middleware src/collector src/analyzer; do
         if [[ -d "$d" ]]; then
             info "Testing $d..."
-            if run bash -c "cd $d && go test ./... -count=1 -timeout 120s" 2>&1 | tail -5; then
+            if run bash -c "cd $d && go test ./... -count=1 -timeout 300s $race_flag" 2>&1 | tail -5; then
                 success "$d passed"
             else
                 warn "$d had failures"
@@ -371,12 +442,27 @@ cmd_test_unit() {
     success "All unit tests passed"
 }
 
+# Go modules linted by cmd_test_lint. Keep in sync with cmd_test_unit.
+GO_MODULES=(pkg/config pkg/logger pkg/store pkg/bus pkg/kube pkg/llm pkg/types
+            pkg/middleware src/collector src/analyzer)
+
 cmd_test_lint() {
     header "Running Lints"
     local failed=false
 
-    # Go vet
-    for d in src/collector src/analyzer; do
+    # gofmt — formatting drift fails the gate (repo has .editorconfig + hooks,
+    # but hooks are bypassable; CI is the enforcement point).
+    info "gofmt check..."
+    if ! run bash -c 'test -z "$(gofmt -l pkg src)"' 2>&1; then
+        gofmt -l pkg src || true
+        error "gofmt drift detected — run: gofmt -w pkg src"
+        failed=true
+    else
+        success "gofmt clean"
+    fi
+
+    # go vet — every module, not just the binaries
+    for d in "${GO_MODULES[@]}"; do
         if [[ -d "$d" ]]; then
             info "go vet $d..."
             if run bash -c "cd $d && go vet ./..." 2>&1; then
@@ -387,18 +473,45 @@ cmd_test_lint() {
         fi
     done
 
-    # Next.js type check
-    info "TypeScript check..."
-    if run bash -c "cd src/dashboard && npx tsc --noEmit" 2>&1; then
-        success "TypeScript passed"
+    # golangci-lint when available (.golangci.yml at repo root applies to all
+    # modules). Absent locally → warn; CI installs it so the gate still bites.
+    if command -v golangci-lint >/dev/null 2>&1; then
+        for d in "${GO_MODULES[@]}"; do
+            if [[ -d "$d" ]]; then
+                info "golangci-lint $d..."
+                if run bash -c "cd $d && golangci-lint run --config \"$ROOT_DIR/.golangci.yml\" ./..." 2>&1 | tail -5; then
+                    success "$d golangci-lint passed"
+                else
+                    failed=true
+                fi
+            fi
+        done
     else
-        failed=true
+        warn "golangci-lint not installed — skipping (CI runs it)"
     fi
 
-    # Next.js build
-    info "Next.js build..."
-    if run bash -c "cd src/dashboard && npx next build" 2>&1 | tail -5; then
-        success "Dashboard build passed"
+    # Helm chart renders with throwaway values (chart requires cluster.id +
+    # llm.* at render time; values here are placeholders, never deployed).
+    if command -v helm >/dev/null 2>&1; then
+        info "helm lint + template..."
+        if run helm lint deploy/helm/hetu \
+              --set cluster.id=ci-check \
+              --set llm.provider=ollama \
+              --set llm.endpoint=http://127.0.0.1:11434 \
+              --set llm.model=ci-placeholder \
+              2>&1 | tail -3; then
+            success "helm lint passed"
+        else
+            failed=true
+        fi
+    else
+        warn "helm not installed — skipping chart checks"
+    fi
+
+    # Dashboard: pnpm only (never npm/npx), frozen lockfile, then typecheck.
+    info "TypeScript check..."
+    if run bash -c "cd src/dashboard && pnpm install --frozen-lockfile >/dev/null && pnpm exec tsc --noEmit" 2>&1; then
+        success "TypeScript passed"
     else
         failed=true
     fi
@@ -634,10 +747,10 @@ stores:
     port: ${pg_port}
     database: "${pg_db}"
     user: "${pg_user}"
-    passwordFile: /var/run/secrets/cluster-intel/postgres-password
+    passwordFile: /var/run/secrets/hetu/postgres-password
     sslMode: disable
     maxOpenConns: 25
-    migrationsPath: /etc/cluster-intel/migrations/postgres
+    migrationsPath: /etc/hetu/migrations/postgres
 
   redis:
     enabled: false
@@ -653,7 +766,7 @@ llm:
   provider: "${llm_provider}"
   endpoint: "${llm_endpoint}"
   model: "${llm_model}"
-  apiKeyFile: /var/run/secrets/cluster-intel/llm-api-key
+  apiKeyFile: /var/run/secrets/hetu/llm-api-key
   maxTokens: 4096
   temperature: 0.2
   dailyTokenBudget: 1000000
@@ -686,7 +799,7 @@ ${BOLD}ci${NC} — Cluster Intelligence CLI v$(version)
 ${BOLD}Usage:${NC}  ci [command] [subcommand] [flags]
 
 ${BOLD}Commands:${NC}
-  ${CYAN}build${NC}     Build components (go, docker, dashboard, all)
+  ${CYAN}build${NC}     Build components (go, docker, image, dashboard, all)
   ${CYAN}deploy${NC}    Deploy to Kubernetes (stack, upgrade, podlogs, lblogs)
   ${CYAN}test${NC}      Run tests (unit, lint, e2e, all)
   ${CYAN}setup${NC}     Set up environment (local, config)

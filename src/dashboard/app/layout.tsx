@@ -3,6 +3,7 @@ import { Inter, Space_Grotesk, Newsreader, Fraunces, JetBrains_Mono, Roboto } fr
 import './globals.css'
 import { Navigation } from '@/components/Navigation'
 import { GlobalSearch } from '@/components/GlobalSearch'
+import { ChatWidget } from '@/components/ChatWidget'
 
 // Body (every theme uses Inter for UI copy)
 const inter = Inter({
@@ -132,6 +133,7 @@ export default function RootLayout({
         <main id="main-content" className="lg:ml-56">
           {children}
         </main>
+        <ChatWidget />
       </body>
     </html>
   )

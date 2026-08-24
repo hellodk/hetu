@@ -3,11 +3,15 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
+# pnpm is the only package manager for this repo (see AGENTS/CLAUDE conventions).
+# Version is pinned by the packageManager field in package.json.
+RUN corepack enable
 
-# Install dependencies
-RUN npm ci
+# Copy lockfile + manifest for reproducible install
+COPY package.json pnpm-lock.yaml ./
+
+# Install dependencies (frozen lockfile — CI/builds never mutate deps)
+RUN pnpm install --frozen-lockfile
 
 # Copy source code
 COPY . .
@@ -22,7 +26,7 @@ ARG NEXT_BASE_PATH=""
 ENV NEXT_BASE_PATH=${NEXT_BASE_PATH}
 
 # Build the application
-RUN npm run build
+RUN pnpm run build
 
 # Runtime stage
 FROM node:20-alpine AS runner

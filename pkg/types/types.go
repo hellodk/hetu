@@ -5,17 +5,17 @@ import "time"
 
 // TelemetryEvent represents a normalized cluster event
 type TelemetryEvent struct {
-	ID             string                 `json:"id"`
-	Timestamp      time.Time              `json:"timestamp"`
-	Cluster        string                 `json:"cluster"`
-	Source         string                 `json:"source"`
-	Type           string                 `json:"type"`
-	Reason         string                 `json:"reason"`
-	InvolvedObject InvolvedObject         `json:"involvedObject"`
-	Message        string                 `json:"message"`
-	Count          int32                  `json:"count"`
-	FirstTimestamp time.Time              `json:"firstTimestamp"`
-	LastTimestamp  time.Time              `json:"lastTimestamp"`
+	ID             string         `json:"id"`
+	Timestamp      time.Time      `json:"timestamp"`
+	Cluster        string         `json:"cluster"`
+	Source         string         `json:"source"`
+	Type           string         `json:"type"`
+	Reason         string         `json:"reason"`
+	InvolvedObject InvolvedObject `json:"involvedObject"`
+	Message        string         `json:"message"`
+	Count          int32          `json:"count"`
+	FirstTimestamp time.Time      `json:"firstTimestamp"`
+	LastTimestamp  time.Time      `json:"lastTimestamp"`
 	Metadata       map[string]any `json:"metadata"`
 }
 
@@ -29,11 +29,11 @@ type InvolvedObject struct {
 
 // ResourceMetrics holds resource utilization metrics
 type ResourceMetrics struct {
-	Timestamp    time.Time              `json:"timestamp"`
-	Cluster      string                 `json:"cluster"`
-	ResourceType string                 `json:"resourceType"`
-	Resource     ResourceIdentifier     `json:"resource"`
-	Metrics      map[string]any `json:"metrics"`
+	Timestamp    time.Time          `json:"timestamp"`
+	Cluster      string             `json:"cluster"`
+	ResourceType string             `json:"resourceType"`
+	Resource     ResourceIdentifier `json:"resource"`
+	Metrics      map[string]any     `json:"metrics"`
 }
 
 // ResourceIdentifier identifies a Kubernetes resource
@@ -186,7 +186,7 @@ type Issue struct {
 	Confidence        float64              `json:"confidence"`
 	RootCause         string               `json:"rootCause,omitempty"`
 	BlastRadius       string               `json:"blastRadius,omitempty"`
-	Evidence          []CorrelatedEvidence  `json:"evidence,omitempty"`
+	Evidence          []CorrelatedEvidence `json:"evidence,omitempty"`
 	Timestamp         time.Time            `json:"timestamp"`
 }
 
@@ -222,10 +222,10 @@ type CostSavings struct {
 
 // Remediation provides fix instructions
 type Remediation struct {
-	Type         string                 `json:"type"`
-	Automated    bool                   `json:"automated"`
+	Type         string         `json:"type"`
+	Automated    bool           `json:"automated"`
 	Patch        map[string]any `json:"patch,omitempty"`
-	Instructions string                 `json:"instructions,omitempty"`
+	Instructions string         `json:"instructions,omitempty"`
 }
 
 // SecurityFinding represents a security issue

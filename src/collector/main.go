@@ -698,7 +698,7 @@ func (c *Collector) Stop() {
 }
 
 func main() {
-	logger.Init(os.Getenv("LOG_LEVEL"), os.Getenv("LOG_FORMAT"))
+	logger.InitWithService(os.Getenv("LOG_LEVEL"), os.Getenv("LOG_FORMAT"), "hetu-collector")
 
 	// v7: Try loading unified config file (CI_CONFIG env or /etc/hetu/config.yaml).
 	// If available, its values seed the Config below; env vars still override as before.
