@@ -3110,7 +3110,7 @@ func main() {
 		LLMBackend:       coalesce(getEnvOrDefault("LLM_PROVIDER", ""), getEnvOrDefault("LLM_BACKEND", ""), ucfg.LLM.Provider, "openai"),
 		LLMEndpoint:      coalesce(getEnvOrDefault("LLM_ENDPOINT", ""), ucfg.LLM.Endpoint, "https://api.openai.com/v1"),
 		LLMModel:         coalesce(getEnvOrDefault("LLM_MODEL", ""), ucfg.LLM.Model, "gpt-4-turbo"),
-		LLMAPIKey:        coalesce(os.Getenv("LLM_API_KEY"), ucfg.LLM.APIKey),
+		LLMAPIKey:        coalesce(os.Getenv("LLM_API_KEY"), ucfg.LLM.APIKey, loadPersistedAPIKey()),
 		AnalysisInterval: coalesceDuration(getEnvOrDefault("ANALYSIS_INTERVAL", ""), ucfg.Analyzer.AnalysisInterval, 5*time.Minute),
 		MetricsPort:      getEnvIntOrDefault("METRICS_PORT", ucfg.Server.MetricsPort),
 		APIPort:          getEnvIntOrDefault("API_PORT", ucfg.Server.APIPort),
@@ -3149,41 +3149,7 @@ func main() {
 		config.LLMBackend, config.LLMEndpoint, config.LLMModel, config.LLMAPIKey,
 		config.MaxTokens, config.Temperature, 1000000,
 	)
-	analyzer.llmConfigAPI.onUpdate = func(state LLMConfigState, apiKeyProvided bool) {
-		// Apply to runtime config (best-effort, no restart).
-		analyzer.configMu.Lock()
-		if strings.TrimSpace(state.Provider) != "" {
-			analyzer.config.LLMBackend = strings.TrimSpace(state.Provider)
-		}
-		if strings.TrimSpace(state.Endpoint) != "" {
-			analyzer.config.LLMEndpoint = strings.TrimSpace(state.Endpoint)
-		}
-		if strings.TrimSpace(state.Model) != "" {
-			analyzer.config.LLMModel = strings.TrimSpace(state.Model)
-		}
-		if state.MaxTokens > 0 {
-			analyzer.config.MaxTokens = state.MaxTokens
-		}
-		if state.Temperature > 0 {
-			analyzer.config.Temperature = state.Temperature
-		}
-		// Never persist API keys via runtime override.
-		_ = apiKeyProvided
-		analyzer.configMu.Unlock()
-
-		// Persist non-secret LLM fields into runtime override layer.
-		analyzer.persistOverridePatch(context.Background(), map[string]any{
-			"llm": map[string]any{
-				"provider":             state.Provider,
-				"endpoint":             state.Endpoint,
-				"model":                state.Model,
-				"maxTokens":            state.MaxTokens,
-				"temperature":          state.Temperature,
-				"dailyTokenBudget":     state.DailyTokenBudget,
-				"explainOptimizations": state.ExplainOptimizations,
-			},
-		})
-	}
+	analyzer.llmConfigAPI.onUpdate = analyzer.applyLLMUpdate
 
 	// v7 Phase 6-10: Optimizers, anomaly, security, pod health
 	promURL := coalesce(os.Getenv("PROMETHEUS_URL"), os.Getenv("PROMETHEUS_ENDPOINT"), "")

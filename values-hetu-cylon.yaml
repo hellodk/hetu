@@ -37,7 +37,7 @@ collector:
 analyzer:
   image:
     repository: docker.io/hellodk/hetu-analyzer
-    tag: "7.5.2-persist"
+    tag: "7.6.2-assistant"
     pullPolicy: IfNotPresent
   nodeSelector:
     kubernetes.io/hostname: cylon

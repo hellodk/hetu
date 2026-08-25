@@ -6,7 +6,7 @@ metadata:
   labels:
     {{- include "hetu.labels" . | nindent 4 }}
     hetu.io/managed: runtime-overrides
-data:
-  # Runtime override layer. Intentionally empty by default.
-  runtime.yaml: |
-
+# Intentionally NO data block: the analyzer owns the runtime.yaml key
+# (written on every Settings save). Rendering it here made helm a competing
+# field manager, so every upgrade after a save failed with an SSA conflict
+# (issue #16). The chart only guarantees the ConfigMap shell exists.

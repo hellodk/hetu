@@ -58,3 +58,50 @@ func (a *Analyzer) persistOverridePatch(ctx context.Context, patch map[string]an
 		return
 	}
 }
+
+// applyLLMUpdate is the onUpdate callback for the LLM settings API. It applies
+// the submitted state to the live runtime config so the chat client picks it
+// up without a restart, then persists: non-secret fields to the runtime
+// ConfigMap, the API key (if one was typed) to its dedicated Secret.
+func (a *Analyzer) applyLLMUpdate(state LLMConfigState, apiKey string) {
+	a.configMu.Lock()
+	if strings.TrimSpace(state.Provider) != "" {
+		a.config.LLMBackend = strings.TrimSpace(state.Provider)
+	}
+	if strings.TrimSpace(state.Endpoint) != "" {
+		a.config.LLMEndpoint = strings.TrimSpace(state.Endpoint)
+	}
+	if strings.TrimSpace(state.Model) != "" {
+		a.config.LLMModel = strings.TrimSpace(state.Model)
+	}
+	if state.MaxTokens > 0 {
+		a.config.MaxTokens = state.MaxTokens
+	}
+	if state.Temperature > 0 {
+		a.config.Temperature = state.Temperature
+	}
+	// An empty key means "nothing newly typed" — keep whatever is live.
+	if strings.TrimSpace(apiKey) != "" {
+		a.config.LLMAPIKey = strings.TrimSpace(apiKey)
+	}
+	a.configMu.Unlock()
+
+	if strings.TrimSpace(apiKey) != "" {
+		if err := persistAPIKeyToSecret(strings.TrimSpace(apiKey)); err != nil {
+			log.Warn().Err(err).Str("secret", llmAPIKeySecretName).Msg("Failed to persist LLM API key secret")
+		}
+	}
+
+	// Persist non-secret LLM fields into the runtime override layer.
+	a.persistOverridePatch(context.Background(), map[string]any{
+		"llm": map[string]any{
+			"provider":             state.Provider,
+			"endpoint":             state.Endpoint,
+			"model":                state.Model,
+			"maxTokens":            state.MaxTokens,
+			"temperature":          state.Temperature,
+			"dailyTokenBudget":     state.DailyTokenBudget,
+			"explainOptimizations": state.ExplainOptimizations,
+		},
+	})
+}

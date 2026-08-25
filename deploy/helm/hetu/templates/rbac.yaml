@@ -17,9 +17,17 @@ rules:
   - apiGroups: [""]
     resources: ["configmaps"]
     resourceNames: ["hetu-runtime"]
-    # NOTE: we intentionally do NOT grant "create". The chart renders the
-    # runtime ConfigMap by default, so the analyzer only needs to mutate it.
-    # Keeping RBAC to update/patch avoids needing broad create permissions.
+    # "create" covers bootstrap if the ConfigMap is ever deleted; the chart
+    # renders the shell (no data key), the analyzer owns runtime.yaml content.
+    verbs: ["get", "create", "update", "patch"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["hetu-llm-apikey"]
+    # The assistant's API key lives in its own Secret. The chart renders the
+    # empty shell; the analyzer adopts it via update. NOTE: "create" is
+    # deliberately absent — resourceNames can never authorize a create
+    # request (the object name is not part of the POST), so it would be dead
+    # letters.
     verbs: ["get", "update", "patch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
