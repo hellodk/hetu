@@ -15,7 +15,7 @@ import (
 type LLMConfigAPI struct {
 	mu       sync.RWMutex
 	config   LLMConfigState
-	onUpdate func(state LLMConfigState, apiKeyProvided bool)
+	onUpdate func(state LLMConfigState, apiKey string)
 }
 
 // LLMConfigState is the API-visible LLM configuration.
@@ -336,7 +336,7 @@ func (a *LLMConfigAPI) handleUpdate(w http.ResponseWriter, r *http.Request) {
 	log.Info().Str("provider", updated.Provider).Str("model", updated.Model).Str("endpoint", updated.Endpoint).Msg("LLM config updated via UI")
 
 	if a.onUpdate != nil {
-		a.onUpdate(updated, update.APIKey != "")
+		a.onUpdate(updated, update.APIKey)
 	}
 
 	a.mu.RLock()
