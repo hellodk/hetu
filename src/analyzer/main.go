@@ -38,6 +38,11 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
+// version is injected at build time via -ldflags "-X main.version=…" from
+// the repo VERSION file (see Dockerfile ARG VERSION / scripts/ci). It is
+// reported on /api/v1/health and /api/v1/status so the UI never hardcodes it.
+var version = "dev"
+
 // Config holds analyzer configuration
 type Config struct {
 	ClusterID        string        `json:"clusterId"`
@@ -2068,6 +2073,7 @@ func (a *Analyzer) handleHealthReport(w http.ResponseWriter, r *http.Request) {
 	if report == nil {
 		report = a.buildDiagnosticReport()
 	}
+	report.Version = version
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(report)
@@ -2723,6 +2729,7 @@ func (a *Analyzer) handleStatus(w http.ResponseWriter, r *http.Request) {
 		"status":    status,
 		"hasReport": hasReport,
 		"hasScores": hasScores,
+		"version":   version,
 		"config": map[string]any{
 			"errors":   diag.Errors,
 			"warnings": diag.Warnings,

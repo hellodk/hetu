@@ -146,6 +146,7 @@ export function GlobalSearch() {
   // Cached namespace list to avoid re-fetching on every keypress
   const [cachedNamespaces, setCachedNamespaces] = useState<string[]>([])
   const inputRef = useRef<HTMLInputElement>(null)
+  const panelRef = useRef<HTMLDivElement | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const abortRef = useRef<AbortController | null>(null)
 
@@ -180,6 +181,17 @@ export function GlobalSearch() {
 
   useEffect(() => {
     if (open) { setTimeout(() => inputRef.current?.focus(), 30); setQuery(''); setResults([]); setSelectedIdx(0) }
+  }, [open])
+
+  // Restore focus to the trigger when the palette closes (#21).
+  useEffect(() => {
+    if (open) {
+      ;(panelRef as any)._prevFocus = document.activeElement as HTMLElement
+    } else {
+      const prev = (panelRef as any)._prevFocus as HTMLElement | undefined
+      prev?.focus?.()
+      ;(panelRef as any)._prevFocus = undefined
+    }
   }, [open])
 
   const doSearch = useCallback(async (q: string) => {
@@ -354,6 +366,20 @@ export function GlobalSearch() {
       <div className="absolute inset-0 bg-black/65 backdrop-blur-sm" />
 
       <div
+        id="global-search-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Global search"
+        ref={panelRef}
+        onKeyDown={e => {
+          if (e.key !== 'Tab' || !panelRef.current) return
+          const f = panelRef.current.querySelectorAll<HTMLElement>('button:not([disabled]), input, [href], [tabindex]:not([tabindex="-1"])')
+          if (!f.length) return
+          const first = f[0]
+          const last = f[f.length - 1]
+          if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus() }
+          else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus() }
+        }}
         className="relative w-full max-w-[680px] rounded-2xl overflow-hidden shadow-2xl border border-cluster-border bg-cluster-card"
         style={{ boxShadow: '0 32px 64px rgba(0,0,0,0.4)' }}
         onMouseDown={e => e.stopPropagation()}
@@ -365,6 +391,10 @@ export function GlobalSearch() {
             : <Search className="w-5 h-5 text-cluster-muted flex-shrink-0" />}
           <input
             ref={inputRef}
+            role="combobox"
+            aria-expanded="true"
+            aria-controls="global-search-results"
+            aria-autocomplete="list"
             type="text"
             value={query}
             onChange={handleChange}
@@ -384,7 +414,7 @@ export function GlobalSearch() {
         {/* Body */}
         <div className="max-h-[58vh] overflow-y-auto overscroll-contain">
           {!query ? (
-            <div className="py-2 px-2">
+            <div className="py-2 px-2" role="listbox" aria-label="Search results">
               {/* Smart operational searches */}
               <div className="px-3 pt-2 pb-1.5 text-[11px] font-semibold text-cluster-muted uppercase tracking-widest">
                 Quick Operations
@@ -454,6 +484,9 @@ export function GlobalSearch() {
                       return (
                         <button
                           key={item.id}
+                          id={`gs-opt-${idx}`}
+                          role="option"
+                          aria-selected={idx === selectedIdx}
                           onClick={() => go(item.href)}
                           className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm transition-colors ${
                             idx === selectedIdx ? 'bg-blue-600/15 text-cluster-text' : 'hover:bg-cluster-border/40'
@@ -487,7 +520,7 @@ export function GlobalSearch() {
         </div>
 
         {/* Footer */}
-        <div className="border-t border-cluster-border bg-cluster-bg/30 px-4 py-2 flex items-center gap-4">
+        <div className="border-t border-cluster-border bg-cluster-bg/30 px-4 py-2 flex items-center flex-wrap gap-x-4 gap-y-1">
           <button
             onClick={() => go(`/workloads/pods?search=${encodeURIComponent(query)}&group=core&version=v1`)}
             className="flex items-center gap-1.5 text-xs text-cluster-muted hover:text-cluster-text transition-colors"
@@ -504,7 +537,7 @@ export function GlobalSearch() {
             {query ? <>Ingresses</> : 'Browse ingresses'}
             <ArrowRight className="w-3 h-3" />
           </button>
-          <div className="ml-auto flex items-center gap-3 text-[11px] text-cluster-muted/50 font-mono">
+          <div className="ml-auto hidden sm:flex items-center gap-3 text-[11px] text-cluster-muted/50 font-mono">
             <span>↑↓</span><span>↵ open</span><span>esc</span>
           </div>
         </div>

@@ -171,6 +171,7 @@ cmd_image() {
         run docker buildx build \
             --platform "$platforms" \
             -f "src/${svc}/Dockerfile" \
+            --build-arg "VERSION=${tag}" \
             --label "org.opencontainers.image.version=${tag}" \
             "${this_svc_tags[@]}" \
             "${push_args[@]}" .

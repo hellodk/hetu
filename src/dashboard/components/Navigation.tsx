@@ -97,6 +97,22 @@ export function Navigation() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [theme, setTheme] = useState<ThemeChoice>('graphite')
   const [incidentBadge, setIncidentBadge] = useState(0)
+  const closeMobile = () => setMobileOpen(false)
+
+  // Issue #21: the drawer must dismiss itself after navigation — previously
+  // it stayed over the page until manually closed.
+  useEffect(() => {
+    setMobileOpen(false)
+  }, [pathname])
+
+  useEffect(() => {
+    if (!mobileOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMobileOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [mobileOpen])
 
   useEffect(() => {
     try {
@@ -167,8 +183,9 @@ export function Navigation() {
         </div>
         <Link
           href="/"
+                    onClick={closeMobile}
           className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-            pathname === '/' ? 'bg-blue-600 text-white' : 'text-cluster-muted hover:bg-cluster-border/50 hover:text-cluster-text'
+            pathname === '/' ? 'bg-[rgb(var(--accent)/0.12)] text-[rgb(var(--accent))]' : 'text-cluster-muted hover:bg-cluster-border/50 hover:text-cluster-text'
           }`}
         >
           <LayoutDashboard className="w-4 h-4" />
@@ -176,8 +193,9 @@ export function Navigation() {
         </Link>
         <Link
           href="/issues"
+                    onClick={closeMobile}
           className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors mt-1 ${
-            pathname?.startsWith('/issues') ? 'bg-amber-600/15 text-amber-700 dark:text-amber-300' : 'text-cluster-muted hover:bg-cluster-border/50 hover:text-cluster-text'
+            pathname?.startsWith('/issues') ? 'bg-[rgb(var(--accent)/0.12)] text-[rgb(var(--accent))]' : 'text-cluster-muted hover:bg-cluster-border/50 hover:text-cluster-text'
           }`}
         >
           <AlertTriangle className="w-4 h-4" />
@@ -185,8 +203,9 @@ export function Navigation() {
         </Link>
         <Link
           href="/errors"
+                    onClick={closeMobile}
           className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors mt-1 ${
-            pathname?.startsWith('/errors') ? 'bg-red-600/15 text-red-600 dark:text-red-300' : 'text-cluster-muted hover:bg-cluster-border/50 hover:text-cluster-text'
+            pathname?.startsWith('/errors') ? 'bg-[rgb(var(--accent)/0.12)] text-[rgb(var(--accent))]' : 'text-cluster-muted hover:bg-cluster-border/50 hover:text-cluster-text'
           }`}
         >
           <Bug className="w-4 h-4" />
@@ -194,8 +213,9 @@ export function Navigation() {
         </Link>
         <Link
           href="/lb-logs"
+                    onClick={closeMobile}
           className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors mt-1 ${
-            pathname?.startsWith('/lb-logs') ? 'bg-blue-600/15 text-blue-700 dark:text-blue-300' : 'text-cluster-muted hover:bg-cluster-border/50 hover:text-cluster-text'
+            pathname?.startsWith('/lb-logs') ? 'bg-[rgb(var(--accent)/0.12)] text-[rgb(var(--accent))]' : 'text-cluster-muted hover:bg-cluster-border/50 hover:text-cluster-text'
           }`}
         >
           <Globe className="w-4 h-4" />
@@ -203,22 +223,24 @@ export function Navigation() {
         </Link>
         <Link
           href="/incidents"
+                    onClick={closeMobile}
           className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors mt-1 ${
-            pathname?.startsWith('/incidents') ? 'bg-purple-600/15 text-purple-700 dark:text-purple-300' : 'text-cluster-muted hover:bg-cluster-border/50 hover:text-cluster-text'
+            pathname?.startsWith('/incidents') ? 'bg-[rgb(var(--accent)/0.12)] text-[rgb(var(--accent))]' : 'text-cluster-muted hover:bg-cluster-border/50 hover:text-cluster-text'
           }`}
         >
           <Zap className="w-4 h-4" />
           <span className="flex-1">Incidents & RCA</span>
           {incidentBadge > 0 && (
-            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-purple-600/20 text-purple-700 dark:text-purple-300 border border-purple-500/30 leading-none">
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-500/15 text-red-600 dark:text-red-300 border border-red-500/30 leading-none">
               {incidentBadge}
             </span>
           )}
         </Link>
         <Link
           href="/optimization"
+                    onClick={closeMobile}
           className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors mt-1 ${
-            pathname?.startsWith('/optimization') ? 'bg-green-600/15 text-green-700 dark:text-green-300' : 'text-cluster-muted hover:bg-cluster-border/50 hover:text-cluster-text'
+            pathname?.startsWith('/optimization') ? 'bg-[rgb(var(--accent)/0.12)] text-[rgb(var(--accent))]' : 'text-cluster-muted hover:bg-cluster-border/50 hover:text-cluster-text'
           }`}
         >
           <TrendingDown className="w-4 h-4" />
@@ -226,8 +248,9 @@ export function Navigation() {
         </Link>
         <Link
           href="/anomalies"
+                    onClick={closeMobile}
           className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors mt-1 ${
-            pathname?.startsWith('/anomalies') ? 'bg-teal-600/15 text-teal-700 dark:text-teal-300' : 'text-cluster-muted hover:bg-cluster-border/50 hover:text-cluster-text'
+            pathname?.startsWith('/anomalies') ? 'bg-[rgb(var(--accent)/0.12)] text-[rgb(var(--accent))]' : 'text-cluster-muted hover:bg-cluster-border/50 hover:text-cluster-text'
           }`}
         >
           <Activity className="w-4 h-4" />
@@ -235,8 +258,9 @@ export function Navigation() {
         </Link>
         <Link
           href="/security"
+                    onClick={closeMobile}
           className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors mt-1 ${
-            pathname?.startsWith('/security') ? 'bg-orange-600/15 text-orange-700 dark:text-orange-300' : 'text-cluster-muted hover:bg-cluster-border/50 hover:text-cluster-text'
+            pathname?.startsWith('/security') ? 'bg-[rgb(var(--accent)/0.12)] text-[rgb(var(--accent))]' : 'text-cluster-muted hover:bg-cluster-border/50 hover:text-cluster-text'
           }`}
         >
           <Shield className="w-4 h-4" />
@@ -244,8 +268,9 @@ export function Navigation() {
         </Link>
         <Link
           href="/management"
+                    onClick={closeMobile}
           className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors mt-1 ${
-            pathname?.startsWith('/management') ? 'bg-purple-600/15 text-purple-700 dark:text-purple-300' : 'text-cluster-muted hover:bg-cluster-border/50 hover:text-cluster-text'
+            pathname?.startsWith('/management') ? 'bg-[rgb(var(--accent)/0.12)] text-[rgb(var(--accent))]' : 'text-cluster-muted hover:bg-cluster-border/50 hover:text-cluster-text'
           }`}
         >
           <BarChart2 className="w-4 h-4" />
@@ -253,6 +278,7 @@ export function Navigation() {
         </Link>
         <Link
           href="/settings"
+                    onClick={closeMobile}
           className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors mt-1 ${
             pathname?.startsWith('/settings') ? 'bg-cluster-border/60 text-cluster-text' : 'text-cluster-muted hover:bg-cluster-border/50 hover:text-cluster-text'
           }`}
@@ -284,9 +310,10 @@ export function Navigation() {
                   <Link
                     key={item.href}
                     href={item.href}
+                    onClick={closeMobile}
                     className={`block px-3 py-1.5 text-sm rounded-md transition-colors ${
                       isActive(item.href)
-                        ? 'bg-blue-600/15 text-blue-700 dark:text-blue-300'
+                        ? 'bg-[rgb(var(--accent)/0.12)] text-[rgb(var(--accent))]'
                         : 'text-cluster-muted hover:text-cluster-text hover:bg-cluster-border/40'
                     }`}
                   >
@@ -307,14 +334,19 @@ export function Navigation() {
       {/* Mobile toggle */}
       <button
         onClick={() => setMobileOpen(!mobileOpen)}
-        className="fixed top-4 left-4 z-50 p-2 rounded-md bg-cluster-card border border-cluster-border text-cluster-text lg:hidden"
+        aria-label="Toggle navigation"
+        aria-expanded={mobileOpen}
+        aria-controls="mobile-nav"
+        className="fixed top-4 left-4 z-[60] p-2.5 rounded-md bg-cluster-card border border-cluster-border text-cluster-text lg:hidden"
       >
         {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
       </button>
 
       {/* Sidebar */}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 w-56 bg-cluster-bg border-r border-cluster-border flex flex-col transform transition-transform duration-200 lg:translate-x-0 ${
+        id="mobile-nav"
+        aria-label="Sidebar navigation"
+        className={`fixed inset-y-0 left-0 z-[70] w-56 bg-cluster-bg border-r border-cluster-border flex flex-col transform transition-transform duration-200 lg:translate-x-0 ${
           mobileOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
@@ -327,7 +359,7 @@ export function Navigation() {
       {/* Mobile overlay */}
       {mobileOpen && (
         <div
-          className="fixed inset-0 z-30 bg-black/50 lg:hidden"
+          className="fixed inset-0 z-[65] bg-black/50 lg:hidden"
           onClick={() => setMobileOpen(false)}
         />
       )}

@@ -14,8 +14,11 @@ COPY src/analyzer/ ./src/analyzer/
 
 # Build the binary (GOWORK=off to use replace directives in go.mod)
 WORKDIR /app/src/analyzer
+# VERSION comes from the repo VERSION file via --build-arg (scripts/ci);
+# default "dev" keeps local builds honest instead of faking a semver.
+ARG VERSION=dev
 RUN GOWORK=off CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
-    -ldflags="-w -s -X main.version=7.0.0" \
+    -ldflags="-w -s -X main.version=${VERSION}" \
     -o /analyzer .
 
 # Runtime stage

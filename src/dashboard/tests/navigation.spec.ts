@@ -58,18 +58,17 @@ test.describe('Navigation', () => {
 
   test('Overview link highlighted when on root route', async ({ page }) => {
     await page.goto('/')
-    // The active Overview link has bg-blue-600 class (per Navigation.tsx)
+    // Issue #21: one accent for every active nav item (no per-route hues).
     const overviewLink = page.getByRole('link', { name: /Overview/i }).first()
     await expect(overviewLink).toBeVisible()
-    // Check it has active styling
-    await expect(overviewLink).toHaveClass(/bg-blue-600/)
+    await expect(overviewLink).toHaveClass(/rgb\(var\(--accent\)\)/)
   })
 
   test('Incidents link highlighted when on /incidents', async ({ page }) => {
     await page.goto('/incidents')
     const incLink = page.getByRole('link', { name: /Incidents/i }).first()
     await expect(incLink).toBeVisible()
-    await expect(incLink).toHaveClass(/bg-purple/)
+    await expect(incLink).toHaveClass(/rgb\(var\(--accent\)\)/)
   })
 
   test('Workloads section expands to show resource links', async ({ page }) => {
