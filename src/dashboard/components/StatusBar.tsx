@@ -33,7 +33,7 @@ export function StatusBar({
     <>
       {/* Theme-aware: light in graphite, dark in dark themes (uses cluster-* tokens). */}
       <header
-        className="bg-cluster-card text-cluster-text border-b border-cluster-border px-4 sm:px-6 py-2 flex items-center gap-3 sm:gap-4 text-xs font-mono sticky top-0 z-50"
+        className="bg-cluster-card text-cluster-text border-b border-cluster-border pl-16 pr-4 sm:pr-6 lg:pl-6 py-2 flex items-center gap-3 sm:gap-4 text-xs font-mono sticky top-0 z-50"
         aria-label="Dashboard status bar"
         data-testid="status-bar"
       >
@@ -72,7 +72,7 @@ export function StatusBar({
         <>
           <span className="text-cluster-border hidden md:inline" aria-hidden="true">|</span>
           <span className="text-cluster-muted hidden md:inline">
-            {lastUpdated.toLocaleTimeString()}
+            {lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           </span>
         </>
       )}
@@ -85,11 +85,11 @@ export function StatusBar({
         onClick={() => window.dispatchEvent(new Event('open-global-search'))}
         data-testid="topbar-search"
         aria-label="Open search"
-        className="ml-2 flex items-center gap-2 h-7 px-3 w-44 sm:w-64 md:w-80 lg:w-[28rem] max-w-full rounded-lg border border-cluster-border/70 bg-cluster-bg/60 text-cluster-muted hover:border-cluster-border hover:text-cluster-text transition-colors text-xs font-sans flex-shrink"
+        className="ml-2 flex items-center gap-2 h-9 sm:h-7 px-0 sm:px-3 w-9 sm:w-64 md:w-80 lg:w-[28rem] max-w-full justify-center sm:justify-start rounded-lg border border-cluster-border/70 bg-cluster-bg/60 text-cluster-muted hover:border-cluster-border hover:text-cluster-text transition-colors text-xs font-sans flex-shrink"
       >
         <Search className="w-3.5 h-3.5 flex-shrink-0" aria-hidden="true" />
-        <span className="flex-1 text-left truncate">Search…</span>
-        <kbd className="text-[10px] font-mono opacity-50 flex-shrink-0">⌘K</kbd>
+        <span className="hidden sm:block flex-1 text-left truncate">Search…</span>
+        <kbd className="hidden sm:inline text-[10px] font-mono opacity-50 flex-shrink-0">⌘K</kbd>
       </button>
 
       {/* Actions */}
@@ -97,18 +97,18 @@ export function StatusBar({
         <button
           onClick={onRefresh}
           disabled={loading}
-          className="p-1.5 rounded hover:bg-cluster-bg text-cluster-muted hover:text-cluster-text transition-colors disabled:opacity-50"
+          className="p-2.5 sm:p-1.5 rounded hover:bg-cluster-bg text-cluster-muted hover:text-cluster-text transition-colors disabled:opacity-50"
           aria-label={loading ? 'Refreshing data…' : 'Refresh dashboard data'}
         >
-          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
+          <RefreshCw className={`w-5 h-5 sm:w-4 sm:h-4 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
         </button>
 
         <button
           onClick={onExport}
-          className="p-1.5 rounded hover:bg-cluster-bg text-cluster-muted hover:text-cluster-text transition-colors"
+          className="p-2.5 sm:p-1.5 rounded hover:bg-cluster-bg text-cluster-muted hover:text-cluster-text transition-colors"
           aria-label="Export JSON report"
         >
-          <Download className="w-4 h-4" aria-hidden="true" />
+          <Download className="w-5 h-5 sm:w-4 sm:h-4" aria-hidden="true" />
         </button>
 
         <button
@@ -116,7 +116,7 @@ export function StatusBar({
           className="relative p-1.5 rounded hover:bg-cluster-bg text-cluster-muted hover:text-cluster-text transition-colors"
           aria-label={`Alerts${criticalCount > 0 ? `, ${criticalCount} critical` : ', none'}`}
         >
-          <Bell className="w-4 h-4" aria-hidden="true" />
+          <Bell className="w-5 h-5 sm:w-4 sm:h-4" aria-hidden="true" />
           {criticalCount > 0 && (
             <span
               className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 text-white text-[9px] rounded-full flex items-center justify-center font-bold leading-none"
@@ -129,10 +129,10 @@ export function StatusBar({
 
         <button
           onClick={onSettings}
-          className="p-1.5 rounded hover:bg-cluster-bg text-cluster-muted hover:text-cluster-text transition-colors"
+          className="p-2.5 sm:p-1.5 rounded hover:bg-cluster-bg text-cluster-muted hover:text-cluster-text transition-colors"
           aria-label="Settings"
         >
-          <Settings className="w-4 h-4" aria-hidden="true" />
+          <Settings className="w-5 h-5 sm:w-4 sm:h-4" aria-hidden="true" />
         </button>
       </div>
     </header>

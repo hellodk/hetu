@@ -75,6 +75,7 @@ export default function SettingsPage() {
   const [activeLBNames, setActiveLBNames] = useState<Set<string>>(new Set())
   const [lbSaving, setLbSaving] = useState(false)
   const [lbSaved, setLbSaved] = useState(false)
+  const [lbError, setLbError] = useState<string | null>(null)
   const [showAddLB, setShowAddLB] = useState(false)
   const [newLB, setNewLB] = useState<LBConfig>(BLANK_LB)
   const [copied, setCopied] = useState(false)
@@ -235,7 +236,14 @@ export default function SettingsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ configs: lbConfigs }),
       })
-      if (res.ok) { setLbSaved(true); setTimeout(() => setLbSaved(false), 2500) }
+      if (res.ok) {
+        setLbError(null)
+        setLbSaved(true); setTimeout(() => setLbSaved(false), 2500)
+      } else {
+        setLbError(`Save failed (${res.status})`)
+      }
+    } catch (e: any) {
+      setLbError(e?.message ?? 'Save failed')
     } finally { setLbSaving(false) }
   }
 
@@ -248,7 +256,7 @@ export default function SettingsPage() {
     })))
     navigator.clipboard.writeText(json).then(() => {
       setCopied(true); setTimeout(() => setCopied(false), 2000)
-    })
+    }).catch(() => setCopied(false))
   }
 
   const addLB = () => {
@@ -301,14 +309,14 @@ export default function SettingsPage() {
                 ))}
               </select>
               {selectedProvider && (
-                <p className="mt-1 text-xs text-cluster-muted/80">{selectedProvider.description}</p>
+                <p className="mt-1 text-xs text-cluster-muted">{selectedProvider.description}</p>
               )}
             </div>
 
             {/* Endpoint + Discover */}
             <div>
               <label className="block text-sm text-cluster-muted mb-1.5">Endpoint URL</label>
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <input
                   type="text"
                   value={form.endpoint}
@@ -335,7 +343,7 @@ export default function SettingsPage() {
               <label className="block text-sm text-cluster-muted mb-1.5">
                 Model
                 {discoveredModels.length > 0 && (
-                  <span className="ml-2 text-xs text-green-500">({discoveredModels.length} models found)</span>
+                  <span className="ml-2 text-xs text-[rgb(var(--sev-ok))]">({discoveredModels.length} models found)</span>
                 )}
               </label>
               {discoveredModels.length > 0 ? (
@@ -367,7 +375,7 @@ export default function SettingsPage() {
                 <Key className="w-3.5 h-3.5" />
                 API Key
                 {selectedProvider && !selectedProvider.requiresApiKey && (
-                  <span className="text-xs text-cluster-muted/70">(optional for {selectedProvider.name})</span>
+                  <span className="text-xs text-cluster-muted">(optional for {selectedProvider.name})</span>
                 )}
               </label>
               <div className="relative">
@@ -380,7 +388,7 @@ export default function SettingsPage() {
                   placeholder={form.apiKeySet ? '••••••••••••••• (already set)' : 'dummy'}
                 />
                 {form.apiKeySet && !apiKey && (
-                  <span className="absolute right-12 top-1/2 -translate-y-1/2 text-xs text-green-500">configured</span>
+                  <span className="absolute right-12 top-1/2 -translate-y-1/2 text-xs text-[rgb(var(--sev-ok))]">configured</span>
                 )}
                 <button
                   type="button"
@@ -397,7 +405,7 @@ export default function SettingsPage() {
             </div>
 
             {/* Advanced settings row */}
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm text-cluster-muted mb-1.5">Max Tokens</label>
                 <input
@@ -431,7 +439,7 @@ export default function SettingsPage() {
                   min={0}
                   step={100000}
                 />
-                <p className="mt-1 text-xs text-cluster-muted/70">0 = unlimited</p>
+                <p className="mt-1 text-xs text-cluster-muted">0 = unlimited</p>
               </div>
             </div>
 
@@ -455,7 +463,7 @@ export default function SettingsPage() {
                 </button>
               )}
               <span className="flex-1" />
-              <span className="text-xs text-cluster-muted/70">
+              <span className="text-xs text-cluster-muted">
                 Runtime config — persists until pod restart. Update Helm values for permanent changes.
               </span>
             </div>
@@ -673,11 +681,12 @@ export default function SettingsPage() {
                 {lbSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : lbSaved ? <CheckCircle className="w-3.5 h-3.5" /> : <Save className="w-3.5 h-3.5" />}
                 {lbSaved ? 'Saved' : 'Save'}
               </button>
+              {lbError && <span className="text-xs text-red-500" role="alert">{lbError}</span>}
               <button
                 onClick={copyLBConfigJSON}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-cluster-border rounded text-cluster-text hover:bg-cluster-border/40 transition-colors"
               >
-                {copied ? <CheckCircle className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
+                {copied ? <CheckCircle className="w-3.5 h-3.5 text-[rgb(var(--sev-ok))]" /> : <Copy className="w-3.5 h-3.5" />}
                 {copied ? 'Copied!' : 'Copy LB_CONFIGS JSON'}
               </button>
             </>
@@ -706,14 +715,14 @@ export default function SettingsPage() {
         </h2>
         <div className="grid grid-cols-2 gap-4">
           <div className="flex items-center gap-3 p-3 bg-cluster-bg/60 border border-cluster-border rounded-lg">
-            {capabilities?.exec ? <CheckCircle className="w-5 h-5 text-green-400" /> : <XCircle className="w-5 h-5 text-gray-600" />}
+            {capabilities?.exec ? <CheckCircle className="w-5 h-5 text-green-400" /> : <XCircle className="w-5 h-5 text-[rgb(var(--cluster-muted))]" />}
             <div>
               <div className="text-sm text-cluster-text">Pod Exec</div>
               <div className="text-xs text-cluster-muted">{capabilities?.exec ? 'Enabled' : 'Disabled'}</div>
             </div>
           </div>
           <div className="flex items-center gap-3 p-3 bg-cluster-bg/60 border border-cluster-border rounded-lg">
-            {capabilities?.writeActions ? <CheckCircle className="w-5 h-5 text-green-400" /> : <XCircle className="w-5 h-5 text-gray-600" />}
+            {capabilities?.writeActions ? <CheckCircle className="w-5 h-5 text-green-400" /> : <XCircle className="w-5 h-5 text-[rgb(var(--cluster-muted))]" />}
             <div>
               <div className="text-sm text-cluster-text">Write Actions</div>
               <div className="text-xs text-cluster-muted">{capabilities?.writeActions ? 'Enabled (scale/restart/delete)' : 'Disabled'}</div>

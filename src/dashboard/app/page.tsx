@@ -1,6 +1,5 @@
 'use client'
 import { useState, useEffect, useCallback, useRef } from 'react'
-import packageJson from '../package.json'
 import {
   AlertTriangle, RefreshCw,
   Check, X, Info
@@ -19,7 +18,6 @@ import { CoreDNSHealth } from '@/components/CoreDNSHealth'
 import { SettingsModal } from '@/components/SettingsModal'
 import { NamespacesTable, NamespaceStats } from '@/components/NamespacesTable'
 import { DiagnosticPanel } from '@/components/DiagnosticPanel'
-import { ProfileBadge } from '@/components/ProfileBadge'
 import { ScoreBreakdown } from '@/components/ScoreBreakdown'
 import { MockWatermark } from '@/components/MockWatermark'
 import { BASE_PATH } from '@/lib/api'
@@ -109,6 +107,9 @@ interface ReportStatus {
 
 interface HealthReport {
   clusterId: string
+  // Analyzer build version, injected via ldflags and reported on /health.
+  // Rendered verbatim — never hardcoded in the dashboard (issue #22).
+  version?: string
   timestamp: string
   // Nullable: when the analyzer has no LLM-derived scores (degraded /
   // awaiting / error states), scores is null and the dashboard must render
@@ -273,7 +274,7 @@ export default function Dashboard() {
   useEffect(() => {
     const handleHashChange = () => {
       const hash = window.location.hash.replace('#', '') as TabId
-      if (['overview', 'issues', 'recommendations', 'timeline'].includes(hash)) {
+      if (['overview', 'issues', 'recommendations', 'timeline', 'namespaces'].includes(hash)) {
         _setActiveTab(hash)
       }
     }
@@ -575,7 +576,7 @@ export default function Dashboard() {
         lastUpdated={lastUpdated}
         loading={loading}
         criticalCount={criticalIssueCount}
-        version={packageJson.version}
+        version={displayReport.version || '—'}
         onRefresh={handleRefresh}
         onExport={() => {
           const blob = new Blob([JSON.stringify(displayReport, null, 2)], { type: 'application/json' })
@@ -735,7 +736,7 @@ export default function Dashboard() {
       <footer className="border-t border-cluster-border mt-auto py-4">
         <div className="max-w-[1800px] mx-auto px-4 sm:px-6 text-center text-cluster-muted text-sm">
           <p>
-            Hetu v{packageJson.version}
+            Hetu v{displayReport.version || '—'}
             <span className="hidden sm:inline"> | </span>
             <br className="sm:hidden" />
             Last analysis: {new Date(displayReport.timestamp).toLocaleString()}

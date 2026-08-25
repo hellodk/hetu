@@ -29,6 +29,7 @@ interface ChatTurn {
  */
 export function ChatWidget() {
   const [open, setOpen] = useState(false)
+  const panelRef = useRef<HTMLDivElement | null>(null)
   const [input, setInput] = useState('')
   const [turns, setTurns] = useState<ChatTurn[]>([])
   const [streaming, setStreaming] = useState(false)
@@ -37,11 +38,15 @@ export function ChatWidget() {
   const endRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth' })
+    endRef.current?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })
   }, [turns, streaming])
 
   // Cancel any in-flight stream on unmount.
   useEffect(() => () => abortRef.current?.abort(), [])
+
+  useEffect(() => {
+    if (open) setTimeout(() => panelRef.current?.focus(), 30)
+  }, [open])
 
   const stop = () => {
     abortRef.current?.abort()
@@ -146,11 +151,14 @@ export function ChatWidget() {
 
   return (
     <div
+      ref={panelRef}
+      tabIndex={-1}
+      onKeyDown={e => { if (e.key === 'Escape') { e.stopPropagation(); setOpen(false) } }}
       data-testid="chat-widget"
       role="dialog"
       aria-modal="false"
       aria-label="AI assistant"
-      className="fixed bottom-5 right-5 z-40 flex flex-col w-[min(24rem,calc(100vw-2.5rem))] h-[min(600px,calc(100vh-2.5rem))] rounded-2xl overflow-hidden border border-cluster-border/70 shadow-xl glass-panel bg-cluster-card/70"
+      className="fixed bottom-5 right-5 z-40 flex flex-col w-[min(24rem,calc(100vw-2.5rem))] h-[min(600px,calc(100dvh-2.5rem))] rounded-2xl overflow-hidden border border-cluster-border/70 shadow-xl glass-panel bg-cluster-card/70"
     >
       {/* Header */}
       <header className="flex items-center gap-2 px-4 py-2.5 border-b border-cluster-border/60 bg-cluster-card/40">
@@ -257,7 +265,7 @@ export function ChatWidget() {
             onClick={stop}
             data-testid="chat-stop"
             aria-label="Stop"
-            className="flex-shrink-0 w-9 h-9 rounded-md bg-cluster-bg/70 border border-cluster-border/70 text-cluster-text hover:bg-cluster-card flex items-center justify-center transition-colors"
+            className="flex-shrink-0 w-11 h-11 sm:w-9 sm:h-9 rounded-md bg-cluster-bg/70 border border-cluster-border/70 text-cluster-text hover:bg-cluster-card flex items-center justify-center transition-colors"
           >
             <Square className="w-4 h-4" aria-hidden="true" />
           </button>
@@ -267,7 +275,7 @@ export function ChatWidget() {
             disabled={!input.trim()}
             data-testid="chat-send"
             aria-label="Send"
-            className="flex-shrink-0 w-9 h-9 rounded-md bg-gradient-to-br from-[rgb(var(--accent))] to-[rgb(var(--accent-soft))] disabled:opacity-40 text-white flex items-center justify-center transition-transform hover:scale-105"
+            className="flex-shrink-0 w-11 h-11 sm:w-9 sm:h-9 rounded-md bg-gradient-to-br from-[rgb(var(--accent))] to-[rgb(var(--accent-soft))] disabled:opacity-40 text-white flex items-center justify-center transition-transform hover:scale-105"
           >
             <Send className="w-4 h-4" aria-hidden="true" />
           </button>
