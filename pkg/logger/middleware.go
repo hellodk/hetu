@@ -26,6 +26,15 @@ func (r *responseRecorder) Write(b []byte) (int, error) {
 	return r.ResponseWriter.Write(b)
 }
 
+// Flush forwards to the wrapped writer so SSE/streaming handlers keep working
+// through the middleware chain (chat, event streams). Without this,
+// w.(http.Flusher) fails downstream and those endpoints return 500.
+func (r *responseRecorder) Flush() {
+	if f, ok := r.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
 // RequestLogger is an HTTP middleware that:
 //   - reads X-Request-ID from the incoming request (or generates a UUID v4)
 //   - injects the ID into the request context via WithRequestID

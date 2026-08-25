@@ -61,3 +61,36 @@ func TestRequestLogger_EchoesIncomingRequestID(t *testing.T) {
 		t.Errorf("response X-Request-ID = %q, want %q", rr.Header().Get("X-Request-ID"), incomingID)
 	}
 }
+
+// SSE handlers assert w.(http.Flusher) behind the middleware chain; the
+// recorder must forward Flush or streaming endpoints 500 with
+// "streaming unsupported".
+type flushRecorder struct {
+	http.ResponseWriter
+	flushed bool
+}
+
+func (f *flushRecorder) Flush() { f.flushed = true }
+
+func TestRequestLogger_PreservesFlushing(t *testing.T) {
+	base := &flushRecorder{ResponseWriter: httptest.NewRecorder()}
+
+	sawFlusher := false
+	handler := logger.RequestLogger(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		flusher, ok := w.(http.Flusher)
+		sawFlusher = ok
+		if ok {
+			w.WriteHeader(http.StatusOK)
+			flusher.Flush()
+		}
+	}))
+
+	handler.ServeHTTP(base, httptest.NewRequest("POST", "/api/v1/chat", nil))
+
+	if !sawFlusher {
+		t.Fatal("streaming handlers must still find http.Flusher through RequestLogger")
+	}
+	if !base.flushed {
+		t.Fatal("Flush must reach the underlying response writer")
+	}
+}
