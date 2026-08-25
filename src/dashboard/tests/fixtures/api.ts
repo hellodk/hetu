@@ -74,6 +74,7 @@ const emptyHealthReport = {
   trends: {},
   topIssues: [],
   recommendations: [],
+  version: '0.0.0-mock',
   status: {
     state: 'healthy',
     profile: 'live',

@@ -99,7 +99,10 @@ type ReportStatus struct {
 // and MUST NOT substitute default numbers. Status is always populated to
 // explain the current state of the report.
 type ClusterHealthReport struct {
-	ClusterID           string              `json:"clusterId"`
+	ClusterID string `json:"clusterId"`
+	// Version is the analyzer build version (ldflags-injected). The
+	// dashboard renders it verbatim — never hardcode versions in the UI.
+	Version             string              `json:"version,omitempty"`
 	Timestamp           time.Time           `json:"timestamp"`
 	Scores              *HealthScores       `json:"scores"`
 	Summary             ClusterSummary      `json:"summary"`

@@ -17,10 +17,12 @@ COPY src/collector/ ./src/collector/
 
 # Build the binary (GOWORK=off to use replace directives in go.mod)
 WORKDIR /app/src/collector
+# VERSION comes from the repo VERSION file via --build-arg (scripts/ci).
+ARG VERSION=dev
 RUN GOWORK=off go mod tidy 2>/dev/null || true
 RUN GOWORK=off CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     -tags "${BUILD_TAGS}" \
-    -ldflags="-w -s -X main.version=7.0.0" \
+    -ldflags="-w -s -X main.version=${VERSION}" \
     -o /collector .
 
 # Runtime stage
