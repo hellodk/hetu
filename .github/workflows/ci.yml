@@ -40,10 +40,11 @@ jobs:
         with:
           go-version: '1.25'
 
-      - name: Install golangci-lint (pinned, matches v1 .golangci.yml)
+      - name: Install golangci-lint (pinned v1.64.8, built from source so its
+        Go version matches setup-go's — upstream release binaries are built
+        with older Go and refuse modules targeting go >= 1.25)
         run: |
-          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh \
-            | sh -s -- -b "$(go env GOPATH)/bin" v1.64.8
+          go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8
           golangci-lint version
 
       - uses: actions/setup-node@v4
