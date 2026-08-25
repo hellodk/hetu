@@ -510,18 +510,34 @@ func (e *ChatEngine) blockingComplete(ctx context.Context, messages []types.LLMM
 	return nil
 }
 
-func (e *ChatEngine) streamOpenAI(ctx context.Context, snap llmSnapshot, messages []types.LLMMessage, onToken func(string)) error {
+// buildChatCompletionsBody constructs the OpenAI-compatible request payload.
+// Self-hosted reasoning models (Qwen3-family on vLLM/omlx/llama.cpp) can burn
+// the whole token budget on delta.reasoning_content before answering; for
+// those backends we disable thinking via chat_template_kwargs. Hosted APIs
+// (OpenAI/Azure) reject unknown body parameters and must not receive it.
+func buildChatCompletionsBody(snap llmSnapshot, messages []types.LLMMessage) map[string]any {
 	maxTok := snap.MaxTokens
 	if maxTok <= 0 {
 		maxTok = 1024
 	}
-	body, _ := json.Marshal(map[string]any{
+	body := map[string]any{
 		"model":       snap.Model,
 		"messages":    messages,
 		"temperature": snap.Temperature,
 		"max_tokens":  maxTok,
 		"stream":      true,
-	})
+	}
+	switch snap.Provider {
+	case "openai", "azure", "anthropic", "bedrock":
+		// Hosted APIs — no vendor-specific extras.
+	default:
+		body["chat_template_kwargs"] = map[string]any{"enable_thinking": false}
+	}
+	return body
+}
+
+func (e *ChatEngine) streamOpenAI(ctx context.Context, snap llmSnapshot, messages []types.LLMMessage, onToken func(string)) error {
+	body, _ := json.Marshal(buildChatCompletionsBody(snap, messages))
 	endpoint := strings.TrimRight(snap.Endpoint, "/") + "/chat/completions"
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(string(body)))
 	if err != nil {
