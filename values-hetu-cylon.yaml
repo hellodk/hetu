@@ -37,7 +37,7 @@ collector:
 analyzer:
   image:
     repository: docker.io/hellodk/hetu-analyzer
-    tag: "7.6.2-assistant"
+    tag: "7.6.3-version"
     pullPolicy: IfNotPresent
   nodeSelector:
     kubernetes.io/hostname: cylon
@@ -54,7 +54,7 @@ analyzer:
 dashboard:
   image:
     repository: docker.io/hellodk/hetu-dashboard
-    tag: "7.5.3-statusbar"
+    tag: "7.6.0-responsive"
     pullPolicy: IfNotPresent
     # NOTE: image must be built with --build-arg NEXT_BASE_PATH=/hetu —
     # basePath is a BUILD-TIME Next.js setting. The 7.5.0-phase1 image was.
