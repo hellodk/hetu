@@ -54,10 +54,10 @@ analyzer:
 dashboard:
   image:
     repository: docker.io/hellodk/hetu-dashboard
-    tag: "7.6.0-responsive"
+    tag: "7.7.0-triage"
     pullPolicy: IfNotPresent
     # NOTE: image must be built with --build-arg NEXT_BASE_PATH=/hetu —
-    # basePath is a BUILD-TIME Next.js setting. The 7.5.0-phase1 image was.
+    # basePath is a BUILD-TIME Next.js setting. 7.7.0-triage was built with it.
   nodeSelector:
     kubernetes.io/hostname: cylon
   service:
