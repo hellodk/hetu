@@ -19,12 +19,12 @@ interface Insight {
 }
 
 const typeConfig = {
-  critical: { icon: AlertTriangle, bg: 'bg-red-500/10', border: 'border-red-500/30', color: 'text-red-400', label: 'CRITICAL' },
-  warning: { icon: AlertTriangle, bg: 'bg-yellow-500/10', border: 'border-yellow-500/30', color: 'text-yellow-400', label: 'WARNING' },
-  opportunity: { icon: Lightbulb, bg: 'bg-emerald-500/10', border: 'border-emerald-500/30', color: 'text-emerald-400', label: 'OPTIMIZATION' },
-  anomaly: { icon: TrendingUp, bg: 'bg-purple-500/10', border: 'border-purple-500/30', color: 'text-purple-400', label: 'ANOMALY' },
-  security: { icon: Shield, bg: 'bg-orange-500/10', border: 'border-orange-500/30', color: 'text-orange-400', label: 'SECURITY' },
-  info: { icon: Activity, bg: 'bg-blue-500/10', border: 'border-blue-500/30', color: 'text-blue-400', label: 'INFO' },
+  critical: { icon: AlertTriangle, bg: 'bg-sev-crit/10', border: 'border-sev-crit/30', color: 'text-sev-crit', label: 'CRITICAL' },
+  warning: { icon: AlertTriangle, bg: 'bg-sev-warn/10', border: 'border-sev-warn/30', color: 'text-sev-warn', label: 'WARNING' },
+  opportunity: { icon: Lightbulb, bg: 'bg-sev-ok/10', border: 'border-sev-ok/30', color: 'text-sev-ok', label: 'OPTIMIZATION' },
+  anomaly: { icon: TrendingUp, bg: 'bg-sev-info/10', border: 'border-sev-info/30', color: 'text-sev-info', label: 'ANOMALY' },
+  security: { icon: Shield, bg: 'bg-sev-high/10', border: 'border-sev-high/30', color: 'text-sev-high', label: 'SECURITY' },
+  info: { icon: Activity, bg: 'bg-sev-info/10', border: 'border-sev-info/30', color: 'text-sev-info', label: 'INFO' },
 }
 
 function timeSince(iso?: string): string {
@@ -161,7 +161,7 @@ export function AIInsightFeed() {
         className="flex items-center justify-between w-full mb-3"
       >
         <h2 className="text-sm font-semibold flex items-center gap-2">
-          <Sparkles className="w-4 h-4 text-blue-400" aria-hidden="true" />
+          <Sparkles className="w-4 h-4 text-accent" aria-hidden="true" />
           AI Insights
           <span className="text-xs text-cluster-muted font-normal">
             ({insights.length} from {new Set(insights.map(i => i.source)).size} sources)
@@ -169,13 +169,13 @@ export function AIInsightFeed() {
         </h2>
         <div className="flex items-center gap-2">
           {criticalCount > 0 && (
-            <span className="px-1.5 py-0.5 text-xs bg-red-500/20 text-red-400 rounded">{criticalCount}</span>
+            <span className="px-1.5 py-0.5 text-xs bg-sev-crit/20 text-sev-crit rounded">{criticalCount}</span>
           )}
           {warningCount > 0 && (
-            <span className="px-1.5 py-0.5 text-xs bg-yellow-500/20 text-yellow-400 rounded">{warningCount}</span>
+            <span className="px-1.5 py-0.5 text-xs bg-sev-warn/20 text-sev-warn rounded">{warningCount}</span>
           )}
           {opportunityCount > 0 && (
-            <span className="px-1.5 py-0.5 text-xs bg-emerald-500/20 text-emerald-400 rounded">{opportunityCount}</span>
+            <span className="px-1.5 py-0.5 text-xs bg-sev-ok/20 text-sev-ok rounded">{opportunityCount}</span>
           )}
           {expanded ? <ChevronUp className="w-4 h-4 text-cluster-muted" /> : <ChevronDown className="w-4 h-4 text-cluster-muted" />}
         </div>

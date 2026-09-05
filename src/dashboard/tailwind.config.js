@@ -30,7 +30,22 @@ module.exports = {
           'security': '#8b5cf6',
           'cost': '#10b981',
           'architecture': '#f59e0b',
-        }
+        },
+        // Theme-aware severity ladder — bound to the per-theme --sev-* tokens
+        // in globals.css so severity colour follows the active theme instead of
+        // being hardcoded. Space-separated RGB triplets → rgb(var / alpha).
+        'sev': {
+          'ok':   'rgb(var(--sev-ok) / <alpha-value>)',
+          'info': 'rgb(var(--sev-info) / <alpha-value>)',
+          'warn': 'rgb(var(--sev-warn) / <alpha-value>)',
+          'high': 'rgb(var(--sev-high) / <alpha-value>)',
+          'crit': 'rgb(var(--sev-crit) / <alpha-value>)',
+        },
+        // Theme-aware accent (indigo in graphite) for links and decorative hovers.
+        'accent': {
+          DEFAULT: 'rgb(var(--accent) / <alpha-value>)',
+          'soft':  'rgb(var(--accent-soft) / <alpha-value>)',
+        },
       },
       animation: {
         'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
