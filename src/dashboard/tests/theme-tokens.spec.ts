@@ -61,4 +61,18 @@ test.describe('/issues renders severity through graphite theme tokens', () => {
     })
     expect(bad).toEqual([])
   })
+
+  test('renders in the theme font families, not the page-local DM fonts', async ({ page }) => {
+    await loadIssues(page)
+    await page.locator('.text-sev-crit').first().waitFor()
+    // No element under <main> may resolve to DM Serif/Mono/Sans (next/font emits
+    // names like "__DM_Mono_abc123"); the page must inherit the theme's
+    // --font-display / --font-mono / --font-body instead.
+    const usesDMFont = await page.locator('main').evaluate(root =>
+      [...root.querySelectorAll('*')].some(el =>
+        /DM[_ ](Mono|Serif|Sans)/.test(getComputedStyle(el).fontFamily),
+      ),
+    )
+    expect(usesDMFont).toBe(false)
+  })
 })
