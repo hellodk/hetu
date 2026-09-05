@@ -7,6 +7,7 @@ import {
   Activity, Cpu, Bug, Clock, ChevronDown, ChevronUp
 } from 'lucide-react'
 import clsx from 'clsx'
+import Link from 'next/link'
 
 interface Insight {
   id: string
@@ -25,6 +26,21 @@ const typeConfig = {
   anomaly: { icon: TrendingUp, bg: 'bg-sev-info/10', border: 'border-sev-info/30', color: 'text-sev-info', label: 'ANOMALY' },
   security: { icon: Shield, bg: 'bg-sev-high/10', border: 'border-sev-high/30', color: 'text-sev-high', label: 'SECURITY' },
   info: { icon: Activity, bg: 'bg-sev-info/10', border: 'border-sev-info/30', color: 'text-sev-info', label: 'INFO' },
+}
+
+// Each insight id is prefixed by the scanner that produced it, which maps 1:1
+// to the section that owns the finding — so a card links straight there.
+const SOURCE_ROUTES: { prefix: string; href: string; label: string }[] = [
+  { prefix: 'sec-',  href: '/security',     label: 'security findings' },
+  { prefix: 'anom-', href: '/anomalies',    label: 'anomalies' },
+  { prefix: 'opt-',  href: '/optimization', label: 'optimization' },
+  { prefix: 'pod-',  href: '/issues',       label: 'issues' },
+  { prefix: 'err-',  href: '/errors',       label: 'errors' },
+]
+
+function insightTarget(insight: Insight): { href: string; label: string } {
+  const match = SOURCE_ROUTES.find(r => insight.id.startsWith(r.prefix))
+  return match ? { href: match.href, label: match.label } : { href: '/issues', label: 'issues' }
 }
 
 function timeSince(iso?: string): string {
@@ -196,10 +212,13 @@ export function AIInsightFeed() {
           {insights.map(insight => {
             const cfg = typeConfig[insight.type]
             const Icon = cfg.icon
+            const target = insightTarget(insight)
             return (
-              <div
+              <Link
                 key={insight.id}
-                className={clsx('rounded-lg border p-3', cfg.bg, cfg.border)}
+                href={target.href}
+                aria-label={`${insight.title} — view ${target.label}`}
+                className={clsx('block rounded-lg border p-3 transition-colors hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent', cfg.bg, cfg.border)}
               >
                 <div className="flex items-start gap-2.5">
                   <Icon className={clsx('w-4 h-4 mt-0.5 flex-shrink-0', cfg.color)} aria-hidden="true" />
@@ -222,7 +241,7 @@ export function AIInsightFeed() {
                     )}
                   </div>
                 </div>
-              </div>
+              </Link>
             )
           })}
         </div>
