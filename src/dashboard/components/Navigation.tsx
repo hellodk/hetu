@@ -202,6 +202,16 @@ export function Navigation() {
           Issues
         </Link>
         <Link
+          href="/triage"
+                    onClick={closeMobile}
+          className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors mt-1 ${
+            pathname?.startsWith('/triage') ? 'bg-[rgb(var(--accent)/0.12)] text-[rgb(var(--accent))]' : 'text-cluster-muted hover:bg-cluster-border/50 hover:text-cluster-text'
+          }`}
+        >
+          <Gauge className="w-4 h-4" />
+          Triage
+        </Link>
+        <Link
           href="/errors"
                     onClick={closeMobile}
           className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors mt-1 ${
