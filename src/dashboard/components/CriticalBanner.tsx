@@ -1,6 +1,6 @@
 'use client'
 
-import { AlertTriangle, CheckCircle } from 'lucide-react'
+import { AlertTriangle } from 'lucide-react'
 import { scoreLevel } from '@/lib/scoreLevel'
 
 interface HealthScores {
@@ -12,9 +12,8 @@ interface HealthScores {
 }
 
 interface CriticalBannerProps {
-  scores:        HealthScores
-  findingsCount: number
-  onViewIssues:  () => void
+  scores:       HealthScores
+  onViewIssues: () => void
 }
 
 const DIM_LABEL: Record<keyof HealthScores, string> = {
@@ -25,7 +24,10 @@ const DIM_LABEL: Record<keyof HealthScores, string> = {
   architecture: 'Architecture',
 }
 
-export function CriticalBanner({ scores, findingsCount, onViewIssues }: CriticalBannerProps) {
+// A dimension scoring in the critical band (≤ 25) is always surfaced as a
+// critical alert — a 0/100 security score is critical whether or not there are
+// separately-counted findings, so we never soften it into a reassuring banner.
+export function CriticalBanner({ scores, onViewIssues }: CriticalBannerProps) {
   const criticalDims = (Object.keys(scores) as (keyof HealthScores)[])
     .filter(k => scoreLevel(scores[k]) === 'critical')
 
@@ -34,24 +36,6 @@ export function CriticalBanner({ scores, findingsCount, onViewIssues }: Critical
   const summary = criticalDims
     .map(d => `${DIM_LABEL[d]}: ${scores[d]}/100`)
     .join(' · ')
-
-  const hasFindings = findingsCount > 0
-
-  if (!hasFindings) {
-    return (
-      <div
-        className="bg-green-600 text-white px-4 sm:px-6 py-2.5 flex items-center gap-3 text-sm font-medium"
-        role="status"
-        aria-label="Low health scores but no active findings"
-        data-testid="critical-banner"
-      >
-        <CheckCircle className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
-        <strong className="font-bold tracking-wide">LOW SCORES</strong>
-        <span className="hidden sm:inline text-green-200">—</span>
-        <span className="text-green-100">{summary} · No active findings</span>
-      </div>
-    )
-  }
 
   return (
     <div
