@@ -21,14 +21,15 @@ type PodHealthCategory struct {
 
 // PodHealthItem is a single unhealthy pod with diagnosis.
 type PodHealthItem struct {
-	Namespace string `json:"namespace"`
-	Name      string `json:"name"`
-	Phase     string `json:"phase"`
-	Reason    string `json:"reason"`
-	Message   string `json:"message"`
-	Restarts  int32  `json:"restarts"`
-	Age       string `json:"age"`
-	Node      string `json:"node"`
+	Namespace       string  `json:"namespace"`
+	Name            string  `json:"name"`
+	Phase           string  `json:"phase"`
+	Reason          string  `json:"reason"`
+	Message         string  `json:"message"`
+	Restarts        int32   `json:"restarts"`
+	RestartsPerHour float64 `json:"restartsPerHour"`
+	Age             string  `json:"age"`
+	Node            string  `json:"node"`
 }
 
 // PodHealthReport is the result of a pod health scan.
@@ -51,6 +52,14 @@ func NewPodHealthScanner(cs kubernetes.Interface) *PodHealthScanner {
 	return &PodHealthScanner{clientset: cs}
 }
 
+const highRestartThreshold int32 = 5
+
+// categoryOrder defines the display order for pod health categories.
+var categoryOrder = []string{
+	"crashloop", "oomkilled", "init-failure", "imagepull", "high-restarts",
+	"pending", "failed", "evicted", "terminating", "completed",
+}
+
 // Scan performs a pod health check across all namespaces.
 func (s *PodHealthScanner) Scan(ctx context.Context) {
 	if s.clientset == nil {
@@ -64,14 +73,16 @@ func (s *PodHealthScanner) Scan(ctx context.Context) {
 	}
 
 	categories := map[string][]PodHealthItem{
-		"evicted":     {},
-		"failed":      {},
-		"pending":     {},
-		"crashloop":   {},
-		"imagepull":   {},
-		"oomkilled":   {},
-		"terminating": {},
-		"completed":   {},
+		"evicted":       {},
+		"failed":        {},
+		"pending":       {},
+		"crashloop":     {},
+		"imagepull":     {},
+		"oomkilled":     {},
+		"high-restarts": {},
+		"init-failure":  {},
+		"terminating":   {},
+		"completed":     {},
 	}
 
 	totalPods := len(pods.Items)
@@ -89,9 +100,17 @@ func (s *PodHealthScanner) Scan(ctx context.Context) {
 			item.Age = time.Since(pod.CreationTimestamp.Time).Truncate(time.Second).String()
 		}
 
-		// Count restarts
+		// Count restarts across all containers.
 		for _, cs := range pod.Status.ContainerStatuses {
 			item.Restarts += cs.RestartCount
+		}
+
+		// Compute restarts per hour.
+		if !pod.CreationTimestamp.IsZero() {
+			hours := time.Since(pod.CreationTimestamp.Time).Hours()
+			if hours > 0 {
+				item.RestartsPerHour = float64(item.Restarts) / hours
+			}
 		}
 
 		// Categorize
@@ -123,8 +142,33 @@ func (s *PodHealthScanner) Scan(ctx context.Context) {
 			categories["terminating"] = append(categories["terminating"], item)
 
 		default:
-			// Check container statuses for issues
 			isHealthy := true
+
+			// Check init container statuses for failures.
+			for _, ics := range pod.Status.InitContainerStatuses {
+				if ics.State.Waiting != nil {
+					switch ics.State.Waiting.Reason {
+					case "CrashLoopBackOff":
+						item.Reason = "InitCrashLoopBackOff"
+						item.Message = ics.State.Waiting.Message
+						categories["init-failure"] = append(categories["init-failure"], item)
+						isHealthy = false
+					case "ImagePullBackOff", "ErrImagePull":
+						item.Reason = ics.State.Waiting.Reason
+						item.Message = ics.State.Waiting.Message
+						categories["init-failure"] = append(categories["init-failure"], item)
+						isHealthy = false
+					}
+				}
+				if ics.LastTerminationState.Terminated != nil && ics.LastTerminationState.Terminated.ExitCode != 0 {
+					item.Reason = "InitTerminated"
+					item.Message = ics.LastTerminationState.Terminated.Reason
+					categories["init-failure"] = append(categories["init-failure"], item)
+					isHealthy = false
+				}
+			}
+
+			// Check container statuses for issues.
 			for _, cs := range pod.Status.ContainerStatuses {
 				if cs.State.Waiting != nil {
 					switch cs.State.Waiting.Reason {
@@ -146,6 +190,14 @@ func (s *PodHealthScanner) Scan(ctx context.Context) {
 					isHealthy = false
 				}
 			}
+
+			// Check for high restart count (even if currently running).
+			if isHealthy && item.Restarts > highRestartThreshold {
+				item.Reason = "HighRestarts"
+				categories["high-restarts"] = append(categories["high-restarts"], item)
+				isHealthy = false
+			}
+
 			if isHealthy {
 				healthyPods++
 			}
@@ -153,8 +205,7 @@ func (s *PodHealthScanner) Scan(ctx context.Context) {
 	}
 
 	var catList []PodHealthCategory
-	order := []string{"crashloop", "oomkilled", "imagepull", "pending", "failed", "evicted", "terminating", "completed"}
-	for _, name := range order {
+	for _, name := range categoryOrder {
 		pods := categories[name]
 		if len(pods) > 0 {
 			catList = append(catList, PodHealthCategory{
