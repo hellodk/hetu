@@ -34,6 +34,11 @@ interface ErrorSummary {
   byReason: Record<string, number>; byNamespace: Record<string, number>
 }
 
+interface PodHealthData {
+  timestamp: string; totalPods: number; healthyPods: number
+  categories: { name: string; count: number; pods: { name: string }[] }[]
+}
+
 interface Issue {
   id: string; severity: string; category: string
   title: string; description: string; affectedResources: string[]
@@ -144,6 +149,8 @@ function CategoryDrilldown({ categoryId, counts, onClose }: {
       { label: 'OOMKilled',        count: counts.oom,          href: '/errors?search=OOMKilled',                                  sev: 'critical' },
       { label: 'CrashLoopBackOff', count: counts.crashloop,    href: '/errors?search=CrashLoopBackOff',                           sev: 'critical' },
       { label: 'ImagePullBackOff', count: counts.imagepull,    href: '/errors?search=ImagePullBackOff',                           sev: 'high'     },
+      { label: 'High Restarts',    count: counts.highRestarts, href: '/workloads/pods?group=core&version=v1',                     sev: 'high'     },
+      { label: 'Init Failures',    count: counts.initFailures, href: '/workloads/pods?group=core&version=v1',                     sev: 'high'     },
       { label: 'Pending Pods',     count: counts.pendingPods,  href: '/workloads/pods?search=Pending&group=core&version=v1',       sev: 'medium'   },
       { label: 'Unhealthy Pods',   count: counts.unhealthyPods, href: '/workloads/pods?group=core&version=v1',                    sev: 'medium'   },
     ]
@@ -275,6 +282,7 @@ export default function IssuesPage() {
   const [health, setHealth]               = useState<{ summary: HealthSummaryData; topIssues: Issue[] } | null>(null)
   const [errorSummary, setErrorSummary]   = useState<ErrorSummary | null>(null)
   const [securitySummary, setSecSummary]  = useState<SecuritySummaryData | null>(null)
+  const [podHealth, setPodHealth]         = useState<PodHealthData | null>(null)
   const [loading, setLoading]             = useState(true)
   const [refreshing, setRefreshing]       = useState(false)
   const [openCat, setOpenCat]             = useState<CatId | null>(null)
@@ -283,44 +291,50 @@ export default function IssuesPage() {
   const fetchAll = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true); else setLoading(true)
     try {
-      const [h, e, s] = await Promise.allSettled([
+      const [h, e, s, p] = await Promise.allSettled([
         apiFetch<{ summary: HealthSummaryData; topIssues: Issue[] }>('/api/v1/health'),
         apiFetch<ErrorSummary>('/api/v1/errors/summary'),
         apiFetch<SecuritySummaryData>('/api/v1/security/summary'),
+        apiFetch<PodHealthData>('/api/v1/pods/health'),
       ])
       if (h.status === 'fulfilled') setHealth(h.value)
       if (e.status === 'fulfilled') setErrorSummary(e.value)
       if (s.status === 'fulfilled') setSecSummary(s.value)
+      if (p.status === 'fulfilled') setPodHealth(p.value)
     } catch { /* ignore */ }
     finally { setLoading(false); setRefreshing(false) }
   }, [])
 
   useEffect(() => { fetchAll() }, [fetchAll])
 
+  const catCount = (name: string) => podHealth?.categories?.find(c => c.name === name)?.count ?? 0
+
   const counts = {
-    oom:           (errorSummary?.byReason?.OOMKilled ?? 0) + (errorSummary?.byReason?.oom ?? 0),
-    crashloop:     errorSummary?.byReason?.CrashLoopBackOff ?? 0,
-    imagepull:     errorSummary?.byReason?.ImagePullBackOff ?? 0,
+    oom:           (errorSummary?.byReason?.OOMKilled ?? 0) + (errorSummary?.byReason?.oom ?? 0) + catCount('oomkilled'),
+    crashloop:     (errorSummary?.byReason?.CrashLoopBackOff ?? 0) + catCount('crashloop'),
+    imagepull:     (errorSummary?.byReason?.ImagePullBackOff ?? 0) + catCount('imagepull'),
     dns:           errorSummary?.byReason?.DNSConfigForming ?? 0,
     timeout:       errorSummary?.byReason?.timeout ?? 0,
     http5xx:       errorSummary?.byReason?.['http.5xx'] ?? 0,
     panic:         (errorSummary?.byReason?.panic ?? 0) + (errorSummary?.byReason?.exception ?? 0),
-    pendingPods:   health?.summary?.pendingPods ?? 0,
-    unhealthyPods: health?.summary?.unhealthyPods ?? 0,
+    pendingPods:   Math.max(health?.summary?.pendingPods ?? 0, catCount('pending')),
+    unhealthyPods: catCount('high-restarts') + catCount('init-failure'),
+    highRestarts:  catCount('high-restarts'),
+    initFailures:  catCount('init-failure'),
     warningEvents: health?.summary?.warningEvents ?? 0,
     criticalEvents: health?.summary?.criticalEvents ?? 0,
     cveCritical:   securitySummary?.bySeverity?.critical ?? 0,
     cveHigh:       securitySummary?.bySeverity?.high ?? 0,
   }
 
-  const podTotal      = counts.oom + counts.crashloop + counts.imagepull + counts.pendingPods + counts.unhealthyPods
+  const podTotal = counts.oom + counts.crashloop + counts.imagepull + counts.pendingPods + counts.unhealthyPods
   const errorTotal    = counts.dns + counts.timeout + counts.http5xx + counts.panic
   const eventTotal    = counts.warningEvents + counts.criticalEvents
   const securityTotal = counts.cveCritical + counts.cveHigh
 
   const totalCritical = counts.oom + counts.crashloop + counts.criticalEvents + counts.cveCritical
-  const totalHigh     = counts.imagepull + counts.dns + counts.timeout + counts.http5xx + counts.panic + counts.cveHigh
-  const totalMedium   = counts.pendingPods + counts.unhealthyPods + counts.warningEvents
+  const totalHigh     = counts.imagepull + counts.highRestarts + counts.initFailures + counts.dns + counts.timeout + counts.http5xx + counts.panic + counts.cveHigh
+  const totalMedium   = counts.pendingPods + counts.warningEvents
   const grandTotal    = totalCritical + totalHigh + totalMedium
 
   const hasData    = !!(health || errorSummary || securitySummary)
@@ -353,10 +367,12 @@ export default function IssuesPage() {
         counts.oom > 0       && `OOMKilled×${counts.oom}`,
         counts.crashloop > 0 && `CrashLoop×${counts.crashloop}`,
         counts.imagepull > 0 && `ImagePull×${counts.imagepull}`,
+        counts.highRestarts > 0 && `HighRestarts×${counts.highRestarts}`,
+        counts.initFailures > 0 && `InitFail×${counts.initFailures}`,
         counts.pendingPods > 0 && `Pending×${counts.pendingPods}`,
         counts.unhealthyPods > 0 && `Unhealthy×${counts.unhealthyPods}`,
       ] as (string | false)[]).filter((x): x is string => !!x),
-      desc: podTotal === 0 ? 'All pods healthy' : `${counts.oom + counts.crashloop} critical · ${counts.imagepull} high`,
+      desc: podTotal === 0 ? 'All pods healthy' : `${counts.oom + counts.crashloop} critical · ${counts.imagepull + counts.highRestarts + counts.initFailures} high`,
     },
     {
       id: 'errors', label: 'App Errors', total: errorTotal,
