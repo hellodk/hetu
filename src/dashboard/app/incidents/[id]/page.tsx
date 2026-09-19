@@ -6,9 +6,10 @@ import Link from 'next/link'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { apiFetch, getApiUrl } from '@/lib/api'
+import { streamChat, type ChatToolEvent } from '@/lib/chat'
 import {
   ArrowLeft, Loader2, Clock, AlertCircle, Zap,
-  Send, CheckCircle, Shield, Wrench, Bot, User, Copy, Check
+  Send, CheckCircle, Shield, Wrench, BookMarked, Bot, User, Copy, Check
 } from 'lucide-react'
 
 interface Signal {
@@ -52,6 +53,9 @@ interface ChatMessage {
   id: string
   role: 'user' | 'assistant'
   content: string
+  tools?: ChatToolEvent[]
+  citations?: { kind: string; ref: string; title: string; snippet?: string }[]
+  error?: string
 }
 
 // Context that lets MarkdownCode know it's inside a MarkdownPre block.
@@ -163,6 +167,8 @@ export default function IncidentDetailPage() {
   const chatEndRef = useRef<HTMLDivElement>(null)
   // Stored so we can clearTimeout on unmount (prevents setState after unmount).
   const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout>>()
+  const convIdRef = useRef<string | null>(null)
+  const abortRef = useRef<AbortController | null>(null)
 
   // Restore chat history from localStorage keyed by incident id.
   useEffect(() => {
@@ -173,6 +179,21 @@ export default function IncidentDetailPage() {
         if (Array.isArray(parsed) && parsed.length > 0) setChatHistory(parsed)
       }
     } catch {}
+  }, [id])
+
+  // Restore the multi-turn conversation id so follow-ups keep server-side context.
+  useEffect(() => {
+    try {
+      convIdRef.current = localStorage.getItem(`incident-chat-conv-${id}`)
+    } catch {}
+  }, [id])
+
+  // Cancel any in-flight chat stream on unmount or incident change.
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort()
+      clearTimeout(scrollTimeoutRef.current)
+    }
   }, [id])
 
   // Persist chat history; cap at 50 messages to bound localStorage growth.
@@ -220,40 +241,53 @@ export default function IncidentDetailPage() {
     const q = question.trim()
     if (!q) return
     setQuestion('')
-    // Snapshot history BEFORE setState so the outgoing request includes
-    // all prior turns (reading chatHistory after setChatHistory would be
-    // a stale closure — the state update is async).
-    const historySnapshot = chatHistory.map(m => ({ role: m.role, content: m.content }))
     const userMsg: ChatMessage = { id: `${Date.now()}-u`, role: 'user', content: q }
-    setChatHistory(prev => [...prev, userMsg])
+    setChatHistory(prev => [...prev, userMsg, { id: `${Date.now()}-a`, role: 'assistant', content: '', tools: [] }])
     setAsking(true)
     scrollTimeoutRef.current = setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
-    try {
-      const res = await fetch(`${getApiUrl()}/api/v1/llm/ask`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          question: q,
-          incidentId: parseInt(id, 10),
-          // history and context are forwarded for when the backend is
-          // wired to accept them (currently handleAsk only reads question
-          // + incidentId — backend needs updating to consume these).
-          history: historySnapshot,
-          context: {
-            summary: incident?.summary,
-            severity: incident?.severity,
-            status: incident?.status,
-          },
-        }),
+
+    const controller = new AbortController()
+    abortRef.current = controller
+
+    const patchAssistant = (patch: (m: ChatMessage) => ChatMessage) => {
+      setChatHistory(prev => {
+        const next = [...prev]
+        for (let i = next.length - 1; i >= 0; i--) {
+          if (next[i].role === 'assistant') {
+            next[i] = patch(next[i])
+            break
+          }
+        }
+        return next
       })
-      if (!res.ok) throw new Error(`${res.status}`)
-      const data = await res.json()
-      const answer = data.answer || 'No response from AI'
-      setChatHistory(prev => [...prev, { id: `${Date.now()}-a`, role: 'assistant', content: answer }])
+    }
+
+    try {
+      await streamChat(
+        q,
+        convIdRef.current,
+        {
+          onConversation: cid => { if (cid) { convIdRef.current = cid } },
+          onTool: tool => patchAssistant(t => ({ ...t, tools: [...(t.tools ?? []), tool] })),
+          onCitation: raw => {
+            const c = raw as { kind: string; ref: string; title: string; snippet?: string } | undefined
+            if (!c || !c.ref) return
+            patchAssistant(t => ({ ...t, citations: [...(t.citations ?? []), c] }))
+          },
+          onToken: text => patchAssistant(t => ({ ...t, content: t.content + text })),
+          onError: msg => patchAssistant(t => ({ ...t, error: msg })),
+        },
+        controller.signal,
+        { incidentId: parseInt(id, 10) },
+      )
+      if (convIdRef.current) localStorage.setItem(`incident-chat-conv-${id}`, convIdRef.current)
     } catch {
-      setChatHistory(prev => [...prev, { id: `${Date.now()}-e`, role: 'assistant', content: 'Failed to reach AI — check LLM configuration in Settings.' }])
+      if (!(controller.signal.aborted)) {
+        patchAssistant(t => ({ ...t, error: t.content ? '' : 'Failed to reach AI — check LLM configuration in Settings.' }))
+      }
     } finally {
       setAsking(false)
+      abortRef.current = null
       scrollTimeoutRef.current = setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
     }
   }
@@ -434,7 +468,7 @@ export default function IncidentDetailPage() {
           {confirmClear && (
             <span className="flex items-center gap-2 text-xs">
               <span className="text-gray-500">Clear all history?</span>
-              <button onClick={() => { setChatHistory([]); localStorage.removeItem(`incident-chat-${id}`); setConfirmClear(false) }} className="text-red-400 hover:text-red-300 transition-colors">Yes</button>
+              <button onClick={() => { setChatHistory([]); localStorage.removeItem(`incident-chat-${id}`); localStorage.removeItem(`incident-chat-conv-${id}`); convIdRef.current = null; setConfirmClear(false) }} className="text-red-400 hover:text-red-300 transition-colors">Yes</button>
               <button onClick={() => setConfirmClear(false)} className="text-gray-500 hover:text-gray-400 transition-colors">No</button>
             </span>
           )}
@@ -462,10 +496,44 @@ export default function IncidentDetailPage() {
                     ? 'bg-blue-100 dark:bg-blue-600/20 border border-blue-200 dark:border-blue-700/30 text-blue-800 dark:text-blue-100'
                     : 'bg-cluster-card border border-cluster-border text-cluster-text'
                 }`}>
+                  {msg.role === 'assistant' && msg.tools && msg.tools.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mb-1.5">
+                      {msg.tools.map((tool, j) => (
+                        <span
+                          key={j}
+                          data-testid="incident-tool-chip"
+                          className="inline-flex items-center gap-1 rounded-full border border-cluster-border/80 bg-cluster-bg/60 backdrop-blur px-2 py-0.5 text-[11px] font-medium text-cluster-muted"
+                        >
+                          <Wrench className="w-3 h-3" aria-hidden="true" />
+                          {tool.name}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                   {msg.role === 'assistant' ? (
-                    <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-                      {msg.content}
-                    </ReactMarkdown>
+                    <>
+                      <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                        {msg.content || (asking ? '…' : '')}
+                      </ReactMarkdown>
+                      {msg.citations && msg.citations.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1.5">
+                          {msg.citations.map((c, j) => (
+                            <span
+                              key={j}
+                              data-testid="incident-citation-chip"
+                              title={c.ref}
+                              className="inline-flex items-center gap-1 rounded-full border border-cluster-border/80 bg-cluster-bg/60 px-2 py-0.5 text-[11px] font-medium text-cluster-muted"
+                            >
+                              <BookMarked className="w-3 h-3" aria-hidden="true" />
+                              {c.title || c.ref}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      {msg.error && (
+                        <p data-testid="incident-chat-error" className="mt-1 text-xs text-red-400">{msg.error}</p>
+                      )}
+                    </>
                   ) : (
                     <span>{msg.content}</span>
                   )}
@@ -509,7 +577,7 @@ export default function IncidentDetailPage() {
           </button>
         </div>
         <p className="text-xs text-gray-600 mt-2">
-          AI answers using incident signals{incident?.rcaReport ? ', RCA report' : ''} and cluster context.
+          AI answers using live cluster context{incident?.rcaReport ? ', the RCA report' : ''} and incident signals.
         </p>
       </div>
     </div>

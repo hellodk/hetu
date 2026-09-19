@@ -23,15 +23,23 @@ export interface ChatHandlers {
   onDone?: (id?: string) => void
 }
 
+export interface ChatScope {
+  incidentId?: number
+  namespace?: string
+}
+
 /**
  * Streams a chat turn. Resolves when the stream ends (`done` or EOF); rejects on
  * a transport/HTTP error. Pass an AbortSignal to cancel an in-flight turn.
+ * `scope` optionally anchors the conversation to an incident/namespace so the
+ * plan step can route tools (e.g. get_pods) at the right target.
  */
 export async function streamChat(
   message: string,
   conversationId: string | null,
   handlers: ChatHandlers,
   signal?: AbortSignal,
+  scope?: ChatScope,
 ): Promise<void> {
   const res = await fetch(`${getApiUrl()}/api/v1/chat`, {
     method: 'POST',
@@ -39,6 +47,8 @@ export async function streamChat(
     body: JSON.stringify({
       message,
       conversationId: conversationId ?? undefined,
+      ...(scope?.incidentId !== undefined ? { incidentId: scope.incidentId } : {}),
+      ...(scope?.namespace ? { namespace: scope.namespace } : {}),
     }),
     signal,
   })

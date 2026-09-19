@@ -463,13 +463,30 @@ export async function mockStreamRCA(page: Page, id: number, report: any) {
   })
 }
 
-// mockAskAI stubs POST /api/v1/llm/ask and returns the given answer string.
+// mockAskAI was replaced by mockIncidentChat: the incident panel now uses the
+// tool-calling POST /api/v1/chat SSE endpoint (issue #39). Kept the name but
+// rewired to stream conversation/tool/token/done frames like the real engine.
 export async function mockAskAI(page: Page, answer: string) {
-  await page.route('**/api/v1/llm/ask', async route => {
+  const stream = [
+    'data: {"type":"conversation","conversationId":"conv_incident"}',
+    '',
+    'data: {"type":"tool","name":"get_pods","args":{"namespace":"default"}}',
+    '',
+    'data: {"type":"citation","citation":{"kind":"incident","ref":"incident #1","title":"API server crashloop","snippet":"default/api-server-abc"}}',
+    '',
+    `data: {"type":"token","content":"${answer.replace(/"/g, '\\"')}"}`,
+    '',
+    'data: {"type":"done","conversationId":"conv_incident"}',
+    '',
+    '',
+  ].join('\n')
+  await page.route('**/api/v1/chat', async route => {
     if (route.request().method() === 'POST') {
       await route.fulfill({
-        status: 200, contentType: 'application/json',
-        body: JSON.stringify({ answer }),
+        status: 200,
+        contentType: 'text/event-stream',
+        headers: { 'Cache-Control': 'no-cache', Connection: 'keep-alive', 'x-conversation-id': 'conv_incident' },
+        body: stream,
       })
     } else {
       await route.continue()
