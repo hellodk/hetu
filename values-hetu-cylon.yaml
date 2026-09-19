@@ -37,7 +37,7 @@ collector:
 analyzer:
   image:
     repository: docker.io/hellodk/hetu-analyzer
-    tag: "7.7.1-podhealth"
+    tag: "7.7.2-chattools"
     pullPolicy: IfNotPresent
   nodeSelector:
     kubernetes.io/hostname: cylon
@@ -54,7 +54,7 @@ analyzer:
 dashboard:
   image:
     repository: docker.io/hellodk/hetu-dashboard
-    tag: "7.7.1-podhealth"
+    tag: "7.7.2-chattools"
     pullPolicy: IfNotPresent
     # NOTE: image must be built with --build-arg NEXT_BASE_PATH=/hetu —
     # basePath is a BUILD-TIME Next.js setting. 7.7.0-triage was built with it.
