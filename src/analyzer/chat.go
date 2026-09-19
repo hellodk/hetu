@@ -274,7 +274,8 @@ func (e *ChatEngine) plan(ctx context.Context, message string, history []chatMsg
 	}
 	sys := "You are the planning step of a Kubernetes SRE assistant. Given the user's question, decide which read-only tools to call and what to search the knowledge base for. " +
 		"Respond with ONLY a JSON object: {\"kb_query\": string, \"tools\": [{\"name\": string, \"args\": object}]}. " +
-		"Pick at most 3 tools. Use [] if no tool is needed. Available tools:\n" + cat.String()
+		"Pick at most 3 tools. Use [] if no tool is needed. Available tools:\n" + cat.String() +
+		"\nEvidence-first: when the question is about why a workload is failing or unhealthy (CrashLoopBackOff, CreateContainerConfigError, ImagePullBackOff, pending/evicted, probe failures, stuck rollout, failed Job), prefer the direct-evidence tools describe_pod, pod_logs, rollout_status, job_status and secret_keys over aggregate summary tools, so the answer is grounded in observed container state and events."
 
 	userCtx := message
 	if namespace != "" {
@@ -541,7 +542,8 @@ Guidelines:
 - Be concise and actionable. Lead with the answer, then the evidence, then recommended next steps.
 - When you reference a fact, cite its source inline, e.g. [docs/SCORING_SYSTEM.md] or [incident #42] or [tool:get_pods].
 - Never invent pod names, metrics, or incident IDs that are not in the context.
-- All your actions are read-only; when suggesting changes, give the exact kubectl/YAML but do not claim to have executed anything.`
+- All your actions are read-only; when suggesting changes, give the exact kubectl/YAML but do not claim to have executed anything.
+- Evidence-first diagnosis: reach failure causes only from observed evidence in the retrieved context — container Waiting reason/message, pod events, termination exit codes and log lines. Common mappings: CreateContainerConfigError → a Secret/env key or volume reference cannot be resolved (quote the event message naming the missing key); ImagePullBackOff → image/registry/storage problem; CrashLoopBackOff → the app exits before it is ready — quote the termination reason and exit code and read logs --previous; ProgressDeadlineExceeded → the rollout cannot become healthy; BackoffLimitExceeded → the Job kept failing (report failed count). Never attribute a workload failure to an aggregate health/security/cost score or to node counts unless that connection is present in the evidence. If the evidence is missing, say exactly what could not be verified and which kubectl command would reveal it.`
 
 // streamAnswer streams the final completion. It supports OpenAI-compatible and
 // Ollama streaming; other providers fall back to a single blocking completion.
