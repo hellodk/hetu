@@ -155,6 +155,45 @@ test.describe('Incident detail page', () => {
     await expect(page.getByText(/Running Root Cause Analysis/)).toBeVisible({ timeout: 5000 })
   })
 
+  test('Ask AI uses the tool-calling /api/v1/chat endpoint with incidentId', async ({ page }) => {
+    if (LIVE) return
+    await mockIncidentDetail(page, 1, INC_WITH_RCA)
+    let postedBody: any = null
+    await page.route('**/api/v1/chat', async route => {
+      if (route.request().method() === 'POST') {
+        postedBody = route.request().postDataJSON()
+        // Answer stream: tool chip + token + done.
+        const body = [
+          'data: {"type":"conversation","conversationId":"conv_incident"}',
+          '',
+          'data: {"type":"tool","name":"get_pods","args":{"namespace":"default"}}',
+          '',
+          'data: {"type":"token","content":"2 pods affected."}',
+          '',
+          'data: {"type":"done","conversationId":"conv_incident"}',
+          '',
+          '',
+        ].join('\n')
+        await route.fulfill({
+          status: 200,
+          contentType: 'text/event-stream',
+          headers: { 'x-conversation-id': 'conv_incident' },
+          body,
+        })
+        return
+      }
+      await route.continue()
+    })
+    await page.goto('/incidents/1')
+    await page.getByLabel('Ask AI a question about this incident').fill('How many pods are affected?')
+    await page.locator('[aria-label="Ask AI a question about this incident"] + button').click()
+    await expect(page.getByText('2 pods affected.')).toBeVisible({ timeout: 6000 })
+    expect(postedBody).not.toBeNull()
+    expect(postedBody.message).toBe('How many pods are affected?')
+    expect(postedBody.incidentId).toBe(1)
+    await expect(page.getByTestId('incident-tool-chip')).toContainText('get_pods')
+  })
+
   test('Ask AI sends question via Enter key and displays answer', async ({ page }) => {
     if (!LIVE) {
       await mockIncidentDetail(page, 1, INC_WITH_RCA)

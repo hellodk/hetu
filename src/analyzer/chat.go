@@ -173,6 +173,7 @@ func (e *ChatEngine) handleChat(w http.ResponseWriter, r *http.Request) {
 		Message        string `json:"message"`
 		ConversationID string `json:"conversationId"`
 		Namespace      string `json:"namespace"`
+		IncidentID     *int64 `json:"incidentId,omitempty"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -211,7 +212,7 @@ func (e *ChatEngine) handleChat(w http.ResponseWriter, r *http.Request) {
 	emit(map[string]any{"type": "conversation", "conversationId": convID})
 
 	// 1. PLAN
-	plan := e.plan(ctx, req.Message, history, req.Namespace)
+	plan := e.plan(ctx, req.Message, history, e.chatNamespace(req))
 	for _, t := range plan.Tools {
 		emit(map[string]any{"type": "tool", "name": t.Name, "args": t.Args})
 	}
@@ -223,7 +224,7 @@ func (e *ChatEngine) handleChat(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 3. SYNTHESIZE
-	messages := e.buildMessages(req.Message, history, grounding, req.Namespace)
+	messages := e.buildMessages(req.Message, history, grounding, plan.Namespace, e.incidentContext(req.IncidentID))
 	var answer strings.Builder
 	err := e.streamAnswer(ctx, messages, func(tok string) {
 		answer.WriteString(tok)
@@ -339,6 +340,7 @@ func (e *ChatEngine) plan(ctx context.Context, message string, history []chatMsg
 	if len(p.Tools) == 0 && len(fallback.Tools) > 0 {
 		p.Tools = fallback.Tools
 	}
+	p.Namespace = namespace
 	return p
 }
 
@@ -440,10 +442,73 @@ func (e *ChatEngine) retrieve(ctx context.Context, plan chatPlan) (string, []Cit
 
 // --- synthesis --------------------------------------------------------------
 
-func (e *ChatEngine) buildMessages(message string, history []chatMsg, grounding, namespace string) []types.LLMMessage {
+// chatNamespace resolves the namespace context for a chat request: an explicit
+// request namespace wins, otherwise the incident's namespace (first signal)
+// when one is referenced.
+func (e *ChatEngine) chatNamespace(req struct {
+	Message        string `json:"message"`
+	ConversationID string `json:"conversationId"`
+	Namespace      string `json:"namespace"`
+	IncidentID     *int64 `json:"incidentId,omitempty"`
+}) string {
+	if req.Namespace != "" || req.IncidentID == nil {
+		return req.Namespace
+	}
+	a := e.analyzer
+	if a == nil || a.rcaEngine == nil || a.rcaEngine.correlator == nil {
+		return ""
+	}
+	inc := a.rcaEngine.correlator.GetIncident(*req.IncidentID)
+	if inc == nil {
+		return ""
+	}
+	for _, s := range inc.Signals {
+		if s.Namespace != "" {
+			return s.Namespace
+		}
+	}
+	return ""
+}
+
+// incidentContext builds the incident grounding block for the operational chat
+// when the caller references a specific incident (mirrors handleAsk's incident
+// prompt so both entry points ground identically). Nil/low-cardinality inputs
+// produce an empty string so chat never invents incident state.
+func (e *ChatEngine) incidentContext(id *int64) string {
+	if id == nil {
+		return ""
+	}
+	a := e.analyzer
+	if a == nil || a.rcaEngine == nil || a.rcaEngine.correlator == nil {
+		return ""
+	}
+	inc := a.rcaEngine.correlator.GetIncident(*id)
+	if inc == nil {
+		return ""
+	}
+	return rcaIncidentGrounding(a.rcaEngine, inc)
+}
+
+// rcaIncidentGrounding renders the incident section (signals, cluster health,
+// logs) plus any existing RCA summary into a prompt block. Extracted so both
+// handleAsk and the tool-calling chat share identical grounding.
+func rcaIncidentGrounding(e *RCAEngine, inc *Incident) string {
+	var b strings.Builder
+	b.WriteString(e.buildPrompt(inc))
+	if inc.RCAReport != nil {
+		fmt.Fprintf(&b, "\n\nPrevious RCA summary: %s\nRoot cause identified: %s\nRCA confidence: %.0f%%",
+			inc.RCAReport.Summary, inc.RCAReport.RootCause.Primary, inc.RCAReport.RootCause.Confidence*100)
+	}
+	return b.String()
+}
+
+func (e *ChatEngine) buildMessages(message string, history []chatMsg, grounding, namespace, incidentCtx string) []types.LLMMessage {
 	sys := chatSystemPrompt
 	if namespace != "" {
 		sys += "\nThe operator's current namespace context is: " + namespace + "."
+	}
+	if incidentCtx != "" {
+		sys += "\n\n" + incidentCtx
 	}
 	msgs := []types.LLMMessage{{Role: "system", Content: sys}}
 
