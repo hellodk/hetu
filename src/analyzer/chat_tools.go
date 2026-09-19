@@ -17,7 +17,10 @@ import (
 	"strings"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/client-go/kubernetes"
 )
 
 // Citation is a single source attribution returned to the UI.
@@ -49,6 +52,11 @@ func chatToolSpecs() []chatToolSpec {
 		{"list_recommendations", "Optimizer/cost/reliability recommendations from the latest analysis. args: {limit:int}"},
 		{"list_security_findings", "Security and CIS findings from the latest scan. args: {limit:int}"},
 		{"get_pods", "Live pod status (phase, restarts, readiness) from the Kubernetes API. args: {namespace:string}"},
+		{"describe_pod", "Pod detail: container waiting/terminated state, exit codes, restart count, and pod events. The definitive read for why a pod is not running. args: {namespace:string, pod:string}"},
+		{"pod_logs", "Tail of a pod container's logs; previous=true reads the last-terminated instance. args: {namespace:string, pod:string, container:string, previous:bool}"},
+		{"rollout_status", "Deployment rollout state: conditions (e.g. ProgressDeadlineExceeded) and its ReplicaSets with revision. args: {namespace:string, deployment:string}"},
+		{"job_status", "Job state: conditions (e.g. BackoffLimitExceeded), failed/succeeded counts, and the tail of the last completed pod. args: {namespace:string, job:string}"},
+		{"secret_keys", "List of data keys present in a Secret (metadata only, never values). Use when container events name a missing Secret key. args: {namespace:string, name:string}"},
 		{"query_prometheus", "Run an instant PromQL query against Prometheus. args: {query:string}"},
 	}
 }
@@ -69,6 +77,16 @@ func (e *ChatEngine) runTool(ctx context.Context, name string, args map[string]a
 		return e.toolListSecurityFindings(argInt(args))
 	case "get_pods":
 		return e.toolGetPods(ctx, argStr(args, "namespace"))
+	case "describe_pod":
+		return e.toolDescribePod(ctx, argStr(args, "namespace"), argStr(args, "pod"))
+	case "pod_logs":
+		return e.toolPodLogs(ctx, argStr(args, "namespace"), argStr(args, "pod"), argStr(args, "container"), argBool(args, "previous"))
+	case "rollout_status":
+		return e.toolRolloutStatus(ctx, argStr(args, "namespace"), argStr(args, "deployment"))
+	case "job_status":
+		return e.toolJobStatus(ctx, argStr(args, "namespace"), argStr(args, "job"))
+	case "secret_keys":
+		return e.toolSecretKeys(ctx, argStr(args, "namespace"), argStr(args, "name"))
 	case "query_prometheus":
 		return e.toolQueryPrometheus(ctx, argStr(args, "query"))
 	default:
@@ -276,13 +294,283 @@ func (e *ChatEngine) toolGetPods(ctx context.Context, namespace string) toolResu
 		}
 		// Show unhealthy pods first / cap output to keep context small.
 		if shown < 40 {
-			fmt.Fprintf(&b, "  - %s/%s: %s, ready %d/%d, restarts %d\n",
-				p.Namespace, p.Name, phase, ready, len(p.Spec.Containers), restarts)
+			fmt.Fprintf(&b, "  - %s/%s: %s, ready %d/%d, restarts %d", p.Namespace, p.Name, phase, ready, len(p.Spec.Containers), restarts)
+			if state := containerStateSummary(p); state != "" {
+				fmt.Fprintf(&b, ", state: %s", state)
+			}
+			b.WriteString("\n")
 			shown++
 		}
 	}
 	fmt.Fprintf(&b, "(%d pods appear unhealthy)\n", unhealthy)
 	return toolResult{Text: b.String(), Citations: []Citation{{Kind: "tool", Ref: "get_pods", Title: "Live pod status (Kubernetes API)"}}}
+}
+
+// containerStateSummary condenses the most telling container state per pod for
+// the get_pods summary line: waiting reason/message, terminated reason/code, or
+// the last termination state. Empty when every container is running cleanly.
+func containerStateSummary(p corev1.Pod) string {
+	var parts []string
+	for _, cs := range p.Status.ContainerStatuses {
+		switch {
+		case cs.State.Waiting != nil && cs.State.Waiting.Reason != "":
+			msg := cs.State.Waiting.Reason
+			if m := strings.TrimSpace(cs.State.Waiting.Message); m != "" {
+				msg += ":" + truncate(m, 100)
+			}
+			parts = append(parts, fmt.Sprintf("%s=%s", cs.Name, msg))
+		case cs.State.Terminated != nil:
+			parts = append(parts, fmt.Sprintf("%s=terminated:%s:%d", cs.Name, cs.State.Terminated.Reason, cs.State.Terminated.ExitCode))
+		case cs.LastTerminationState.Terminated != nil:
+			parts = append(parts, fmt.Sprintf("%s=last:%s:%d", cs.Name, cs.LastTerminationState.Terminated.Reason, cs.LastTerminationState.Terminated.ExitCode))
+		}
+	}
+	return strings.Join(parts, ", ")
+}
+
+func (e *ChatEngine) toolDescribePod(ctx context.Context, namespace, pod string) toolResult {
+	if e.clientset == nil {
+		return toolResult{Text: "Kubernetes API access is not configured for the analyzer."}
+	}
+	if namespace == "" || pod == "" {
+		return toolResult{Text: "describe_pod requires both namespace and pod arguments."}
+	}
+	cctx, cancel := context.WithTimeout(ctx, 8*time.Second)
+	defer cancel()
+	p, err := e.clientset.CoreV1().Pods(namespace).Get(cctx, pod, metav1.GetOptions{})
+	if err != nil {
+		return toolResult{Text: fmt.Sprintf("Failed to describe pod %s/%s: %v", namespace, pod, err)}
+	}
+	ready := 0
+	for _, cs := range p.Status.ContainerStatuses {
+		if cs.Ready {
+			ready++
+		}
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "Pod %s/%s — phase %s, ready %d/%d\n", namespace, pod, p.Status.Phase, ready, len(p.Spec.Containers))
+	for _, cs := range p.Status.ContainerStatuses {
+		fmt.Fprintf(&b, "  container %s: restarts %d\n", cs.Name, cs.RestartCount)
+		switch {
+		case cs.State.Waiting != nil:
+			fmt.Fprintf(&b, "    waiting: %s", cs.State.Waiting.Reason)
+			if m := strings.TrimSpace(cs.State.Waiting.Message); m != "" {
+				fmt.Fprintf(&b, " — %s", truncate(m, 220))
+			}
+			b.WriteString("\n")
+		case cs.State.Terminated != nil:
+			fmt.Fprintf(&b, "    terminated: %s exit=%d", cs.State.Terminated.Reason, cs.State.Terminated.ExitCode)
+			if !cs.State.Terminated.FinishedAt.IsZero() {
+				fmt.Fprintf(&b, " finished %s", cs.State.Terminated.FinishedAt.Format(time.RFC3339))
+			}
+			b.WriteString("\n")
+		default:
+			b.WriteString("    running\n")
+		}
+		if cs.LastTerminationState.Terminated != nil {
+			fmt.Fprintf(&b, "    last termination: %s exit=%d\n", cs.LastTerminationState.Terminated.Reason, cs.LastTerminationState.Terminated.ExitCode)
+		}
+	}
+	if evs := podEvents(cctx, e.clientset, namespace, pod); len(evs) > 0 {
+		b.WriteString("  events:\n")
+		for _, ev := range evs {
+			msg := ev.Message
+			if msg == "" {
+				msg = ev.Reason
+			}
+			fmt.Fprintf(&b, "    [%s] %s %s — %s\n", ev.Type, ev.Reason, ev.LastTimestamp.Format(time.RFC3339), truncate(msg, 220))
+		}
+	}
+	return toolResult{Text: b.String(), Citations: []Citation{{Kind: "tool", Ref: "describe_pod", Title: fmt.Sprintf("%s/%s pod detail", namespace, pod)}}}
+}
+
+// podEvents returns the most recent events (warnings first) whose InvolvedObject
+// is the named pod. Bounded to 15 entries to keep the grounding block compact.
+func podEvents(ctx context.Context, cs kubernetes.Interface, namespace, pod string) []corev1.Event {
+	evs, err := cs.CoreV1().Events(namespace).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil
+	}
+	var out []corev1.Event
+	for _, ev := range evs.Items {
+		if ev.InvolvedObject.Kind == "Pod" && ev.InvolvedObject.Name == pod {
+			out = append(out, ev)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		ti, tj := out[i].LastTimestamp.Time, out[j].LastTimestamp.Time
+		if ti.Equal(tj) {
+			return out[i].Type == "Warning" && out[j].Type != "Warning"
+		}
+		return ti.After(tj)
+	})
+	if len(out) > 15 {
+		out = out[:15]
+	}
+	return out
+}
+
+func (e *ChatEngine) toolPodLogs(ctx context.Context, namespace, pod, container string, previous bool) toolResult {
+	if e.clientset == nil {
+		return toolResult{Text: "Kubernetes API access is not configured for the analyzer."}
+	}
+	if namespace == "" || pod == "" {
+		return toolResult{Text: "pod_logs requires both namespace and pod arguments."}
+	}
+	cctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	tail := int64(60)
+	raw, err := e.clientset.CoreV1().Pods(namespace).GetLogs(pod, &corev1.PodLogOptions{Container: container, Previous: previous, TailLines: &tail}).Do(cctx).Raw()
+	if err != nil {
+		return toolResult{Text: fmt.Sprintf("Failed to fetch logs for %s/%s: %v", namespace, pod, err)}
+	}
+	return formatPodLogs(namespace, pod, container, previous, raw)
+}
+
+func formatPodLogs(namespace, pod, container string, previous bool, raw []byte) toolResult {
+	if len(raw) == 0 {
+		return toolResult{Text: fmt.Sprintf("No logs returned for %s/%s (container %q, previous=%v).", namespace, pod, container, previous)}
+	}
+	label := fmt.Sprintf("Logs for %s/%s (container %q, previous=%v):\n%s", namespace, pod, container, previous, truncate(string(raw), 6000))
+	return toolResult{Text: label, Citations: []Citation{{Kind: "tool", Ref: "pod_logs", Title: fmt.Sprintf("%s/%s logs", namespace, pod)}}}
+}
+
+func (e *ChatEngine) toolRolloutStatus(ctx context.Context, namespace, deployment string) toolResult {
+	if e.clientset == nil {
+		return toolResult{Text: "Kubernetes API access is not configured for the analyzer."}
+	}
+	if namespace == "" || deployment == "" {
+		return toolResult{Text: "rollout_status requires both namespace and deployment arguments."}
+	}
+	cctx, cancel := context.WithTimeout(ctx, 8*time.Second)
+	defer cancel()
+	d, err := e.clientset.AppsV1().Deployments(namespace).Get(cctx, deployment, metav1.GetOptions{})
+	if err != nil {
+		return toolResult{Text: fmt.Sprintf("Failed to get deployment %s/%s: %v", namespace, deployment, err)}
+	}
+	var b strings.Builder
+	replicas := int32(0)
+	if d.Spec.Replicas != nil {
+		replicas = *d.Spec.Replicas
+	}
+	fmt.Fprintf(&b, "Deployment %s/%s — desired %d, updated %d, ready %d, unavailable %d\n",
+		namespace, deployment, replicas, d.Status.UpdatedReplicas, d.Status.ReadyReplicas, d.Status.UnavailableReplicas)
+	for _, c := range d.Status.Conditions {
+		fmt.Fprintf(&b, "  condition %s=%s", c.Type, c.Status)
+		if c.Reason != "" {
+			fmt.Fprintf(&b, " (%s)", c.Reason)
+		}
+		if m := strings.TrimSpace(c.Message); m != "" {
+			fmt.Fprintf(&b, " — %s", truncate(m, 200))
+		}
+		b.WriteString("\n")
+	}
+	rss, err := e.clientset.AppsV1().ReplicaSets(namespace).List(cctx, metav1.ListOptions{})
+	if err == nil && d.Spec.Selector != nil {
+		matched := 0
+		for _, rs := range rss.Items {
+			if rs.Spec.Template.Labels == nil {
+				continue
+			}
+			ok := true
+			for k, v := range d.Spec.Selector.MatchLabels {
+				if rs.Spec.Template.Labels[k] != v {
+					ok = false
+					break
+				}
+			}
+			if ok {
+				fmt.Fprintf(&b, "  ReplicaSet %s: desired %d, ready %d, revision %s\n",
+					rs.Name, rs.Status.Replicas, rs.Status.ReadyReplicas, rs.Annotations["deployment.kubernetes.io/revision"])
+				matched++
+			}
+		}
+		if matched == 0 {
+			b.WriteString("  (no ReplicaSets matched the deployment selector)\n")
+		}
+	}
+	return toolResult{Text: b.String(), Citations: []Citation{{Kind: "tool", Ref: "rollout_status", Title: fmt.Sprintf("%s/%s rollout state", namespace, deployment)}}}
+}
+
+func (e *ChatEngine) toolJobStatus(ctx context.Context, namespace, job string) toolResult {
+	if e.clientset == nil {
+		return toolResult{Text: "Kubernetes API access is not configured for the analyzer."}
+	}
+	if namespace == "" || job == "" {
+		return toolResult{Text: "job_status requires both namespace and job arguments."}
+	}
+	cctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	j, err := e.clientset.BatchV1().Jobs(namespace).Get(cctx, job, metav1.GetOptions{})
+	if err != nil {
+		return toolResult{Text: fmt.Sprintf("Failed to get job %s/%s: %v", namespace, job, err)}
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "Job %s/%s — active %d, succeeded %d, failed %d (backoffLimit %d)\n",
+		namespace, job, j.Status.Active, j.Status.Succeeded, j.Status.Failed, derefI32(j.Spec.BackoffLimit))
+	for _, c := range j.Status.Conditions {
+		fmt.Fprintf(&b, "  condition %s=%s", c.Type, c.Status)
+		if c.Reason != "" {
+			fmt.Fprintf(&b, " (%s)", c.Reason)
+		}
+		if m := strings.TrimSpace(c.Message); m != "" {
+			fmt.Fprintf(&b, " — %s", truncate(m, 200))
+		}
+		b.WriteString("\n")
+	}
+	sel := labels.SelectorFromSet(labels.Set{"job-name": job}).String()
+	pods, err := e.clientset.CoreV1().Pods(namespace).List(cctx, metav1.ListOptions{LabelSelector: sel})
+	if err == nil {
+		for i := len(pods.Items) - 1; i >= 0; i-- {
+			p := pods.Items[i]
+			if p.Status.Phase != corev1.PodFailed && p.Status.Phase != corev1.PodSucceeded {
+				continue
+			}
+			tail := int64(30)
+			raw, err := e.clientset.CoreV1().Pods(namespace).GetLogs(p.Name, &corev1.PodLogOptions{TailLines: &tail}).Do(cctx).Raw()
+			if err == nil && len(raw) > 0 {
+				fmt.Fprintf(&b, "  last pod %s (%s) logs:\n%s\n", p.Name, p.Status.Phase, truncate(string(raw), 1500))
+			}
+			break
+		}
+	}
+	return toolResult{Text: b.String(), Citations: []Citation{{Kind: "tool", Ref: "job_status", Title: fmt.Sprintf("%s/%s job state", namespace, job)}}}
+}
+
+func (e *ChatEngine) toolSecretKeys(ctx context.Context, namespace, name string) toolResult {
+	if e.clientset == nil {
+		return toolResult{Text: "Kubernetes API access is not configured for the analyzer."}
+	}
+	if namespace == "" || name == "" {
+		return toolResult{Text: "secret_keys requires both namespace and name arguments."}
+	}
+	cctx, cancel := context.WithTimeout(ctx, 8*time.Second)
+	defer cancel()
+	s, err := e.clientset.CoreV1().Secrets(namespace).Get(cctx, name, metav1.GetOptions{})
+	if err != nil {
+		return toolResult{Text: fmt.Sprintf("Failed to get secret %s/%s: %v", namespace, name, err)}
+	}
+	keys := make([]string, 0, len(s.Data))
+	for k := range s.Data {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	var b strings.Builder
+	if len(keys) == 0 {
+		b.WriteString(fmt.Sprintf("Secret %s/%s: NO data keys (the secret is empty). Referenced env vars will fail to resolve.", namespace, name))
+	} else {
+		fmt.Fprintf(&b, "Secret %s/%s has %d data key(s): %s.\nValues are never included here — match keys against what the failing container's events reference.",
+			namespace, name, len(keys), strings.Join(keys, ", "))
+	}
+	return toolResult{Text: b.String(), Citations: []Citation{{Kind: "tool", Ref: "secret_keys", Title: fmt.Sprintf("%s/%s secret keys", namespace, name)}}}
+}
+
+// derefI32 dereferences an int32 pointer, defaulting to 0 when nil.
+func derefI32(p *int32) int32 {
+	if p == nil {
+		return 0
+	}
+	return *p
 }
 
 func (e *ChatEngine) toolQueryPrometheus(ctx context.Context, query string) toolResult {
@@ -387,4 +675,15 @@ func argStr(args map[string]any, key string) string {
 		return v
 	}
 	return ""
+}
+
+// argBool reads a boolean argument by key, defaulting to false when absent.
+func argBool(args map[string]any, key string) bool {
+	if args == nil {
+		return false
+	}
+	if v, ok := args[key].(bool); ok {
+		return v
+	}
+	return false
 }
